@@ -15,7 +15,7 @@ class RelationController extends Controller
     {
         $relations = Relation::with(['subject', 'object'])->get();
 
-        return response()->json($relations);
+        return response()->json(['data' => $relations]);
     }
 
     /**
@@ -33,8 +33,8 @@ class RelationController extends Controller
     {
         $data = $request->validated();
 
-        $relation = Relation::firstOrRestore(
-            ['title' => $data->title],
+        $relation = Relation::firstOrCreate(
+            ['title' => $data['title']],
             $data
         );
 
@@ -43,7 +43,7 @@ class RelationController extends Controller
             'message' => $relation->wasRecentlyCreated
                 ? 'Scope created.'
                 : 'Scope already exists.',
-        ]);
+        ], 201);
     }
 
     /**
@@ -96,7 +96,8 @@ class RelationController extends Controller
         $deletedRelation = $relation->delete();
 
         return response()->json(
-            "{$relation->title} was deleted."
+            "{$relation->title} was deleted.",
+            204
         );
     }
 }

@@ -16,7 +16,7 @@ class ScopeController extends Controller
         $scopes = Scope::all();
 
         return response()->json(
-            $scopes
+            ["data" => $scopes]
         );
     }
 
@@ -45,7 +45,7 @@ class ScopeController extends Controller
             'message' => $scope->wasRecentlyCreated
                 ? 'Scope created.'
                 : 'Scope already exists.',
-        ]);
+        ], 201);
     }
 
     /**
@@ -98,7 +98,8 @@ class ScopeController extends Controller
     {
         $deletedScope = $scope->delete();
         return response()->json(
-            "{$scope->name} wad deleted."
+            "{$scope->name} wad deleted.",
+            204
         );
     }
 }

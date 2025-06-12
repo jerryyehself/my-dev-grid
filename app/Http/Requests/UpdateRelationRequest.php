@@ -22,9 +22,11 @@ class UpdaterelationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'subject_id' => 'required',
+            'object_id' => 'required',
             'class_number' => 'required|numeric',
             'call_number' => 'nullable|numeric',
-            'name' => 'required|unique:scopes',
+            'title' => 'required|unique:scopes',
             'comment' => 'max:100',
             'note' => 'max:255'
         ];

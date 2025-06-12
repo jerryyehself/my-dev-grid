@@ -12,7 +12,7 @@ class UpdateScopeRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -28,6 +28,7 @@ class UpdateScopeRequest extends FormRequest
                 'nullable',
                 'numeric',
                 Rule::unique('scopes')
+                    ->ignore($this->scope->id)
                     ->where(fn($query) => $query->where('class_number', $this->class_number)),
             ],
             'name' => [

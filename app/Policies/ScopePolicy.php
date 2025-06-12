@@ -13,7 +13,7 @@ class ScopePolicy
      */
     public function viewAny(User $user): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -21,7 +21,7 @@ class ScopePolicy
      */
     public function view(User $user, scope $scope): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -29,7 +29,7 @@ class ScopePolicy
      */
     public function create(User $user): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -37,7 +37,7 @@ class ScopePolicy
      */
     public function update(User $user, scope $scope): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -45,7 +45,7 @@ class ScopePolicy
      */
     public function delete(User $user, scope $scope): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -53,7 +53,8 @@ class ScopePolicy
      */
     public function restore(User $user, scope $scope): bool
     {
-        return false;
+        dd('hit policy');
+        return true;
     }
 
     /**
@@ -61,6 +62,6 @@ class ScopePolicy
      */
     public function forceDelete(User $user, scope $scope): bool
     {
-        return false;
+        return true;
     }
 }

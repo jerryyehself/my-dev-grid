@@ -20,10 +20,19 @@ class ScopeFactory extends Factory
 
     public function definition(): array
     {
+        $classNumber = fake()->numberBetween(10, 20);
+        $usedCallNum = Scope::where('class_number', $classNumber)->pluck('call_number')->toArray();
+
+        $availableCallNum = collect(range(0, 99))
+            ->map(fn($n) => str_pad($n, 2, '0', STR_PAD_LEFT))
+            ->diff($usedCallNum)
+            ->values()
+            ->random();
+
         return [
-            'class_number' => fake()->numberBetween(10, 20),
-            'call_number' => $call = fake()->numerify('##'),
-            'is_scope_lead' => $call === '00',
+            'class_number' => $classNumber,
+            'call_number' => $availableCallNum,
+            'is_scope_lead' => $availableCallNum === '00',
             'name' => fake()->unique()->word(),
             'comment' => fake()->text(50)
         ];
