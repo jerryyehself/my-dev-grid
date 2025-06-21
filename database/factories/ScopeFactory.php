@@ -29,10 +29,12 @@ class ScopeFactory extends Factory
             ->values()
             ->random();
 
+        $parent = Scope::where('class_number', $classNumber)->where('call_number', '00')->value('id');
+
         return [
             'class_number' => $classNumber,
             'call_number' => $availableCallNum,
-            'is_scope_lead' => $availableCallNum === '00',
+            'parent_class' => $parent,
             'name' => fake()->unique()->word(),
             'comment' => fake()->text(50)
         ];

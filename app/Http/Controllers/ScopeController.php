@@ -13,10 +13,10 @@ class ScopeController extends Controller
      */
     public function index()
     {
-        $scopes = Scope::all();
+        $scopes = Scope::with('parent')->orderBy('class_number')->orderBy('call_number')->get();
 
         return response()->json(
-            ["data" => $scopes]
+            ["type" => strtolower(class_basename(Scope::class)), "data" => $scopes]
         );
     }
 
@@ -25,7 +25,43 @@ class ScopeController extends Controller
      */
     public function create()
     {
-        // return Scope::create()->save();
+        return response()->json(
+            ['form' => [
+                'id' => [
+                    'required' => false,
+                    'type' => 'hidden'
+                ],
+                'name' => [
+                    'label' => '名稱',
+                    'required' => true,
+                    'type' => 'text'
+                ],
+                'class_number' => [
+                    'label' => '類號',
+                    'required' => true,
+                    'type' => 'select',
+                    'options' => Scope::select('id', 'class_number', 'name')
+                        ->where('parent_class', null)
+                        ->orderBy('class_number')
+                        ->distinct()->get()
+                ],
+                'call_number' => [
+                    'label' => '子類號',
+                    'required' => true,
+                    'type' => 'number'
+                ],
+                'comment' => [
+                    'label' => '範圍說明',
+                    'required' => false,
+                    'type' => 'textarea'
+                ],
+                'note' => [
+                    'label' => '註釋',
+                    'required' => false,
+                    'type' => 'textarea'
+                ]
+            ]]
+        );
     }
 
     /**

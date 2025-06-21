@@ -17,9 +17,15 @@ return new class extends Migration
             $table->foreignId('subject_id')->constrained('scopes')->comment('主語id');
             $table->foreignId('object_id')->constrained('scopes')->comment('客語id');
 
+            $table->foreignId('parent_class')
+                ->nullable()
+                ->constrained('relations')
+                ->onDelete('set null')
+                ->comment('父類');
+
             $table->string('class_number', length: 2)->comment('關係類號');
             $table->string('call_number', length: 2)->default('00')->comment('關係子類號');
-            $table->string('title', length: 50)->comment('關係名稱');
+            $table->string('name', length: 50)->comment('關係名稱');
             $table->text('note')->comment('註釋')->nullable();
 
             $table->softDeletes();

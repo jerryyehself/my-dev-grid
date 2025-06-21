@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\SetCURIEAttribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,17 +10,20 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Relation extends Model
 {
     /** @use HasFactory<\Database\Factories\RelationFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, SetCURIEAttribute;
 
     protected $fillable = [
         'subject_id',
         'object_id',
+        'parent_class',
         'class_number',
         'call_number',
         'is_relation_lead',
-        'title',
+        'name',
         'note'
     ];
+
+    protected $appends = ['CURIE'];
 
     public function subject()
     {

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Scope;
+use Database\Seeders\ScopeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
@@ -66,14 +67,13 @@ class ScopeCRUDTest extends TestCase
 
     public function test_list_all_scopes()
     {
-        $this->seed();
+        $this->seed(ScopeSeeder::class);
         $response = $this->getJson('api/scopes');
 
         $response->assertOk();
 
-
         // seed裡面有14+10筆資料
-        $this->assertCount(24, $response->json('data'));
+        $this->assertCount(24, $response->json('data'), '錯誤');
 
         $response->assertJsonFragment([
             'name' => 'Documentation'

@@ -9,3 +9,18 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/* Chrome/Safari */
+.scroll-blend::-webkit-scrollbar {
+    width: 6px;
+}
+
+.scroll-blend::-webkit-scrollbar-track {
+    /* 與背景類似的色，例如 Tailwind 的 stone-300 */
+}
+
+.scroll-blend::-webkit-scrollbar-thumb {
+    background-color: #78716c;
+    /* 同上 */
+    border-radius: 3px;
+}

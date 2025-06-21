@@ -13,9 +13,9 @@ class RelationController extends Controller
      */
     public function index()
     {
-        $relations = Relation::with(['subject', 'object'])->get();
+        $relations = Relation::with('parent')->orderBy('class_number')->orderBy('call_number')->with(['subject', 'object'])->get();
 
-        return response()->json(['data' => $relations]);
+        return response()->json(['type' => strtolower(class_basename(Relation::class)), 'data' => $relations]);
     }
 
     /**
@@ -23,7 +23,38 @@ class RelationController extends Controller
      */
     public function create()
     {
-        // return Relation::create([]);
+        return response()->json(
+            ['form' => [
+                'id' => [
+                    'required' => false,
+                    'type' => 'hidden'
+                ],
+                'name' => [
+                    'label' => '名稱',
+                    'required' => true,
+                    'type' => 'text'
+                ],
+                'class_number' => [
+                    'label' => '類號',
+                    'required' => true,
+                    'type' => 'select',
+                    'options' => Relation::select('id', 'class_number', 'name')
+                        ->where('parent_class', null)
+                        ->orderBy('class_number')
+                        ->distinct()->get()
+                ],
+                'call_number' => [
+                    'label' => '子類號',
+                    'required' => true,
+                    'type' => 'number'
+                ],
+                'note' => [
+                    'label' => '註釋',
+                    'required' => false,
+                    'type' => 'textarea'
+                ]
+            ]]
+        );
     }
 
     /**

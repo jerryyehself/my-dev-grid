@@ -19,7 +19,7 @@ class RelationFactory extends Factory
         return [
             'subject_id' => 1,
             'object_id' => 2,
-            'title' => fake()->word(),
+            'name' => fake()->word(),
             'note' => fake()->sentence(),
             'created_at' => now(),
             'updated_at' => now(),

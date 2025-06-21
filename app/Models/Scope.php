@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\SetCURIEAttribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,18 +10,18 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Scope extends Model
 {
     /** @use HasFactory<\Database\Factories\ScopeFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, SetCURIEAttribute;
 
     protected $fillable = [
         'class_number',
         'call_number',
-        'is_scope_lead',
+        'parent_class',
         'name',
         'comment',
         'note'
     ];
 
-    protected $appends = ['CURIE', 'FullCallNumber'];
+    protected $appends = ['CURIE'];
 
     protected static function booted()
     {
@@ -30,16 +31,6 @@ class Scope extends Model
                 $scope->objectOf->each->delete();
             }
         });
-    }
-
-    public function getFullCallNumberAttribute()
-    {
-        return $this->class_number . $this->call_number;
-    }
-
-    public function getCURIEAttribute()
-    {
-        return "{$this->name}: {$this->class_number}{$this->call_number}";
     }
 
     public function getAllRelationsAttribute()

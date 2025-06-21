@@ -15,7 +15,11 @@ return new class extends Migration
             $table->id();
             $table->char('class_number', length: 2)->comment('類號');
             $table->char('call_number', length: 2)->default('00')->comment('子類號');
-            $table->boolean('is_scope_lead')->default(false)->index()->comment('實體主類');
+            $table->foreignId('parent_class')
+                ->nullable()
+                ->constrained('scopes')
+                ->onDelete('set null')
+                ->comment('父類');
             $table->string('name', length: 50)->comment('類名');
             $table->tinyText('comment')->comment('範圍說明');
             $table->text('note')->comment('註釋')->nullable();

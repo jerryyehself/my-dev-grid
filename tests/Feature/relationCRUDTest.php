@@ -18,16 +18,16 @@ class relationCRUDTest extends TestCase
         $response = $this->postJson('/api/relations', [
             'subject_id' => '14',
             'object_id' => '01',
-            'title' => 'Test',
+            'name' => 'Test',
             'class_number' => '99',
             'call_number' => '99',
             'comment' => 'unit test comment',
         ]);
-
+        // $response->dump();
         $response->assertCreated()
-            ->assertJsonFragment(['title' => 'Test']);
+            ->assertJsonFragment(['name' => 'Test']);
 
-        $this->assertDatabaseHas('relations', ['title' => 'Test']);
+        $this->assertDatabaseHas('relations', ['name' => 'Test']);
     }
 
     public function test_view_relation()
@@ -51,16 +51,16 @@ class relationCRUDTest extends TestCase
         $response = $this->putJson("/api/relations/{$relation->id}", [
             'subject_id' => '1',
             'object_id' => '14',
-            'title' => 'Updated title',
+            'name' => 'Updated name',
             'class_number' => $relation->class_number,
             'call_number' => $relation->call_number,
             'comment' => 'Updated comment',
         ]);
 
         $response->assertOk()
-            ->assertJsonFragment(['title' => 'Updated title']);
+            ->assertJsonFragment(['name' => 'Updated name']);
 
-        $this->assertDatabaseHas('relations', ['id' => $relation->id, 'title' => 'Updated title']);
+        $this->assertDatabaseHas('relations', ['id' => $relation->id, 'name' => 'Updated name']);
     }
 
     public function test_delete_relation()
@@ -86,7 +86,7 @@ class relationCRUDTest extends TestCase
         // $this->assertCount(3, $response->json('data'));
 
         $response->assertJsonFragment([
-            'title' => 'specs'
+            'name' => 'specs'
         ]);
     }
 }
