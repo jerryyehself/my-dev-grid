@@ -46,6 +46,11 @@ class RelationSeeder extends Seeder
             ]);
         }
 
+        // $this->createRandomRelation($nonLeadScopes);
+    }
+
+    private function createRandomRelation($nonLeadScopes)
+    {
         // 建立非主類之間的隨機關聯
         if ($nonLeadScopes->count() >= 2) {
             $relations = collect();

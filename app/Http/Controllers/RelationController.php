@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreRelationRequest;
 use App\Http\Requests\UpdateRelationRequest;
+use App\Http\Resources\RelationResource;
 use App\Models\Relation;
+use App\Models\Scope;
 
 class RelationController extends Controller
 {
@@ -15,7 +17,10 @@ class RelationController extends Controller
     {
         $relations = Relation::with('parent')->orderBy('class_number')->orderBy('call_number')->with(['subject', 'object'])->get();
 
-        return response()->json(['type' => strtolower(class_basename(Relation::class)), 'data' => $relations]);
+        return response()->json([
+            "type" => strtolower(class_basename(Relation::class)),
+            "data" => RelationResource::collection($relations),
+        ]);
     }
 
     /**
@@ -32,22 +37,51 @@ class RelationController extends Controller
                 'name' => [
                     'label' => '名稱',
                     'required' => true,
-                    'type' => 'text'
+                    'type' => 'text',
+                    'class' => [
+                        'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
+                    ]
+                ],
+                'subject' => [
+                    'label' => '主體',
+                    'required' => true,
+                    'type' => 'select',
+                    'options' => Scope::select('id', 'class_number', 'call_number', 'name')
+                        ->orderBy('class_number')
+                        ->distinct()->get(),
+                    'class' => [
+                        'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
+                    ]
+                ],
+                'object' => [
+                    'label' => '客體',
+                    'required' => true,
+                    'type' => 'select',
+                    'options' => Scope::select('id', 'class_number', 'call_number', 'name')
+                        ->orderBy('class_number')
+                        ->distinct()->get(),
+                    'class' => [
+                        'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
+                    ]
                 ],
                 'class_number' => [
                     'label' => '類號',
                     'required' => true,
-                    'type' => 'select',
-                    'options' => Relation::select('id', 'class_number', 'name')
-                        ->where('parent_class', null)
-                        ->orderBy('class_number')
-                        ->distinct()->get()
+                    'type' => 'label',
+                    '' => '',
+                    'class' => [
+                        'w' => 'col-span-12 md:col-span-6 lg:col-span-6'
+                    ]
                 ],
                 'call_number' => [
                     'label' => '子類號',
                     'required' => true,
-                    'type' => 'number'
+                    'type' => 'number',
+                    'class' => [
+                        'w' => 'col-span-12 md:col-span-6 lg:col-span-6'
+                    ]
                 ],
+
                 'note' => [
                     'label' => '註釋',
                     'required' => false,

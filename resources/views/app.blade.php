@@ -8,8 +8,8 @@
 </head>
 
 <body class="bg-stone-300 h-screen overflow-hidden px-4 py-3">
-    <div id="app" class="grid grid-cols-4 gap-3 h-full min-h-0 box-border">
-    </div>
+    <main id="app" class="grid grid-cols-4 gap-3 h-full min-h-0 box-border">
+    </main>
 </body>
 
 </html>

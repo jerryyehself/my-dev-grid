@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreScopeRequest;
 use App\Http\Requests\UpdateScopeRequest;
+use App\Http\Resources\ScopeResource;
 use App\Models\Scope;
 
 class ScopeController extends Controller
@@ -15,9 +16,10 @@ class ScopeController extends Controller
     {
         $scopes = Scope::with('parent')->orderBy('class_number')->orderBy('call_number')->get();
 
-        return response()->json(
-            ["type" => strtolower(class_basename(Scope::class)), "data" => $scopes]
-        );
+        return response()->json([
+            "type" => strtolower(class_basename(Scope::class)),
+            "data" => ScopeResource::collection($scopes),
+        ]);
     }
 
     /**
@@ -34,7 +36,10 @@ class ScopeController extends Controller
                 'name' => [
                     'label' => '名稱',
                     'required' => true,
-                    'type' => 'text'
+                    'type' => 'text',
+                    'class' => [
+                        'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
+                    ]
                 ],
                 'class_number' => [
                     'label' => '類號',
@@ -43,12 +48,18 @@ class ScopeController extends Controller
                     'options' => Scope::select('id', 'class_number', 'name')
                         ->where('parent_class', null)
                         ->orderBy('class_number')
-                        ->distinct()->get()
+                        ->distinct()->get(),
+                    'class' => [
+                        'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
+                    ]
                 ],
                 'call_number' => [
                     'label' => '子類號',
                     'required' => true,
-                    'type' => 'number'
+                    'type' => 'number',
+                    'class' => [
+                        'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
+                    ]
                 ],
                 'comment' => [
                     'label' => '範圍說明',

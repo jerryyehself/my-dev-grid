@@ -110,6 +110,6 @@ class ScopeSeeder extends Seeder
 
         collect($seeds)->each(fn($seed) => Scope::create($seed));
 
-        Scope::factory()->count(10)->create();
+        // Scope::factory()->count(10)->create();
     }
 }

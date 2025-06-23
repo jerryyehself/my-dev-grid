@@ -23,6 +23,8 @@ class Relation extends Model
         'note'
     ];
 
+    protected $dateFormat = 'Y-m-d H:i:s';
+
     protected $appends = ['CURIE'];
 
     public function subject()

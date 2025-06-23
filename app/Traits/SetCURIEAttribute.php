@@ -4,6 +4,7 @@ namespace App\Traits;
 
 trait SetCURIEAttribute
 {
+
     public function getFullCallNumberAttribute()
     {
         return $this->class_number . $this->call_number;
