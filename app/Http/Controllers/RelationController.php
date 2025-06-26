@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateRelationRequest;
 use App\Http\Resources\RelationResource;
 use App\Models\Relation;
 use App\Models\Scope;
+use Illuminate\Support\Str;
 
 class RelationController extends Controller
 {
@@ -18,7 +19,11 @@ class RelationController extends Controller
         $relations = Relation::with('parent')->orderBy('class_number')->orderBy('call_number')->with(['subject', 'object'])->get();
 
         return response()->json([
-            "type" => strtolower(class_basename(Relation::class)),
+            "type" => Str::of(Relation::class)
+                ->classBasename()
+                ->lower()
+                ->plural()
+                ->toString(),
             "data" => RelationResource::collection($relations),
         ]);
     }
@@ -29,7 +34,7 @@ class RelationController extends Controller
     public function create()
     {
         return response()->json(
-            ['form' => [
+            [
                 'id' => [
                     'required' => false,
                     'type' => 'hidden'
@@ -87,7 +92,7 @@ class RelationController extends Controller
                     'required' => false,
                     'type' => 'textarea'
                 ]
-            ]]
+            ]
         );
     }
 

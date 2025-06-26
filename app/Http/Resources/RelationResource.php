@@ -23,10 +23,10 @@ class RelationResource extends JsonResource
             'note' => $this->note,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
-            'parent' => new RelationResource($this->whenLoaded('parent')),
             'CURIE' => strtoupper(class_basename(Relation::class)) . ": {$this->FullCallNumber} {$this->name}",
-            'subject' => new RelationResource($this->whenLoaded('subject')),
-            'object' => new RelationResource($this->whenLoaded('object')),
+            'parent' => new RelationResource($this->whenLoaded('parent')),
+            'subject' => optional($this->subject)->id,
+            'object' => optional($this->object)->id,
         ];
     }
 }

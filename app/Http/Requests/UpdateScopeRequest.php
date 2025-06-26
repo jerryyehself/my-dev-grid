@@ -22,6 +22,7 @@ class UpdateScopeRequest extends FormRequest
      */
     public function rules(): array
     {
+
         return [
             'class_number' => 'bail|required|numeric',
             'call_number' => [
