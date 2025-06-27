@@ -1,15 +1,17 @@
 <script setup>
 import AppTripleItemMetaTag from "./AppTripleItemMetaTag.vue";
 import AppInputUnit from "../forms/AppInputUnit.vue";
-import { useSelectionStore } from "@/stores/useSelectionStore";
 import { computed, ref, watch } from "vue";
+import { useSelectionStore } from "@/stores/useSelectionStore";
 import { useForms } from "@/stores/useForms";
-import { useData } from "../../stores/useData";
+import { useData } from "@/stores/useData";
+import { useErrors } from "../../stores/useErrors";
 
 const selection = useSelectionStore();
 const target = computed(() => selection.selected);
 const formRef = ref(null);
 const form = ref(null);
+const errors = useErrors();
 const itemMeta = computed(() => ({
     type: target.value.title,
     area: target.value.item?.parent?.name,
@@ -40,16 +42,28 @@ watch(
 async function submitForm() {
     const formData = JSON.stringify(target.value.item);
 
-    await fetch(`./api/${target.value.title}/${target.value.item.id}`, {
-        method: "PUT",
-        body: formData,
-        headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
+    const response = await fetch(
+        `/api/${target.value.title}/${target.value.item.id}`,
+        {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+            },
+            body: formData,
         },
-    });
+    );
 
-    useData().fetchData();
+    const status = await response.json();
+    const { message } = status;
+    if (status.errors) {
+        errors.setErrors(status.errors);
+    } else {
+        errors.setErrors();
+        alert(message);
+    }
+
+    await useData().fetchData();
 }
 </script>
 
