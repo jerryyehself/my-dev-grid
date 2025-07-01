@@ -20,4 +20,27 @@ trait SetCURIEAttribute
     {
         return $this->belongsTo(self::class, 'parent_class', 'id');
     }
+
+    public function children()
+    {
+        return $this->hasMany(self::class, 'parent_class');
+    }
+
+    public function getSiblingsAttribute()
+    {
+        return is_null($this->parent_class) ? collect() : self::where('parent_class', $this->parent_class)
+            ->where('id', '!=', $this->id)
+            ->get();
+    }
+
+
+    public function getParentSubjectOfAttribute()
+    {
+        return is_null($this->parent) ? collect() : $this->parent->subjectOf;
+    }
+
+    public function getParentObjectOfAttribute()
+    {
+        return is_null($this->parent) ? collect() : $this->parent->objectOf;
+    }
 }

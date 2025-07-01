@@ -26,6 +26,12 @@ class ScopeResource extends JsonResource
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
             'CURIE' =>  strtoupper(class_basename(Scope::class)) . ": {$this->FullCallNumber} {$this->name}",
             'parent' => new ScopeResource($this->whenLoaded('parent')),
+            'children' => ScopeResource::collection($this->whenLoaded('children')),
+            'siblings' => $this->siblings,
+            'subject_of' => RelationResource::collection($this->whenLoaded('subjectOf')),
+            'object_of' => RelationResource::collection($this->whenLoaded('objectOf')),
+            'parent_subject_of' => RelationResource::collection($this->parent_object_of),
+            'parent_object_of' => RelationResource::collection($this->parent_object_of),
         ];
     }
 }

@@ -96,15 +96,15 @@ class ScopeController extends Controller
      */
     public function show(Scope $scope)
     {
-        $scopeData = $scope->load(['subjectOf.object', 'objectOf.subject']);
-
-        $mainScopeData = Scope::where('class_number', $scope->class_number)->get();
-
         return response()->json(
-            [
-                'scope' => $scopeData,
-                'mainScope' => $mainScopeData
-            ]
+            new ScopeResource($scope->load([
+                'subjectOf.object',
+                'objectOf.subject',
+                'parent.subjectOf',
+                'parent.objectOf',
+                'parent',
+                'children'
+            ]))
         );
     }
 

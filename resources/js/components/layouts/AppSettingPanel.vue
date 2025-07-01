@@ -5,7 +5,7 @@ import { computed, ref, watch } from "vue";
 import { useSelectionStore } from "@/stores/useSelectionStore";
 import { useForms } from "@/stores/useForms";
 import { useData } from "@/stores/useData";
-import { useErrors } from "../../stores/useErrors";
+import { useErrors } from "@/stores/useErrors";
 
 const selection = useSelectionStore();
 const target = computed(() => selection.selected);
@@ -56,6 +56,7 @@ async function submitForm() {
 
     const status = await response.json();
     const { message } = status;
+
     if (status.errors) {
         errors.setErrors(status.errors);
     } else {
@@ -69,7 +70,7 @@ async function submitForm() {
 
 <template>
     <header
-        class="flex items-center text-xl font-bold text-stone-100 bg-stone-700 px-2 py-1"
+        class="flex items-center text-xl font-bold text-white bg-stone-700 px-2 py-1"
     >
         Setting
     </header>
@@ -117,9 +118,7 @@ async function submitForm() {
     </form>
     <div v-else class="h-full"></div>
 
-    <footer
-        class="flex justify-end text-stone-100 bg-stone-700 px-2 py-1 gap-2"
-    >
+    <footer class="flex justify-end text-white bg-stone-700 px-2 py-1 gap-2">
         <button class="rounded border-2 px-2" @click="submitForm">
             submit
         </button>

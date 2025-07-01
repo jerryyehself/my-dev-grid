@@ -104,7 +104,7 @@ class RelationController extends Controller
         $data = $request->validated();
 
         $relation = Relation::firstOrCreate(
-            ['title' => $data['title']],
+            ['name' => $data['name']],
             $data
         );
 
@@ -166,7 +166,7 @@ class RelationController extends Controller
         $deletedRelation = $relation->delete();
 
         return response()->json(
-            "{$relation->title} was deleted.",
+            "{$relation->name} was deleted.",
             204
         );
     }

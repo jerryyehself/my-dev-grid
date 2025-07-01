@@ -18,9 +18,9 @@ class Relation extends Model
         'parent_class',
         'class_number',
         'call_number',
-        'is_relation_lead',
         'name',
-        'note'
+        'note',
+        'reverse_id'
     ];
 
     protected $dateFormat = 'Y-m-d H:i:s';

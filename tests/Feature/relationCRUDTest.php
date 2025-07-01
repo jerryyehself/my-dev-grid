@@ -22,6 +22,7 @@ class relationCRUDTest extends TestCase
             'class_number' => '99',
             'call_number' => '99',
             'comment' => 'unit test comment',
+            'reverse_id' => 1
         ]);
         // $response->dump();
         $response->assertCreated()

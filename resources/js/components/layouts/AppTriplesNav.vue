@@ -23,8 +23,22 @@ function handleToggle(listName) {
 <template>
     <nav
         v-if="scopes.items?.data && relations.items?.data"
-        class="flex flex-col space-y-2 max-h-full min-h-0 overflow-hidden"
+        class="flex flex-col h-full min-h-0 overflow-hidden"
     >
+        <div class="p-1">
+            <input
+                type="text"
+                class="border border-stone-500 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-2 focus:ring-stone-700"
+                placeholder="search..."
+            />
+            <!-- <input
+                    type="text"
+                    v-model="search"
+                    class="border border-stone-500 rounded px-1 py-0.5 w-full mb-1 focus:outline-none focus:ring-2 focus:ring-stone-700"
+                    placeholder="search..."
+                /> -->
+        </div>
+        <hr class="border-t border-white" />
         <AppTriplesNavList
             title="scopes"
             :items="scopes.items.data"
@@ -33,6 +47,7 @@ function handleToggle(listName) {
             @toggle="handleToggle('scopes')"
             :expand="openList === 'scopes'"
         />
+        <hr class="border-t border-white" />
         <AppTriplesNavList
             title="relations"
             :items="relations.items.data"

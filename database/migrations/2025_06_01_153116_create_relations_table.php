@@ -28,6 +28,8 @@ return new class extends Migration
             $table->string('name', length: 50)->comment('關係名稱');
             $table->text('note')->comment('註釋')->nullable();
 
+            $table->foreignId('reverse_id')->nullable()->constrained('relations')->comment('反向關係');
+
             $table->softDeletes();
             $table->timestamps();
         });

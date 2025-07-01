@@ -1,52 +1,46 @@
 <template>
-    <section
-        class="flex flex-col"
-        ref="wrapper"
-        :class="{ 'flex-1 min-h-0': expand }"
-    >
+    <section class="flex flex-col" ref="wrapper" :class="{ 'min-h-0': expand }">
         <div
-            class="flex items-center justify-between text-xl font-bold text-stone-100 bg-stone-700 px-2 py-1 cursor-pointer"
-            :class="isOpen ? 'rounded-t-sm' : 'rounded-sm'"
+            class="flex items-center justify-between text-xl font-bold px-2 py-1 cursor-pointer"
+            :class="{ 'shadow-lg shadow-grey': expand }"
             @click="$emit('toggle')"
         >
             <h2>{{ title }}</h2>
-            <svg
+            <ChevronDownIcon
                 :class="[
                     'w-5 h-5 transition-transform duration-300',
                     { 'rotate-180': isOpen },
                 ]"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M19 9l-7 7-7-7"
-                />
-            </svg>
+                @click="isOpen = !isOpen"
+            />
         </div>
 
-        <div
-            v-if="isOpen"
-            class="bg-stone-400 p-2 rounded-b-sm flex flex-col min-h-0 flex-1"
-        >
-            <input
-                type="text"
-                v-model="search"
-                class="border border-stone-500 rounded px-1 py-0.5 w-full mb-1 focus:outline-none focus:ring-2 focus:ring-yellow-800"
-                placeholder="search..."
-            />
+        <div v-if="isOpen" class="flex flex-col min-h-0 flex-1 box-border">
+            <div class="">
+                <!-- <input
+                    type="text"
+                    v-model="search"
+                    class="border border-stone-500 rounded px-1 py-0.5 w-full mb-1 focus:outline-none focus:ring-2 focus:ring-stone-700"
+                    placeholder="search..."
+                /> -->
+            </div>
             <ul
                 v-if="filteredList.length"
-                class="divide-y divide-stone-300 overflow-auto flex-1 min-h-0 scroll-blend pr-1.5"
+                class="divide-y divide-stone-400 overflow-auto flex-1 min-h-0 scroll-blend"
             >
                 <li
                     v-for="(item, index) in filteredList"
                     :key="index"
-                    class="hover:bg-yellow-800 hover:text-white text-stone-900 px-2 py-1 cursor-pointer"
-                    :class="item.call_number == '00' ? 'font-bold' : ''"
+                    class="hover:border-stone-400 hover:border-l-8 text-stone-900 px-2 py-1 cursor-pointer text-sm pr-1.5"
+                    :class="[
+                        item.call_number == '00' ? 'font-bold' : '',
+                        {
+                            // 'border-stone-400 border-l-8':
+                            'bg-white':
+                                selection.selected?.item?.id == item.id &&
+                                selection.selected?.title == title,
+                        },
+                    ]"
                     @click="onItemClick(title, item)"
                 >
                     {{ item.CURIE }}
@@ -61,6 +55,7 @@
 import { ref, computed, onMounted } from "vue";
 import autoAnimate from "@formkit/auto-animate";
 import { useSelectionStore } from "@/stores/useSelectionStore";
+import { ChevronDownIcon } from "@heroicons/vue/24/outline";
 
 const selection = useSelectionStore();
 

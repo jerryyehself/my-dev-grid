@@ -23,6 +23,8 @@ class Scope extends Model
 
     protected $appends = ['CURIE'];
 
+    protected $dateFormat = 'Y-m-d H:i:s';
+
     protected static function booted()
     {
         static::deleting(function ($scope) {

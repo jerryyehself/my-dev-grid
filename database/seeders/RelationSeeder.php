@@ -25,11 +25,20 @@ class RelationSeeder extends Seeder
             ['20', '10', 'used'],
         ];
 
+        $reverseSeed = [
+            ['specs', 'specifiedBy'],
+            ['documents', 'documentedBy'],
+            ['specifiedBy', 'specs'],
+            ['uses', 'used'],
+            ['documentedBy', 'documents'],
+            ['used', 'uses'],
+        ];
+
         // 一次撈出所有 scopes 並依 is_scope_lead 分組
         $scopes = Scope::all();
 
         $leadScopes = $scopes->whereNull('parent_class');     // 沒有上層的
-        $nonLeadScopes = $scopes->whereNotNull('parent_class'); // 有上層的
+        // $nonLeadScopes = $scopes->whereNotNull('parent_class'); 
 
         // 建立固定關聯資料
         foreach ($seeds as [$from, $to, $name]) {
@@ -44,6 +53,11 @@ class RelationSeeder extends Seeder
                 'name' => $name,
                 'note' => 'test',
             ]);
+        }
+
+        foreach ($reverseSeed as [$subject, $reverse]) {
+            $reverseId = Relation::where('name', $reverse)->value('id');
+            Relation::where('name', $subject)->update(['reverse_id' => $reverseId]);
         }
 
         // $this->createRandomRelation($nonLeadScopes);

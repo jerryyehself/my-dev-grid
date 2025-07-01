@@ -71,9 +71,7 @@ class ScopeCRUDTest extends TestCase
         $response = $this->getJson('api/scopes');
 
         $response->assertOk();
-
-        // seed裡面有14+10筆資料
-        $this->assertCount(24, $response->json('data'), '錯誤');
+        $this->assertCount(14, $response->json('data'), '錯誤');
 
         $response->assertJsonFragment([
             'name' => 'Documentation'

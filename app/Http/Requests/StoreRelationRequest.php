@@ -26,7 +26,7 @@ class StoreRelationRequest extends FormRequest
             'object_id' => 'required',
             'class_number' => 'required|numeric',
             'call_number' => 'nullable|numeric',
-            'title' => 'required|unique:relations',
+            'name' => 'required|unique:relations',
             'note' => ''
         ];
     }
