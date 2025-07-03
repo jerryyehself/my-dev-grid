@@ -21,10 +21,12 @@ class RelationResource extends JsonResource
             'class_number' => $this->class_number,
             'call_number' => $this->call_number,
             'note' => $this->note,
+            'reverse_id' => $this->reverse_id,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
             'CURIE' => strtoupper(class_basename(Relation::class)) . ": {$this->FullCallNumber} {$this->name}",
             'parent' => new RelationResource($this->whenLoaded('parent')),
+            'children' => RelationResource::collection($this->whenLoaded('children')),
             'subject' => optional($this->subject)->id,
             'object' => optional($this->object)->id,
         ];

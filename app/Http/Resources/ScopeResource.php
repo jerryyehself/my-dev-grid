@@ -30,8 +30,6 @@ class ScopeResource extends JsonResource
             'siblings' => $this->siblings,
             'subject_of' => RelationResource::collection($this->whenLoaded('subjectOf')),
             'object_of' => RelationResource::collection($this->whenLoaded('objectOf')),
-            'parent_subject_of' => RelationResource::collection($this->parent_object_of),
-            'parent_object_of' => RelationResource::collection($this->parent_object_of),
         ];
     }
 }

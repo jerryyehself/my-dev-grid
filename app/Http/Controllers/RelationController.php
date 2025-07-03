@@ -121,15 +121,11 @@ class RelationController extends Controller
      */
     public function show(Relation $relation)
     {
-        $relationData = $relation->load(['subject', 'object']);
-
-        $mainRelationData = Relation::with(['subject', 'object'])->where('class_number', $relation->class_number)->get();
-
         return response()->json(
-            [
-                'relation' => $relationData,
-                'mainRelation' => $mainRelationData
-            ]
+            new RelationResource($relation->load([
+                'parent',
+                'children'
+            ]))
         );
     }
 

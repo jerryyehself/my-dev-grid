@@ -35,7 +35,7 @@ const arrowSetting = {
     },
     both: {
         viewBox: "0 0 60 24",
-        path1D: "M14 12h32", // 中央主幹
+        path1D: "M8 12h44", // 中央主幹
         path2D: "M14 6l-8 6 8 6 M46 6l8 6-8 6", // 左右箭頭
     },
 };

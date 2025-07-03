@@ -1,58 +1,129 @@
 <template>
-    <div v-if="detail" class="grid grid-cols-12 h-full">
-        <div class="col-span-2"></div>
+    <div v-if="detail" class="flex flex-col">
+        <AppTripleDetailHeader :target="target" :detail="detail" />
+        <div class="grid grid-cols-12 h-full overflow-hidden">
+            <div class="col-span-10 flex flex-col h-full overflow-hidden">
+                <div
+                    ref="scrollContainer"
+                    @scroll="onScroll"
+                    :class="[
+                        'flex-1 flex flex-col overflow-y-auto min-h-0 scroll-blend transition-shadow duration-200 scroll-smooth',
+                        {
+                            'shadow-[inset_0_6px_6px_-6px_rgba(0,0,0,0.2)]':
+                                showTopShadow,
+                            'shadow-[inset_0_-6px_6px_-6px_rgba(0,0,0,0.2)]':
+                                showBottomShadow,
+                        },
+                    ]"
+                >
+                    <div class="flex flex-col gap-4 py-2 px-4">
+                        <AppTripleDetailContainer content-title="Metadata">
+                            <template #icon>
+                                <CodeBracketSquareIcon
+                                    class="inline-block w-[1em] h-[1em]"
+                                />
+                            </template>
+                            <AppTripleDetailMetadata
+                                :detail="detail"
+                                :type="target.title"
+                                :preload="preload"
+                            />
+                        </AppTripleDetailContainer>
 
-        <div class="col-span-8 flex flex-col h-full overflow-hidden">
-            <div class="shrink-0 py-2.5 flex items-center space-x-4 shadow">
-                <h2 class="text-2xl font-bold text-stone-800">
-                    {{ detail.name }}
-                </h2>
-                <AppTripleItemMetaTag :itemMeta="itemMeta" />
+                        <AppTripleDetailContainer
+                            content-title="Relationship"
+                            v-if="target.title == 'scopes'"
+                        >
+                            <template #icon>
+                                <LinkIcon
+                                    class="inline-block w-[1em] h-[1em]"
+                                />
+                            </template>
+                            <AppTripleDetailRelationship
+                                :detail="detail"
+                                :preload="preload"
+                                :on-scroll-check="checkScrollable"
+                            />
+                        </AppTripleDetailContainer>
+
+                        <AppTripleDetailContainer content-title="Statistic">
+                            <template #icon>
+                                <ChartBarSquareIcon
+                                    class="inline-block w-[1em] h-[1em]"
+                                />
+                            </template>
+
+                            <AppTripleDetailStatic
+                                :detail="detail"
+                                :type="target.title"
+                            />
+                        </AppTripleDetailContainer>
+                    </div>
+                </div>
+                <AppTripleDetailFooter :detail="detail" />
             </div>
 
-            <div
-                class="flex-1 flex flex-col overflow-y-auto min-h-0 scroll-blend"
-            >
-                <div class="flex flex-col gap-4 px-0 pt-2 pb-6 pr-2">
-                    <AppTripleDetailContainer content-title="Metadata">
-                        <template #icon>
-                            <CodeBracketSquareIcon
-                                class="inline-block w-[1em] h-[1em]"
-                            />
-                        </template>
-                        <AppTripleDetailMetadata :detail="detail" />
-                    </AppTripleDetailContainer>
-
-                    <AppTripleDetailContainer content-title="Relationship">
-                        <template #icon>
-                            <LinkIcon class="inline-block w-[1em] h-[1em]" />
-                        </template>
-                        <AppTripleDetailRelationship
-                            :detail="detail"
-                            :preload="preload"
-                        />
-                    </AppTripleDetailContainer>
-
-                    <AppTripleDetailContainer content-title="Statistic">
-                        <template #icon>
-                            <ChartBarSquareIcon
-                                class="inline-block w-[1em] h-[1em]"
-                            />
-                        </template>
-                        <AppTripleDetailStatic :detail="detail" />
-                    </AppTripleDetailContainer>
+            <!-- 右側空白 -->
+            <div class="col-span-2 py-5 flex flex-col px-6 gap-3">
+                <div
+                    v-if="showDetailNav"
+                    class="flex flex-col flex-1 justify-between"
+                >
+                    <ul>
+                        <li
+                            v-for="section in sections"
+                            :key="section"
+                            class="hover:text-shadow-sm"
+                        >
+                            <a
+                                :href="'#' + section"
+                                @click="currentSelectedDetailNav(section)"
+                                :class="[
+                                    'text-gray-400',
+                                    {
+                                        'text-shadow-sm':
+                                            selectedNav === section,
+                                    },
+                                ]"
+                            >
+                                # {{ section }}
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="flex flex-col gap-1 w-full max-w-[160px]">
+                    <button
+                        class="cursor-pointer w-full flex items-center gap-2 px-3 py-1 rounded-sm bg-emerald-500 text-white hover:shadow-lg transition-transform duration-200 hover:scale-105"
+                    >
+                        <PlusIcon class="w-4 h-4" />
+                        <span class="text-sm font-medium tracking-wide"
+                            >New</span
+                        >
+                    </button>
+                    <button
+                        class="cursor-pointer w-full flex items-center gap-2 px-3 py-1 rounded-sm bg-stone-500 text-white hover:shadow-lg transition-transform duration-200 hover:scale-105"
+                    >
+                        <DocumentArrowUpIcon class="w-4 h-4" />
+                        <span class="text-sm font-medium tracking-wide"
+                            >Modify</span
+                        >
+                    </button>
+                    <button
+                        class="cursor-pointer w-full flex items-center gap-2 px-3 py-1 rounded-sm bg-red-600 text-white hover:shadow-lg transition-transform duration-200 hover:scale-105"
+                    >
+                        <TrashIcon class="w-4 h-4" />
+                        <span class="text-sm font-medium tracking-wide"
+                            >Delete</span
+                        >
+                    </button>
                 </div>
             </div>
         </div>
-
-        <!-- 右側空白 -->
-        <div class="col-span-2"></div>
     </div>
 </template>
 
 <script setup>
-import AppTripleItemMetaTag from "./AppTripleItemMetaTag.vue";
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onMounted, nextTick } from "vue";
 import { useSelectionStore } from "@/stores/useSelectionStore";
 import { fetchAPI } from "../../fetchAPI.js";
 import { useData } from "@/stores/useData";
@@ -60,11 +131,19 @@ import AppTripleDetailContainer from "./AppTripleDetailContainer.vue";
 import AppTripleDetailMetadata from "./AppTripleDetailMetadata.vue";
 import AppTripleDetailRelationship from "./AppTripleDetailRelationship.vue";
 import AppTripleDetailStatic from "./AppTripleDetailStatic.vue";
+import AppTripleDetailHeader from "./AppTripleDetailHeader.vue";
+import AppTripleDetailFooter from "./AppTripleDetailFooter.vue";
+
 import {
     CodeBracketSquareIcon,
     LinkIcon,
     ChartBarSquareIcon,
 } from "@heroicons/vue/16/solid";
+import {
+    DocumentArrowUpIcon,
+    TrashIcon,
+    PlusIcon,
+} from "@heroicons/vue/24/outline";
 
 const preload = useData();
 
@@ -72,10 +151,50 @@ const selection = useSelectionStore();
 
 const target = computed(() => selection.selected);
 const detail = ref(null);
-const itemMeta = computed(() => ({
-    type: target.value.title,
-    area: target.value.item?.parent?.name,
-}));
+
+const scrollContainer = ref(null);
+const showTopShadow = ref(false);
+const showBottomShadow = ref(false);
+
+const showDetailNav = ref(false);
+const sections = ["Metadata", "Relationship", "Statistic"];
+const selectedNav = ref("Metadata");
+
+function currentSelectedDetailNav(section) {
+    selectedNav.value = section;
+}
+
+const onScroll = (e) => {
+    checkScrollable();
+};
+
+onMounted(() => {
+    nextTick(() => {
+        checkScrollable();
+    });
+});
+
+const checkScrollable = () => {
+    const el = scrollContainer.value;
+
+    if (!el) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = el;
+
+    showTopShadow.value = scrollTop > 0;
+    showBottomShadow.value = scrollTop + clientHeight < scrollHeight - 1;
+    showDetailNav.value = scrollHeight > clientHeight;
+};
+
+watch(
+    () => detail,
+    () => {
+        nextTick(() => {
+            checkScrollable();
+        });
+    },
+    { deep: true },
+);
 
 watch(
     () => selection.selected,
