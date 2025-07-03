@@ -92,30 +92,11 @@
                     </ul>
                 </div>
                 <div class="flex flex-col gap-1 w-full max-w-[160px]">
-                    <button
-                        class="cursor-pointer w-full flex items-center gap-2 px-3 py-1 rounded-sm bg-emerald-500 text-white hover:shadow-lg transition-transform duration-200 hover:scale-105"
-                    >
-                        <PlusIcon class="w-4 h-4" />
-                        <span class="text-sm font-medium tracking-wide"
-                            >New</span
-                        >
-                    </button>
-                    <button
-                        class="cursor-pointer w-full flex items-center gap-2 px-3 py-1 rounded-sm bg-stone-500 text-white hover:shadow-lg transition-transform duration-200 hover:scale-105"
-                    >
-                        <DocumentArrowUpIcon class="w-4 h-4" />
-                        <span class="text-sm font-medium tracking-wide"
-                            >Modify</span
-                        >
-                    </button>
-                    <button
-                        class="cursor-pointer w-full flex items-center gap-2 px-3 py-1 rounded-sm bg-red-600 text-white hover:shadow-lg transition-transform duration-200 hover:scale-105"
-                    >
-                        <TrashIcon class="w-4 h-4" />
-                        <span class="text-sm font-medium tracking-wide"
-                            >Delete</span
-                        >
-                    </button>
+                    <AppWidgetButton
+                        v-for="(button, index) in buttonConfigs"
+                        :button="button"
+                        :key="index"
+                    />
                 </div>
             </div>
         </div>
@@ -123,7 +104,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, nextTick } from "vue";
+import { computed, ref, watch, onMounted, nextTick, h } from "vue";
 import { useSelectionStore } from "@/stores/useSelectionStore";
 import { fetchAPI } from "../../fetchAPI.js";
 import { useData } from "@/stores/useData";
@@ -133,6 +114,7 @@ import AppTripleDetailRelationship from "./AppTripleDetailRelationship.vue";
 import AppTripleDetailStatic from "./AppTripleDetailStatic.vue";
 import AppTripleDetailHeader from "./AppTripleDetailHeader.vue";
 import AppTripleDetailFooter from "./AppTripleDetailFooter.vue";
+import AppWidgetButton from "../widgets/AppWidgetButton.vue";
 
 import {
     CodeBracketSquareIcon,
@@ -173,6 +155,27 @@ onMounted(() => {
         checkScrollable();
     });
 });
+
+const buttonConfigs = [
+    {
+        label: "New",
+        color: "bg-emerald-600",
+        icon: h(DocumentArrowUpIcon, { class: "w-4 h-4" }), // 👈 已指定大小
+        // action: () => doSomething(),
+    },
+    {
+        label: "Modify",
+        color: "bg-stone-500",
+        icon: h(DocumentArrowUpIcon, { class: "w-4 h-4" }),
+        // action: () => modify(),
+    },
+    {
+        label: "Delete",
+        color: "bg-red-400",
+        icon: h(TrashIcon, { class: "w-4 h-4" }),
+        // action: () => deleteItem(),
+    },
+];
 
 const checkScrollable = () => {
     const el = scrollContainer.value;

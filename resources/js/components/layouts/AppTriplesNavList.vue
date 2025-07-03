@@ -16,14 +16,6 @@
         </div>
 
         <div v-if="isOpen" class="flex flex-col min-h-0 flex-1 box-border">
-            <div class="">
-                <!-- <input
-                    type="text"
-                    v-model="search"
-                    class="border border-stone-500 rounded px-1 py-0.5 w-full mb-1 focus:outline-none focus:ring-2 focus:ring-stone-700"
-                    placeholder="search..."
-                /> -->
-            </div>
             <ul
                 v-if="filteredList.length"
                 class="divide-y divide-stone-400 overflow-auto flex-1 min-h-0 scroll-blend"

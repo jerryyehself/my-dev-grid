@@ -88,9 +88,9 @@
                         height="20"
                     />
                 </span>
-                <span class="w-1/3 text-right truncate font-bold">{{
-                    preload.scopesDict[relation.object]?.name
-                }}</span>
+                <span class="w-1/3 text-right truncate font-bold">
+                    {{ preload.scopesDict[relation.object]?.name }}
+                </span>
             </div>
         </template>
         <template v-if="detail.parent && parentRelation">
@@ -169,6 +169,7 @@
 <script setup>
 import { ref, watch } from "vue";
 import AppDirectionArrows from "../icons/AppDirectionArrows.vue";
+import AppToggleUnit from "../forms/AppToggleUnit.vue";
 
 const relationDirect = ref("both");
 const parentRelation = ref(true);
