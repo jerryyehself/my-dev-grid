@@ -27,7 +27,6 @@
                     :class="[
                         item.call_number == '00' ? 'font-bold' : '',
                         {
-                            // 'border-stone-400 border-l-8':
                             'bg-white':
                                 selection.selected?.item?.id == item.id &&
                                 selection.selected?.title == title,
@@ -35,7 +34,14 @@
                     ]"
                     @click="onItemClick(title, item)"
                 >
-                    {{ item.CURIE }}
+                    <div class="flex gap-1">
+                        <span class="w-1/5 px-1">
+                            {{ item.full_call_number }}
+                        </span>
+                        <span class="w-4/5">
+                            {{ item.name }}
+                        </span>
+                    </div>
                 </li>
             </ul>
             <p v-else class="text-stone-500">not available</p>

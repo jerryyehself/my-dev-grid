@@ -9,22 +9,30 @@
             class="col-span-2 flex space-x-20 text-stone-300 font-medium justify-center xl:text-xl md:text-md"
         >
             <a
-                href="#"
+                v-for="(page, index) in pages"
+                :key="index"
+                :href="page.href"
                 class="relative inline-block px-1 after:content-[''] after:absolute after:left-0 after:bottom-0 after:h-[2px] after:w-0 after:bg-white after:transition-all after:duration-300 hover:after:w-full hover:text-white"
-                >首頁</a
             >
-            <a
-                href="#"
-                class="relative inline-block px-1 after:content-[''] after:absolute after:left-0 after:bottom-0 after:h-[2px] after:w-0 after:bg-white after:transition-all after:duration-300 hover:after:w-full hover:text-white"
-                >文章</a
-            >
-            <a
-                href="#"
-                class="relative inline-block px-1 after:content-[''] after:absolute after:left-0 after:bottom-0 after:h-[2px] after:w-0 after:bg-white after:transition-all after:duration-300 hover:after:w-full hover:text-white"
-                >關於我</a
-            >
+                {{ page.label }}
+            </a>
         </nav>
     </header>
 </template>
 
-<script setup></script>
+<script setup>
+const pages = {
+    home: {
+        href: "",
+        label: "首頁",
+    },
+    article: {
+        href: "",
+        label: "文章",
+    },
+    about: {
+        href: "",
+        label: "關於我",
+    },
+};
+</script>

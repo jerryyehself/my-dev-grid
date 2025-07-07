@@ -33,7 +33,7 @@
             v-for="relation in detail.subject_of"
             :key="'subject-' + relation.id"
         >
-            <div class="flex items-center py-2 text-sm">
+            <div class="flex items-center py-2 text-sm relationship-row">
                 <span class="w-1/3 truncate font-bold">{{ detail.name }}</span>
                 <span class="w-1/3 text-center flex flex-col items-center">
                     <span>{{ relation.name }}</span>
@@ -51,7 +51,7 @@
             v-for="relation in detail.object_of"
             :key="'object-' + relation.id"
         >
-            <div class="flex items-center py-2 text-sm transform decoration-20">
+            <div class="flex items-center py-2 text-sm relationship-row">
                 <span class="w-1/3 truncate font-bold">
                     {{ preload.scopesDict[relation.subject]?.name }}
                 </span>
@@ -72,7 +72,7 @@
         >
             <div
                 v-if="relation.reverse_id"
-                class="flex items-center py-2 text-sm transform decoration-20"
+                class="flex items-center py-2 text-sm relationship-row"
             >
                 <span class="w-1/3 truncate font-bold">
                     {{ preload.scopesDict[relation.subject]?.name }}
@@ -100,7 +100,7 @@
                 v-for="relation in detail.parent.subject_of"
                 :key="'parent-subject-' + relation.id"
             >
-                <div class="flex items-center py-2 text-sm">
+                <div class="flex items-center py-2 text-sm relationship-row">
                     <span class="w-1/3 truncate font-bold">{{
                         preload.scopesDict[relation.subject]?.name
                     }}</span>
@@ -119,7 +119,7 @@
                 v-for="relation in detail.parent.subject_of"
                 :key="'parent-object-' + relation.id"
             >
-                <div class="flex items-center py-2 text-sm">
+                <div class="flex items-center py-2 text-sm relationship-row">
                     <span class="w-1/3 truncate font-bold">
                         {{ preload.scopesDict[relation.object]?.name }}
                     </span>
@@ -140,7 +140,7 @@
             >
                 <div
                     v-if="relation.reverse_id"
-                    class="flex items-center py-2 text-sm"
+                    class="flex items-center py-2 text-sm relationship-row"
                 >
                     <span class="w-1/3 truncate font-bold">{{
                         preload.scopesDict[relation.object]?.name

@@ -20,6 +20,7 @@ class RelationResource extends JsonResource
             'name' => $this->name,
             'class_number' => $this->class_number,
             'call_number' => $this->call_number,
+            'full_call_number' => $this->FullCallNumber,
             'note' => $this->note,
             'reverse_id' => $this->reverse_id,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),

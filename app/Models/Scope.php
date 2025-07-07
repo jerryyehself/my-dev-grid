@@ -21,7 +21,7 @@ class Scope extends Model
         'note'
     ];
 
-    protected $appends = ['CURIE'];
+    protected $appends = ['CURIE', 'FullCallNumber'];
 
     protected $dateFormat = 'Y-m-d H:i:s';
 

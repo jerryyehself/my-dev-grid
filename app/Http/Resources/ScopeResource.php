@@ -20,6 +20,7 @@ class ScopeResource extends JsonResource
             'name' => $this->name,
             'class_number' => $this->class_number,
             'call_number' => $this->call_number,
+            'full_call_number' => $this->FullCallNumber,
             'comment' => $this->comment,
             'note' => $this->note,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
