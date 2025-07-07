@@ -6,13 +6,13 @@
 
 借鑑Linked Data三元組的觀念，將做side project或學習特定程式的過程記錄下來。
 
-![er_model](https://github.com/jerryyehself/my-dev-grid/blob/main/er_model.png?raw=true "架構概念圖")
+![](https://github.com/jerryyehself/my-dev-grid/blob/main/er_model.png?raw=true "架構概念圖")
 
 ### Scope(主詞/受詞)
 
 判斷紀錄屬於哪個類別，主要包括文件(Documention)、使用技術(Technique)、實際執行(Implementation)
 
-![er_model](https://github.com/jerryyehself/my-dev-grid/blob/main/scope_sample.png?raw=true "主詞/受詞範例")
+![](https://github.com/jerryyehself/my-dev-grid/blob/main/scope_sample.png?raw=true "主詞/受詞範例")
 
 ### Relation
 
@@ -20,4 +20,5 @@
 
 ### 期望目標
 
-希望未來做專案的時候可以獲得更多靈感，或減少解決問題的時間。與專案委託人接洽時，可以更快速地跟對方解釋如何做到，成果如何等。
+希望未來做專案的時候可以獲得更多靈感，或減少解決問題的時間。與專案委託人接洽時，可以更快速地跟對方解釋如何做到，成果如何等。會
+目前會先把[前一專案](https://github.com/jerryyehself/Laravel-LearningLibrary)抓取github資料的邏輯部分搬過來，建立部分關係。
