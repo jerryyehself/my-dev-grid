@@ -25,7 +25,7 @@ import {
 
 const props = defineProps({
     detail: {
-        type: Object,
+        type: [Object, null],
         required: true,
     },
 });
