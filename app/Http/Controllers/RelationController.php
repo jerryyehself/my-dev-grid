@@ -16,7 +16,10 @@ class RelationController extends Controller
      */
     public function index()
     {
-        $relations = Relation::with('parent')->orderBy('class_number')->orderBy('call_number')->with(['subject', 'object'])->get();
+        $relationList = Relation::with(['parent', 'subject', 'object'])
+            ->orderBy('class_number')
+            ->orderBy('call_number')
+            ->get();
 
         return response()->json([
             "type" => Str::of(Relation::class)
@@ -24,7 +27,7 @@ class RelationController extends Controller
                 ->lower()
                 ->plural()
                 ->toString(),
-            "data" => RelationResource::collection($relations),
+            "data" => RelationResource::collection($relationList),
         ]);
     }
 
@@ -33,67 +36,63 @@ class RelationController extends Controller
      */
     public function create()
     {
-        return response()->json(
-            [
-                'id' => [
-                    'required' => false,
-                    'type' => 'hidden'
-                ],
-                'name' => [
-                    'label' => '名稱',
-                    'required' => true,
-                    'type' => 'text',
-                    'class' => [
-                        'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
-                    ]
-                ],
-                'subject' => [
-                    'label' => '主體',
-                    'required' => true,
-                    'type' => 'select',
-                    'options' => Scope::select('id', 'class_number', 'call_number', 'name')
-                        ->orderBy('class_number')
-                        ->distinct()->get(),
-                    'class' => [
-                        'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
-                    ]
-                ],
-                'object' => [
-                    'label' => '客體',
-                    'required' => true,
-                    'type' => 'select',
-                    'options' => Scope::select('id', 'class_number', 'call_number', 'name')
-                        ->orderBy('class_number')
-                        ->distinct()->get(),
-                    'class' => [
-                        'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
-                    ]
-                ],
-                'class_number' => [
-                    'label' => '類號',
-                    'required' => true,
-                    'type' => 'label',
-                    '' => '',
-                    'class' => [
-                        'w' => 'col-span-12 md:col-span-6 lg:col-span-6'
-                    ]
-                ],
-                'call_number' => [
-                    'label' => '子類號',
-                    'required' => true,
-                    'type' => 'number',
-                    'class' => [
-                        'w' => 'col-span-12 md:col-span-6 lg:col-span-6'
-                    ]
-                ],
+        $scopeOptions = Scope::select('id', 'class_number', 'call_number', 'name')
+            ->orderBy('class_number')
+            ->distinct()->get();
 
-                'note' => [
-                    'label' => '註釋',
-                    'required' => false,
-                    'type' => 'textarea'
+        return response()->json([
+            'id' => [
+                'required' => false,
+                'type' => 'hidden'
+            ],
+            'name' => [
+                'label' => '名稱',
+                'required' => true,
+                'type' => 'text',
+                'class' => [
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
                 ]
+            ],
+            'subject' => [
+                'label' => '主體',
+                'required' => true,
+                'type' => 'select',
+                'options' => $scopeOptions,
+                'class' => [
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
+                ]
+            ],
+            'object' => [
+                'label' => '客體',
+                'required' => true,
+                'type' => 'select',
+                'options' => $scopeOptions,
+                'class' => [
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
+                ]
+            ],
+            'class_number' => [
+                'label' => '類號',
+                'required' => true,
+                'type' => 'label',
+                'class' => [
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-6'
+                ]
+            ],
+            'call_number' => [
+                'label' => '子類號',
+                'required' => true,
+                'type' => 'number',
+                'class' => [
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-6'
+                ]
+            ],
+            'note' => [
+                'label' => '註釋',
+                'required' => false,
+                'type' => 'textarea'
             ]
-        );
+        ]);
     }
 
     /**
@@ -101,18 +100,18 @@ class RelationController extends Controller
      */
     public function store(StoreRelationRequest $request)
     {
-        $data = $request->validated();
+        $validatedData = $request->validated();
 
         $relation = Relation::firstOrCreate(
-            ['name' => $data['name']],
-            $data
+            ['name' => $validatedData['name']],
+            $validatedData
         );
 
         return response()->json([
-            'data' => $relation,
+            'data' => new RelationResource($relation),
             'message' => $relation->wasRecentlyCreated
-                ? 'Scope created.'
-                : 'Scope already exists.',
+                ? 'Relation created.'
+                : 'Relation already exists.',
         ], 201);
     }
 
@@ -121,11 +120,9 @@ class RelationController extends Controller
      */
     public function show(Relation $relation)
     {
+        $relation->load(['parent', 'children']);
         return response()->json(
-            new RelationResource($relation->load([
-                'parent',
-                'children'
-            ]))
+            new RelationResource($relation)
         );
     }
 
@@ -140,17 +137,17 @@ class RelationController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateRelationRequest $request, relation $relation)
+    public function update(UpdateRelationRequest $request, Relation $relation)
     {
-        $data = $request->validated();
+        $validatedData = $request->validated();
 
-        $updatedRelation = $relation->update($data);
+        $isUpdated = $relation->update($validatedData);
 
         return response()->json([
-            'data' => $relation,
-            'message' =>  $updatedRelation
+            'data' => new RelationResource($relation),
+            'message' =>  $isUpdated
                 ? 'Relation updated.'
-                : 'Relation update faild',
+                : 'Relation update failed',
         ]);
     }
 
@@ -159,11 +156,11 @@ class RelationController extends Controller
      */
     public function destroy(Relation $relation)
     {
-        $deletedRelation = $relation->delete();
+        $relationName = $relation->name;
+        $relation->delete();
 
-        return response()->json(
-            "{$relation->name} was deleted.",
-            204
-        );
+        return response()->json([
+            'message' => "$relationName was deleted."
+        ]);
     }
 }

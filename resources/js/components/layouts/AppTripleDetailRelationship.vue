@@ -3,13 +3,13 @@
         <select
             class="border rounded px-2 py-1 text-sm"
             v-model="relationDirect"
-            @change="onScrollCheck"
+            @change="props.onScrollCheck"
         >
             <option value="subject">主動關係</option>
             <option value="object">被動關係</option>
             <option value="both">雙向關係</option>
         </select>
-        <div v-if="detail.parent">
+        <div v-if="hasParent">
             <label class="text-sm inline-flex items-center">
                 <input
                     type="checkbox"
@@ -28,19 +28,22 @@
 
     <!-- 滾動區 -->
     <div class="flex-1 divide-y divide-stone-200 pr-1">
+        <!-- 主動關係 -->
         <template
             v-if="relationDirect === 'subject'"
-            v-for="relation in detail.subject_of"
+            v-for="relation in subjectOf"
             :key="'subject-' + relation.id"
         >
             <div class="flex items-center py-2 text-sm relationship-row">
-                <span class="w-1/3 truncate font-bold">{{ detail.name }}</span>
+                <span class="w-1/3 truncate font-bold">{{
+                    props.detail.name
+                }}</span>
                 <span class="w-1/3 text-center flex flex-col items-center">
                     <span>{{ relation.name }}</span>
                     <AppDirectionArrows width="60" height="20" />
                 </span>
                 <span class="w-1/3 text-right truncate font-bold">
-                    {{ preload.scopesDict[relation.object]?.name }}
+                    {{ props.preload.scopesDict[relation.object]?.name }}
                 </span>
             </div>
         </template>
@@ -48,26 +51,27 @@
         <!-- 被動關係 -->
         <template
             v-if="relationDirect === 'object'"
-            v-for="relation in detail.object_of"
+            v-for="relation in objectOf"
             :key="'object-' + relation.id"
         >
             <div class="flex items-center py-2 text-sm relationship-row">
                 <span class="w-1/3 truncate font-bold">
-                    {{ preload.scopesDict[relation.subject]?.name }}
+                    {{ props.preload.scopesDict[relation.subject]?.name }}
                 </span>
                 <span class="w-1/3 text-center flex flex-col items-center">
                     <span>{{ relation.name }}</span>
                     <AppDirectionArrows width="60" height="20" />
                 </span>
                 <span class="w-1/3 text-right truncate font-bold">{{
-                    detail.name
+                    props.detail.name
                 }}</span>
             </div>
         </template>
+
         <!-- 雙向關係 -->
         <template
             v-if="relationDirect === 'both'"
-            v-for="relation in detail.subject_of"
+            v-for="relation in subjectOf"
             :key="'both-' + relation.id"
         >
             <div
@@ -75,12 +79,15 @@
                 class="flex items-center py-2 text-sm relationship-row"
             >
                 <span class="w-1/3 truncate font-bold">
-                    {{ preload.scopesDict[relation.subject]?.name }}
+                    {{ props.preload.scopesDict[relation.subject]?.name }}
                 </span>
                 <span class="w-1/3 text-center flex flex-col items-center">
                     <span>
                         {{ relation.name }} /
-                        {{ preload.relationsDict[relation.reverse_id]?.name }}
+                        {{
+                            props.preload.relationsDict[relation.reverse_id]
+                                ?.name
+                        }}
                     </span>
                     <AppDirectionArrows
                         :direction="'both'"
@@ -89,53 +96,54 @@
                     />
                 </span>
                 <span class="w-1/3 text-right truncate font-bold">
-                    {{ preload.scopesDict[relation.object]?.name }}
+                    {{ props.preload.scopesDict[relation.object]?.name }}
                 </span>
             </div>
         </template>
-        <template v-if="detail.parent && parentRelation">
+
+        <template v-if="hasParent && parentRelation">
             <!-- 父層主動 -->
             <template
                 v-if="relationDirect === 'subject'"
-                v-for="relation in detail.parent.subject_of"
+                v-for="relation in parentSubjectOf"
                 :key="'parent-subject-' + relation.id"
             >
                 <div class="flex items-center py-2 text-sm relationship-row">
                     <span class="w-1/3 truncate font-bold">{{
-                        preload.scopesDict[relation.subject]?.name
+                        props.preload.scopesDict[relation.subject]?.name
                     }}</span>
                     <span class="w-1/3 text-center flex flex-col items-center">
                         <span>{{ relation.name }}</span>
                         <AppDirectionArrows width="60" height="20" />
                     </span>
                     <span class="w-1/3 text-right truncate font-bold">
-                        {{ preload.scopesDict[relation.object]?.name }}
+                        {{ props.preload.scopesDict[relation.object]?.name }}
                     </span>
                 </div>
             </template>
             <!-- 父層被動 -->
             <template
                 v-if="relationDirect === 'object'"
-                v-for="relation in detail.parent.subject_of"
+                v-for="relation in parentSubjectOf"
                 :key="'parent-object-' + relation.id"
             >
                 <div class="flex items-center py-2 text-sm relationship-row">
                     <span class="w-1/3 truncate font-bold">
-                        {{ preload.scopesDict[relation.object]?.name }}
+                        {{ props.preload.scopesDict[relation.object]?.name }}
                     </span>
                     <span class="w-1/3 text-center flex flex-col items-center">
                         <span>{{ relation.name }}</span>
                         <AppDirectionArrows width="60" height="20" />
                     </span>
                     <span class="w-1/3 text-right truncate font-bold">
-                        {{ preload.scopesDict[relation.subject]?.name }}
+                        {{ props.preload.scopesDict[relation.subject]?.name }}
                     </span>
                 </div>
             </template>
             <!-- 父層雙向 -->
             <template
                 v-if="relationDirect === 'both'"
-                v-for="relation in detail.parent.subject_of"
+                v-for="relation in parentSubjectOf"
                 :key="'parent-object-' + relation.id"
             >
                 <div
@@ -143,13 +151,14 @@
                     class="flex items-center py-2 text-sm relationship-row"
                 >
                     <span class="w-1/3 truncate font-bold">{{
-                        preload.scopesDict[relation.object]?.name
+                        props.preload.scopesDict[relation.object]?.name
                     }}</span>
                     <span class="w-1/3 text-center flex flex-col items-center">
                         <span>
                             {{ relation.name }} /
                             {{
-                                preload.relationsDict[relation.reverse_id]?.name
+                                props.preload.relationsDict[relation.reverse_id]
+                                    ?.name
                             }}
                         </span>
                         <AppDirectionArrows
@@ -159,29 +168,44 @@
                         />
                     </span>
                     <span class="w-1/3 text-right truncate font-bold">
-                        {{ preload.scopesDict[relation.subject]?.name }}
+                        {{ props.preload.scopesDict[relation.subject]?.name }}
                     </span>
                 </div>
             </template>
         </template>
     </div>
 </template>
+
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import AppDirectionArrows from "../icons/AppDirectionArrows.vue";
 import AppToggleUnit from "../forms/AppToggleUnit.vue";
+
+const props = defineProps({
+    detail: {
+        type: Object,
+        required: true,
+    },
+    preload: {
+        type: Object,
+        required: true,
+    },
+    onScrollCheck: {
+        type: Function,
+        required: false,
+    },
+});
 
 const relationDirect = ref("both");
 const parentRelation = ref(true);
 
-const { detail, preload, onScrollCheck } = defineProps({
-    detail: Object,
-    preload: Object,
-    onScrollCheck: Function,
-});
+const subjectOf = computed(() => props.detail?.subject_of ?? []);
+const objectOf = computed(() => props.detail?.object_of ?? []);
+const parentSubjectOf = computed(() => props.detail?.parent?.subject_of ?? []);
+const hasParent = computed(() => !!props.detail?.parent);
 
 watch(
-    () => detail,
+    () => props.detail,
     () => {
         relationDirect.value = "both";
     },

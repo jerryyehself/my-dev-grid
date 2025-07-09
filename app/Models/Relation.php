@@ -25,7 +25,7 @@ class Relation extends Model
 
     protected $dateFormat = 'Y-m-d H:i:s';
 
-    protected $appends = ['CURIE'];
+    protected $appends = ['CURIE', 'NewChildCallNumber'];
 
     public function subject()
     {

@@ -13,7 +13,6 @@
             <section class="col-span-1 flex flex-col min-h-0 bg-stone-300">
                 <AppTriplesNav />
             </section>
-
             <section
                 class="col-span-4 flex flex-col min-h-0 max-h-full overflow-hidden"
             >
@@ -22,19 +21,19 @@
         </template>
     </main>
 </template>
+
 <script setup>
-import AppTriplesNav from "./layouts/AppTriplesNav.vue";
-import AppSettingPanel from "./layouts/AppSettingPanel.vue";
+import { ref, onMounted } from "vue";
 import AppHeader from "./layouts/AppHeader.vue";
+import AppPanelNav from "./layouts/AppPanelNav.vue";
+import AppTriplesNav from "./layouts/AppTriplesNav.vue";
 import AppTripleDetail from "./layouts/AppTripleDetail.vue";
 import AppTripleNewPanel from "./layouts/AppTripleNewPanel.vue";
-import AppPanelNav from "./layouts/AppPanelNav.vue";
+import AppSettingPanel from "./layouts/AppSettingPanel.vue";
 import { useData } from "../stores/useData";
-import { onMounted, ref } from "vue";
 import { useForms } from "../stores/useForms";
 
 const panelSelected = ref("admin");
-
 const dataStore = useData();
 const formsStore = useForms();
 

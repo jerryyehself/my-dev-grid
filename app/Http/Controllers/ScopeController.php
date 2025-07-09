@@ -15,7 +15,10 @@ class ScopeController extends Controller
      */
     public function index()
     {
-        $scopes = Scope::with('parent')->orderBy('class_number')->orderBy('call_number')->get();
+        $scopeList = Scope::with('parent')
+            ->orderBy('class_number')
+            ->orderBy('call_number')
+            ->get();
 
         return response()->json([
             "type" => Str::of(Scope::class)
@@ -23,7 +26,7 @@ class ScopeController extends Controller
                 ->lower()
                 ->plural()
                 ->toString(),
-            "data" => ScopeResource::collection($scopes),
+            "data" => ScopeResource::collection($scopeList),
         ]);
     }
 
@@ -32,43 +35,43 @@ class ScopeController extends Controller
      */
     public function create()
     {
-        return response()->json(
-            [
-                'id' => [
-                    'required' => false,
-                    'type' => 'hidden'
-                ],
-                'name' => [
-                    'label' => '名稱',
-                    'required' => true,
-                    'type' => 'text'
-                ],
-                'class_number' => [
-                    'label' => '類號',
-                    'required' => true,
-                    'type' => 'select',
-                    'options' => Scope::select('id', 'class_number', 'name')
-                        ->where('parent_class', null)
-                        ->orderBy('class_number')
-                        ->distinct()->get(),
-                ],
-                'call_number' => [
-                    'label' => '子類號',
-                    'required' => true,
-                    'type' => 'number',
-                ],
-                'comment' => [
-                    'label' => '範圍說明',
-                    'required' => false,
-                    'type' => 'textarea'
-                ],
-                'note' => [
-                    'label' => '註釋',
-                    'required' => false,
-                    'type' => 'textarea'
-                ]
+        $classNumberOptions = Scope::select('id', 'class_number', 'name')
+            ->where('parent_class', null)
+            ->orderBy('class_number')
+            ->distinct()->get();
+
+        return response()->json([
+            'id' => [
+                'required' => false,
+                'type' => 'hidden'
+            ],
+            'name' => [
+                'label' => '名稱',
+                'required' => true,
+                'type' => 'text'
+            ],
+            'class_number' => [
+                'label' => '類號',
+                'required' => true,
+                'type' => 'select',
+                'options' => $classNumberOptions,
+            ],
+            'call_number' => [
+                'label' => '子類號',
+                'required' => true,
+                'type' => 'number',
+            ],
+            'comment' => [
+                'label' => '範圍說明',
+                'required' => false,
+                'type' => 'textarea'
+            ],
+            'note' => [
+                'label' => '註釋',
+                'required' => false,
+                'type' => 'textarea'
             ]
-        );
+        ]);
     }
 
     /**
@@ -76,11 +79,11 @@ class ScopeController extends Controller
      */
     public function store(StoreScopeRequest $request)
     {
-        $data = $request->validated();
+        $validatedData = $request->validated();
 
         $scope = Scope::firstOrCreate(
-            ['name' => $data['name']],
-            $data
+            ['name' => $validatedData['name']],
+            $validatedData
         );
 
         return response()->json([
@@ -96,15 +99,16 @@ class ScopeController extends Controller
      */
     public function show(Scope $scope)
     {
+        $scope->load([
+            'subjectOf.object',
+            'objectOf.subject',
+            'parent.subjectOf',
+            'parent.objectOf',
+            'parent',
+            'children'
+        ]);
         return response()->json(
-            new ScopeResource($scope->load([
-                'subjectOf.object',
-                'objectOf.subject',
-                'parent.subjectOf',
-                'parent.objectOf',
-                'parent',
-                'children'
-            ]))
+            new ScopeResource($scope)
         );
     }
 
@@ -119,18 +123,17 @@ class ScopeController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateScopeRequest $request, scope $scope)
+    public function update(UpdateScopeRequest $request, Scope $scope)
     {
+        $validatedData = $request->validated();
 
-        $data = $request->validated();
-
-        $updatedScope = $scope->update($data);
+        $isUpdated = $scope->update($validatedData);
 
         return response()->json([
             'data' => $scope,
-            'message' =>  $updatedScope
+            'message' =>  $isUpdated
                 ? 'Scope updated.'
-                : 'Scope update faild',
+                : 'Scope update failed',
         ]);
     }
 
@@ -139,10 +142,10 @@ class ScopeController extends Controller
      */
     public function destroy(Scope $scope)
     {
-        $deletedScope = $scope->delete();
-        return response()->json(
-            "{$scope->name} wad deleted.",
-            204
-        );
+        $scopeName = $scope->name;
+        $scope->delete();
+        return response()->json([
+            'message' => "$scopeName was deleted."
+        ]);
     }
 }

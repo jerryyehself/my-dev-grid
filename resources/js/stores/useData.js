@@ -4,22 +4,24 @@ import { fetchAPI } from "../fetchAPI";
 
 export const useData = defineStore("useData", () => {
     const scopesData = ref(null);
-    const scopesDict = ref(null);
     const relationsData = ref(null);
+    const scopesDict = ref(null);
     const relationsDict = ref(null);
     const isLoaded = ref(false);
+
     async function fetchData() {
-        scopesData.value = await fetchAPI("/api/scopes");
+        const scopes = await fetchAPI("/api/scopes");
+        scopesData.value = scopes;
+        scopesDict.value = scopes?.data
+            ? Object.fromEntries(scopes.data.map((scope) => [scope.id, scope]))
+            : {};
 
-        scopesDict.value = Object.fromEntries(
-            scopesData.value.data.map((scope) => [scope.id, scope]),
-        );
+        const relations = await fetchAPI("/api/relations");
+        relationsData.value = relations;
+        relationsDict.value = relations?.data
+            ? Object.fromEntries(relations.data.map((rel) => [rel.id, rel]))
+            : {};
 
-        relationsData.value = await fetchAPI("/api/relations");
-
-        relationsDict.value = Object.fromEntries(
-            relationsData.value.data.map((scope) => [scope.id, scope]),
-        );
         isLoaded.value = true;
     }
 

@@ -1,39 +1,45 @@
 <template>
     <nav
-        v-if="scopes.items?.data && relations.items?.data"
+        v-if="Array.isArray(filteredScopes) && Array.isArray(filteredRelations)"
         class="flex flex-col h-full min-h-0 overflow-hidden"
     >
         <!-- 搜尋欄 -->
         <div class="p-2">
             <input
-                v-model="searchText"
+                v-model="searchKeyword"
                 type="text"
                 class="w-full rounded border border-stone-400 px-2 py-1 text-sm text-stone-800 dark:text-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-600"
                 placeholder="Search..."
             />
         </div>
 
-        <!-- scopes 區塊 -->
-        <hr class="border-t border-stone-300 dark:border-stone-600" />
-        <AppTriplesNavList
-            title="scopes"
-            :items="filteredScopes"
-            :type="scopes.type"
-            :is-open="openList === 'scopes'"
-            @toggle="handleToggle('scopes')"
-            :expand="openList === 'scopes'"
-        />
-
-        <!-- relations 區塊 -->
-        <hr class="border-t border-stone-300 dark:border-stone-600" />
-        <AppTriplesNavList
-            title="relations"
-            :items="filteredRelations"
-            :type="relations.type"
-            :is-open="openList === 'relations'"
-            @toggle="handleToggle('relations')"
-            :expand="openList === 'relations'"
-        />
+        <template
+            v-for="section in [
+                {
+                    key: 'scopes',
+                    title: 'scopes',
+                    items: filteredScopes,
+                    type: scopes.type,
+                },
+                {
+                    key: 'relations',
+                    title: 'relations',
+                    items: filteredRelations,
+                    type: relations.type,
+                },
+            ]"
+            :key="section.key"
+        >
+            <hr class="border-t border-stone-300 dark:border-stone-600" />
+            <AppTriplesNavList
+                :title="section.title"
+                :items="section.items"
+                :type="section.type"
+                :is-open="expandedSection === section.key"
+                @toggle="toggleNavSection(section.key)"
+                :expand="expandedSection === section.key"
+            />
+        </template>
     </nav>
 </template>
 
@@ -42,38 +48,39 @@ import { ref, computed } from "vue";
 import { useData } from "@/stores/useData";
 import AppTriplesNavList from "./AppTriplesNavList.vue";
 
-const preload = useData();
-const searchText = ref("");
-const openList = ref("scopes");
+const dataStore = useData();
+const searchKeyword = ref("");
+const expandedSection = ref("scopes");
 
-// 取得 scopes / relations 資料
 const scopes = computed(() => ({
     title: "scopes",
     type: "scopes",
-    items: preload.scopesData,
+    items: dataStore.scopesData,
 }));
 
 const relations = computed(() => ({
     title: "relations",
     type: "relations",
-    items: preload.relationsData,
+    items: dataStore.relationsData,
 }));
 
-// 點擊展開/收合邏輯
-function handleToggle(listName) {
-    openList.value = openList.value === listName ? "" : listName;
+function filterByKeyword(list, keyword) {
+    if (!Array.isArray(list)) return [];
+    const kw = keyword.trim().toLowerCase();
+    if (!kw) return list;
+    return list.filter((item) => item.name?.toLowerCase().includes(kw));
 }
 
-// 根據搜尋字過濾
 const filteredScopes = computed(() =>
-    scopes.value.items.data.filter((item) =>
-        item.name?.toLowerCase().includes(searchText.value.toLowerCase()),
-    ),
+    filterByKeyword(scopes.value.items?.data, searchKeyword.value),
 );
 
 const filteredRelations = computed(() =>
-    relations.value.items.data.filter((item) =>
-        item.name?.toLowerCase().includes(searchText.value.toLowerCase()),
-    ),
+    filterByKeyword(relations.value.items?.data, searchKeyword.value),
 );
+
+function toggleNavSection(sectionKey) {
+    expandedSection.value =
+        expandedSection.value === sectionKey ? "" : sectionKey;
+}
 </script>

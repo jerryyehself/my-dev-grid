@@ -8,7 +8,7 @@
                 : 'opacity-50 cursor-not-allowed',
         ]"
         :disabled="!button.ability.value"
-        :action="button.action"
+        @click="action"
     >
         <component :is="button.icon" :class="button.iconClass" />
         <span class="text-sm font-medium tracking-wide">
@@ -16,8 +16,22 @@
         </span>
     </button>
 </template>
+
 <script setup>
+import { ref } from "vue";
 defineProps({
-    button: Object,
+    button: {
+        type: Object,
+        default() {
+            return {
+                label: "default",
+                color: "bg-red-500",
+                ability: ref(true),
+                icon: "",
+                iconClass: "",
+                action: () => {},
+            };
+        },
+    },
 });
 </script>

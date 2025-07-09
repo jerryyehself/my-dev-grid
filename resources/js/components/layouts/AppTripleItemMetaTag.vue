@@ -2,20 +2,24 @@
     <div class="flex">
         <div
             class="bg-stone-700 text-white px-1.5 font-bold text-sm"
-            :class="itemMeta.area ? 'rounded-s-sm' : 'rounded-sm'"
+            :class="props.itemMeta.area ? 'rounded-s-sm' : 'rounded-sm'"
         >
-            {{ itemMeta.type }}
+            {{ props.itemMeta.type }}
         </div>
         <div
             class="text-white bg-stone-500 rounded-e-sm px-1.5 font-bold text-sm"
-            :class="{ hidden: !itemMeta.area }"
+            :class="{ hidden: !props.itemMeta.area }"
         >
-            {{ itemMeta.area }}
+            {{ props.itemMeta.area }}
         </div>
     </div>
 </template>
+
 <script setup>
-const { itemMeta } = defineProps({
-    itemMeta: Object,
+const props = defineProps({
+    itemMeta: {
+        type: Object,
+        required: true,
+    },
 });
 </script>

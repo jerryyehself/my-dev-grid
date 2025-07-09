@@ -4,44 +4,50 @@
  * @param {object} options
  * @returns {Promise<any>}
  */
-export const fetchAPI = async (targetURI, options = {}) => {
-    const maxRetries = 3;
-    let attempt = 0;
-    let lastError;
+export const fetchAPI = async (url, fetchOptions = {}) => {
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
+    let lastError = null;
 
-    // set method, headers
-    options.method = "GET";
-    options.headers = {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...(options.headers || {}),
+    const mergedOptions = {
+        method: fetchOptions.method || "GET",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            ...(fetchOptions.headers || {}),
+        },
+        ...fetchOptions,
     };
 
-    while (attempt < maxRetries) {
+    while (retryCount < MAX_RETRIES) {
         try {
-            const res = await fetch(targetURI, options);
-
-            if (!res.ok) {
-                const errorText = await res.text();
+            const response = await fetch(url, mergedOptions);
+            if (!response.ok) {
+                const errorText = await response.text();
                 throw new Error(
-                    `API Error: ${res.status} ${res.statusText} - ${errorText}`,
+                    `API Error: ${response.status} ${response.statusText} - ${errorText}`,
                 );
             }
-
-            return await res.json();
-        } catch (err) {
-            lastError = err;
-            console.warn(`Attempt ${attempt + 1} failed:`, err.message);
-            attempt++;
-
-            // 簡單等待（可改成 exponential backoff）
-            if (attempt < maxRetries) {
-                await new Promise((resolve) => setTimeout(resolve, 500));
+            try {
+                return await response.json();
+            } catch {
+                return null;
+            }
+        } catch (error) {
+            lastError = error;
+            console.warn(
+                `fetchAPI: Attempt ${retryCount + 1} failed:`,
+                error.message,
+            );
+            retryCount++;
+            if (retryCount < MAX_RETRIES) {
+                await new Promise((resolve) =>
+                    setTimeout(resolve, 300 * retryCount),
+                );
             }
         }
     }
-
     throw new Error(
-        `API failed after ${maxRetries} attempts: ${lastError.message}`,
+        `API failed after ${MAX_RETRIES} attempts: ${lastError?.message || "Unknown error"}`,
     );
 };

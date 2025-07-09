@@ -1,6 +1,7 @@
 <template>
     <form
         class="flex flex-col col-span-5 items-center flex-1 p-5 gap-5 min-h-0"
+        ref="form"
     >
         <label class="flex flex-col p-2 w-1/2">
             Step 1. Selected Triple
@@ -27,22 +28,63 @@
                         <span class="text-sm font-medium text-gray-700">
                             {{ field?.label }}
                         </span>
-                        <input
-                            class="rounded-md bg-white border border-stone-400 px-2 py-1 text-sm w-full"
+                        <AppInputField
+                            :input="field"
+                            :input-key="index"
                             :type="field.type"
+                            :select="field.select"
+                            :click="field.click"
+                            class="rounded-sm bg-white border-1 border-stone-400"
+                            v-model="formData[index]"
                         />
                     </label>
+                </div>
+                <div class="flex items-end justify-center flex-1">
+                    <AppWidgetButton :button="submitButton" />
                 </div>
             </div>
         </div>
     </form>
 </template>
-<script setup>
-import { ref, computed } from "vue";
-import { useForms } from "@/stores/useForms";
 
-const preload = useForms();
+<script setup>
+import { ref, computed, reactive, watch } from "vue";
+import { useForms } from "@/stores/useForms";
+import AppInputField from "../forms/AppInputField.vue";
+import AppWidgetButton from "../widgets/AppWidgetButton.vue";
+
+const formData = reactive({
+    name: "",
+    class_number: "",
+    call_number: "",
+    comment: "",
+    note: "",
+});
 const tripleSelected = ref("scope");
+const preload = useForms();
 
 const formFields = computed(() => preload[`${tripleSelected.value}sForm`]);
+
+const submitButton = {
+    color: "bg-stone-600",
+    label: "submit",
+    value: "submit",
+    ability: ref(true),
+    action: () => {},
+};
+
+watch(
+    () => formData.class_number,
+    async (newClass) => {
+        formData.call_number = await fetchCallNumberByClass(newClass);
+    },
+    { deep: true },
+);
+
+async function fetchCallNumberByClass(classCode) {
+    if (!classCode) return "";
+    const response = await fetch(`/api/${tripleSelected.value}s/${classCode}`);
+    const data = await response.json();
+    return data.new_child_call_number ?? "";
+}
 </script>

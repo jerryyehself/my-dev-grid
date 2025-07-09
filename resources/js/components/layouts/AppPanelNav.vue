@@ -14,12 +14,14 @@
         <span>{{ panel.label }}</span>
     </button>
 </template>
+
 <script setup>
 import { h } from "vue";
 import {
     DocumentPlusIcon,
     AdjustmentsVerticalIcon,
 } from "@heroicons/vue/16/solid";
+
 const model = defineModel();
 const panelNavList = {
     admin: {

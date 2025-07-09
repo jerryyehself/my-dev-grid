@@ -17,7 +17,7 @@
             class="w-full px-3 py-2 rounded border bg-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-yellow-700 focus:border-transparent transition"
             :class="[
                 { 'resize-y': type === 'textarea' },
-                errorMessages[inputKey] 
+                errorMessages[inputKey]
                     ? 'text-rose-700 dark:text-rose-400 border-rose-600 dark:border-rose-500 bg-rose-100 dark:bg-rose-950 placeholder-rose-400 dark:placeholder-rose-500'
                     : 'text-stone-900 dark:text-stone-200 border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 placeholder-stone-400 dark:placeholder-stone-500',
             ]"

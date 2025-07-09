@@ -43,4 +43,18 @@ trait SetCURIEAttribute
     {
         return is_null($this->parent) ? collect() : $this->parent->objectOf;
     }
+
+    public function getNewChildCallNumberAttribute()
+    {
+        if ($this->call_number !== '00') {
+            return null;
+        }
+
+        $maxCallNumber = self::where('class_number', $this->class_number)
+            ->max('call_number');
+
+        $newNumber = intval($maxCallNumber) + 1;
+
+        return str_pad($newNumber, 2, '0', STR_PAD_LEFT);
+    }
 }

@@ -1,6 +1,7 @@
 <template>
     <input
         v-if="['text', 'number'].includes(input.type)"
+        class="px-1"
         :id="inputKey"
         :name="inputKey"
         :type="input.type"
@@ -11,13 +12,13 @@
         :step="input.type === 'number' ? 1 : undefined"
     />
 
-    <div v-else-if="input.type === 'label'">
+    <div v-else-if="input.type === 'label'" @click="click">
         <span>{{ setValue }}</span>
         <input
             type="hidden"
             :name="inputKey"
             :id="inputKey"
-            :value="setValue"
+            v-model="setValue"
         />
     </div>
 
@@ -30,7 +31,7 @@
         <option
             v-for="(option, key) in input.options"
             :key="key"
-            :value="type === 'relations' ? option.id : option.class_number"
+            :value="option.id"
         >
             {{ option.CURIE }}
         </option>

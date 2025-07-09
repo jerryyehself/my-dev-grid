@@ -66,32 +66,7 @@
 
                 <!-- 右側空白 -->
                 <div class="col-span-2 py-5 flex flex-col px-6 gap-3">
-                    <div
-                        v-if="showDetailNav"
-                        class="flex flex-col flex-1 justify-between"
-                    >
-                        <ul>
-                            <li
-                                v-for="section in sections"
-                                :key="section"
-                                class="hover:text-shadow-sm"
-                            >
-                                <a
-                                    :href="'#' + section"
-                                    @click="currentSelectedDetailNav(section)"
-                                    :class="[
-                                        'text-gray-400',
-                                        {
-                                            'text-shadow-sm':
-                                                selectedNav === section,
-                                        },
-                                    ]"
-                                >
-                                    # {{ section }}
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
+                    <AppTripleDetailNav v-if="showDetailNav" />
                 </div>
             </div>
         </div>
@@ -111,6 +86,7 @@ import AppTripleDetailStatic from "./AppTripleDetailStatic.vue";
 import AppTripleDetailHeader from "./AppTripleDetailHeader.vue";
 import AppTripleDetailFooter from "./AppTripleDetailFooter.vue";
 import AppTripleFloatingWidget from "./AppTripleFloatingWidget.vue";
+import AppTripleDetailNav from "./AppTripleDetailNav.vue";
 
 import {
     CodeBracketSquareIcon,
@@ -130,12 +106,6 @@ const showTopShadow = ref(false);
 const showBottomShadow = ref(false);
 
 const showDetailNav = ref(false);
-const sections = ["Metadata", "Relationship", "Statistic"];
-const selectedNav = ref("Metadata");
-
-function currentSelectedDetailNav(section) {
-    selectedNav.value = section;
-}
 
 const onScroll = (e) => {
     checkScrollable();

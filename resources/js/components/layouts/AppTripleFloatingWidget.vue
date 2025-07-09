@@ -23,8 +23,11 @@ import {
     PlusIcon,
 } from "@heroicons/vue/24/outline";
 
-const { detail } = defineProps({
-    detail: Object,
+const props = defineProps({
+    detail: {
+        type: Object,
+        required: true,
+    },
 });
 
 const selectAction = useTripleAction();
@@ -34,20 +37,14 @@ const buttonConfigs = [
         label: "Modify",
         color: "bg-stone-500",
         icon: h(DocumentArrowUpIcon, { class: "w-4 h-4" }),
-        ability: computed(() => {
-            return !!detail;
-        }),
-
+        ability: computed(() => !!props.detail),
         action: () => setAction("update"),
     },
     {
         label: "Delete",
         color: "bg-red-400",
         icon: h(TrashIcon, { class: "w-4 h-4" }),
-        ability: computed(() => {
-            return !!detail;
-        }),
-
+        ability: computed(() => !!props.detail),
         action: () => setAction("delete"),
     },
 ];
