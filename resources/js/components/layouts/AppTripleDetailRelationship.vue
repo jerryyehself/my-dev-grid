@@ -28,151 +28,11 @@
 
     <!-- 滾動區 -->
     <div class="flex-1 divide-y divide-stone-200 pr-1">
-        <!-- 主動關係 -->
-        <template
-            v-if="relationDirect === 'subject'"
-            v-for="relation in subjectOf"
-            :key="'subject-' + relation.id"
-        >
-            <div class="flex items-center py-2 text-sm relationship-row">
-                <span class="w-1/3 truncate font-bold">{{
-                    props.detail.name
-                }}</span>
-                <span class="w-1/3 text-center flex flex-col items-center">
-                    <span>{{ relation.name }}</span>
-                    <AppDirectionArrows width="60" height="20" />
-                </span>
-                <span class="w-1/3 text-right truncate font-bold">
-                    {{ props.preload.scopesDict[relation.object]?.name }}
-                </span>
-            </div>
-        </template>
-
-        <!-- 被動關係 -->
-        <template
-            v-if="relationDirect === 'object'"
-            v-for="relation in objectOf"
-            :key="'object-' + relation.id"
-        >
-            <div class="flex items-center py-2 text-sm relationship-row">
-                <span class="w-1/3 truncate font-bold">
-                    {{ props.preload.scopesDict[relation.subject]?.name }}
-                </span>
-                <span class="w-1/3 text-center flex flex-col items-center">
-                    <span>{{ relation.name }}</span>
-                    <AppDirectionArrows width="60" height="20" />
-                </span>
-                <span class="w-1/3 text-right truncate font-bold">{{
-                    props.detail.name
-                }}</span>
-            </div>
-        </template>
-
-        <!-- 雙向關係 -->
-        <template
-            v-if="relationDirect === 'both'"
-            v-for="relation in subjectOf"
-            :key="'both-' + relation.id"
-        >
-            <div
-                v-if="relation.reverse_id"
-                class="flex items-center py-2 text-sm relationship-row"
-            >
-                <span class="w-1/3 truncate font-bold">
-                    {{ props.preload.scopesDict[relation.subject]?.name }}
-                </span>
-                <span class="w-1/3 text-center flex flex-col items-center">
-                    <span>
-                        {{ relation.name }} /
-                        {{
-                            props.preload.relationsDict[relation.reverse_id]
-                                ?.name
-                        }}
-                    </span>
-                    <AppDirectionArrows
-                        :direction="'both'"
-                        width="60"
-                        height="20"
-                    />
-                </span>
-                <span class="w-1/3 text-right truncate font-bold">
-                    {{ props.preload.scopesDict[relation.object]?.name }}
-                </span>
-            </div>
-        </template>
-
-        <template v-if="hasParent && parentRelation">
-            <!-- 父層主動 -->
-            <template
-                v-if="relationDirect === 'subject'"
-                v-for="relation in parentSubjectOf"
-                :key="'parent-subject-' + relation.id"
-            >
-                <div class="flex items-center py-2 text-sm relationship-row">
-                    <span class="w-1/3 truncate font-bold">{{
-                        props.preload.scopesDict[relation.subject]?.name
-                    }}</span>
-                    <span class="w-1/3 text-center flex flex-col items-center">
-                        <span>{{ relation.name }}</span>
-                        <AppDirectionArrows width="60" height="20" />
-                    </span>
-                    <span class="w-1/3 text-right truncate font-bold">
-                        {{ props.preload.scopesDict[relation.object]?.name }}
-                    </span>
-                </div>
-            </template>
-            <!-- 父層被動 -->
-            <template
-                v-if="relationDirect === 'object'"
-                v-for="relation in parentSubjectOf"
-                :key="'parent-object-' + relation.id"
-            >
-                <div class="flex items-center py-2 text-sm relationship-row">
-                    <span class="w-1/3 truncate font-bold">
-                        {{ props.preload.scopesDict[relation.object]?.name }}
-                    </span>
-                    <span class="w-1/3 text-center flex flex-col items-center">
-                        <span>{{ relation.name }}</span>
-                        <AppDirectionArrows width="60" height="20" />
-                    </span>
-                    <span class="w-1/3 text-right truncate font-bold">
-                        {{ props.preload.scopesDict[relation.subject]?.name }}
-                    </span>
-                </div>
-            </template>
-            <!-- 父層雙向 -->
-            <template
-                v-if="relationDirect === 'both'"
-                v-for="relation in parentSubjectOf"
-                :key="'parent-object-' + relation.id"
-            >
-                <div
-                    v-if="relation.reverse_id"
-                    class="flex items-center py-2 text-sm relationship-row"
-                >
-                    <span class="w-1/3 truncate font-bold">{{
-                        props.preload.scopesDict[relation.object]?.name
-                    }}</span>
-                    <span class="w-1/3 text-center flex flex-col items-center">
-                        <span>
-                            {{ relation.name }} /
-                            {{
-                                props.preload.relationsDict[relation.reverse_id]
-                                    ?.name
-                            }}
-                        </span>
-                        <AppDirectionArrows
-                            :direction="'both'"
-                            width="60"
-                            height="20"
-                        />
-                    </span>
-                    <span class="w-1/3 text-right truncate font-bold">
-                        {{ props.preload.scopesDict[relation.subject]?.name }}
-                    </span>
-                </div>
-            </template>
-        </template>
+        <RelationRow
+            v-for="row in relationRows"
+            :key="row.key"
+            v-bind="row.props"
+        />
     </div>
 </template>
 
@@ -204,6 +64,97 @@ const objectOf = computed(() => props.detail?.object_of ?? []);
 const parentSubjectOf = computed(() => props.detail?.parent?.subject_of ?? []);
 const hasParent = computed(() => !!props.detail?.parent);
 
+// 將所有顯示邏輯統一轉為 relationRows 陣列
+const relationRows = computed(() => {
+    const rows = [];
+    // 主動關係
+    if (relationDirect.value === "subject") {
+        rows.push(
+            ...subjectOf.value.map((relation) => ({
+                key: "subject-" + relation.id,
+                props: {
+                    type: "subject",
+                    relation,
+                    detail: props.detail,
+                    preload: props.preload,
+                },
+            })),
+        );
+        if (hasParent.value && parentRelation.value) {
+            rows.push(
+                ...parentSubjectOf.value.map((relation) => ({
+                    key: "parent-subject-" + relation.id,
+                    props: {
+                        type: "parent-subject",
+                        relation,
+                        detail: props.detail,
+                        preload: props.preload,
+                    },
+                })),
+            );
+        }
+    }
+    // 被動關係
+    if (relationDirect.value === "object") {
+        rows.push(
+            ...objectOf.value.map((relation) => ({
+                key: "object-" + relation.id,
+                props: {
+                    type: "object",
+                    relation,
+                    detail: props.detail,
+                    preload: props.preload,
+                },
+            })),
+        );
+        if (hasParent.value && parentRelation.value) {
+            rows.push(
+                ...parentSubjectOf.value.map((relation) => ({
+                    key: "parent-object-" + relation.id,
+                    props: {
+                        type: "parent-object",
+                        relation,
+                        detail: props.detail,
+                        preload: props.preload,
+                    },
+                })),
+            );
+        }
+    }
+    // 雙向關係
+    if (relationDirect.value === "both") {
+        rows.push(
+            ...subjectOf.value
+                .filter((r) => r.reverse_id)
+                .map((relation) => ({
+                    key: "both-" + relation.id,
+                    props: {
+                        type: "both",
+                        relation,
+                        detail: props.detail,
+                        preload: props.preload,
+                    },
+                })),
+        );
+        if (hasParent.value && parentRelation.value) {
+            rows.push(
+                ...parentSubjectOf.value
+                    .filter((r) => r.reverse_id)
+                    .map((relation) => ({
+                        key: "parent-both-" + relation.id,
+                        props: {
+                            type: "parent-both",
+                            relation,
+                            detail: props.detail,
+                            preload: props.preload,
+                        },
+                    })),
+            );
+        }
+    }
+    return rows;
+});
+
 watch(
     () => props.detail,
     () => {
@@ -211,4 +162,7 @@ watch(
     },
     { deep: true },
 );
+
+// 動態元件：根據 type 顯示不同 row 樣板（使用 Vue SFC 標準語法）
+import RelationRow from "./AppRelationRow.vue";
 </script>
