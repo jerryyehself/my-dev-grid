@@ -6,13 +6,13 @@
 
 借鑑Linked Data三元組的觀念，將做side project或學習特定程式的過程記錄下來。
 
-![](https://github.com/jerryyehself/my-dev-grid/blob/main/er_model.png?raw=true "架構概念圖")
+![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model.png?raw=true "架構概念圖")
 
 ### Scope(主詞/受詞)
 
 判斷紀錄屬於哪個類別，主要包括文件(Documention)、使用技術(Technique)、實際執行(Implementation)
 
-![](https://github.com/jerryyehself/my-dev-grid/blob/main/scope_sample.png?raw=true "主詞/受詞範例")
+![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/scope_sample.png?raw=true "主詞/受詞範例")
 
 ### Relation
 
