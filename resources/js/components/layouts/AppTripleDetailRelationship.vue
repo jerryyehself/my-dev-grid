@@ -38,8 +38,7 @@
 
 <script setup>
 import { ref, watch, computed } from "vue";
-import AppDirectionArrows from "../icons/AppDirectionArrows.vue";
-import AppToggleUnit from "../forms/AppToggleUnit.vue";
+import RelationRow from "./AppRelationRow.vue";
 
 const props = defineProps({
     detail: {
@@ -64,10 +63,8 @@ const objectOf = computed(() => props.detail?.object_of ?? []);
 const parentSubjectOf = computed(() => props.detail?.parent?.subject_of ?? []);
 const hasParent = computed(() => !!props.detail?.parent);
 
-// 將所有顯示邏輯統一轉為 relationRows 陣列
 const relationRows = computed(() => {
     const rows = [];
-    // 主動關係
     if (relationDirect.value === "subject") {
         rows.push(
             ...subjectOf.value.map((relation) => ({
@@ -94,7 +91,7 @@ const relationRows = computed(() => {
             );
         }
     }
-    // 被動關係
+
     if (relationDirect.value === "object") {
         rows.push(
             ...objectOf.value.map((relation) => ({
@@ -121,7 +118,7 @@ const relationRows = computed(() => {
             );
         }
     }
-    // 雙向關係
+
     if (relationDirect.value === "both") {
         rows.push(
             ...subjectOf.value
@@ -162,7 +159,4 @@ watch(
     },
     { deep: true },
 );
-
-// 動態元件：根據 type 顯示不同 row 樣板（使用 Vue SFC 標準語法）
-import RelationRow from "./AppRelationRow.vue";
 </script>
