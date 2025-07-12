@@ -4,11 +4,9 @@ use App\Http\Controllers\RelationController;
 use App\Http\Controllers\ScopeController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('main');
-});
+Route::get('/{any}', fn() => view('app'))->where('any', '.*');
 
 Route::resources([
-    '/scopes' => ScopeController::class,
+    'scopes' => ScopeController::class,
     'relations' => RelationController::class
 ]);
