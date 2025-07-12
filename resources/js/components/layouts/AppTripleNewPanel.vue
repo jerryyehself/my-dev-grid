@@ -4,7 +4,7 @@
         ref="form"
     >
         <label class="flex flex-col p-2 w-1/2">
-            Step 1. Selected Triple
+            Step 1. Selected Triple isLoaded,
             <select
                 class="bg-stone-300 rounded-md border border-stone-400 px-4 py-2 w-full focus:border-3"
                 v-model="tripleSelected"
