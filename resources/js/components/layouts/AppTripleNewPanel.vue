@@ -48,10 +48,11 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, watch } from "vue";
+import { ref, computed, reactive, watch, h } from "vue";
 import { useForms } from "@/stores/useForms";
 import AppInputField from "../forms/AppInputField.vue";
 import AppWidgetButton from "../widgets/AppWidgetButton.vue";
+import { CheckCircleIcon } from "@heroicons/vue/16/solid";
 
 const formData = reactive({
     name: "",
@@ -70,6 +71,7 @@ const submitButton = {
     label: "submit",
     value: "submit",
     ability: ref(true),
+    icon: h(CheckCircleIcon, { class: "w-4 h-4" }),
     action: () => {},
 };
 
