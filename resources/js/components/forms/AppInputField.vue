@@ -12,7 +12,11 @@
         :step="input.type === 'number' ? 1 : undefined"
     />
 
-    <div v-else-if="input.type === 'label'" @click="click">
+    <div
+        v-else-if="input.type === 'label'"
+        @click="click"
+        class="h-6.5 px-1 border border-stone-400 rounded bg-white flex items-center"
+    >
         <span>{{ setValue }}</span>
         <input
             type="hidden"

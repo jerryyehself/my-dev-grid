@@ -30,6 +30,7 @@ class RelationResource extends JsonResource
             'children' => RelationResource::collection($this->whenLoaded('children')),
             'subject' => optional($this->subject)->id,
             'object' => optional($this->object)->id,
+            'new_child_call_number' => $this->NewChildCallNumber
         ];
     }
 }

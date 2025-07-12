@@ -79,6 +79,7 @@ class ScopeController extends Controller
      */
     public function store(StoreScopeRequest $request)
     {
+        dd('aa');
         $validatedData = $request->validated();
 
         $scope = Scope::firstOrCreate(

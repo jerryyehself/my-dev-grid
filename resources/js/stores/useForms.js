@@ -14,7 +14,6 @@ export const useForms = defineStore("useForms", () => {
         ]);
         scopesForm.value = scopes;
         relationsForm.value = relations;
-        console.log(scopes);
         isLoaded.value = true;
     }
 

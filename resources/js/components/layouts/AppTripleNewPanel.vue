@@ -2,6 +2,7 @@
     <form
         class="flex flex-col col-span-5 items-center flex-1 p-5 gap-5 min-h-0"
         ref="form"
+        @submit.prevent="onSubmit"
     >
         <label class="flex flex-col p-2 w-1/2">
             Step 1. Selected Triple isLoaded,
@@ -53,6 +54,8 @@ import { useForms } from "@/stores/useForms";
 import AppInputField from "../forms/AppInputField.vue";
 import AppWidgetButton from "../widgets/AppWidgetButton.vue";
 import { CheckCircleIcon } from "@heroicons/vue/16/solid";
+import { useData } from "../../stores/useData";
+import { fetchAPI } from "../../fetchAPI";
 
 const formData = reactive({
     name: "",
@@ -63,6 +66,8 @@ const formData = reactive({
 });
 const tripleSelected = ref("scope");
 const preload = useForms();
+const scopesData = useData().scopesData.data;
+const relationData = useData().relationsData.data;
 
 const formFields = computed(() => preload[`${tripleSelected.value}sForm`]);
 
@@ -83,10 +88,51 @@ watch(
     { deep: true },
 );
 
+watch(
+    () => [formData.subject, formData.object],
+    async ([subject, object]) => {
+        if (!subject || !object) return;
+        const newClass =
+            scopesData[subject]?.class_number.charAt(0) +
+            scopesData[object]?.class_number.charAt(0);
+
+        const classId = relationData.find(
+            (item) =>
+                item.class_number === newClass && item.call_number == "00",
+        )?.id;
+
+        const relationCallNumber = await fetchCallNumberByClass(classId);
+
+        formData.class_number = newClass;
+        formData.call_number = relationCallNumber;
+    },
+);
+
 async function fetchCallNumberByClass(classCode) {
     if (!classCode) return "";
     const response = await fetch(`/api/${tripleSelected.value}s/${classCode}`);
     const data = await response.json();
     return data.new_child_call_number ?? "";
+}
+
+function onSubmit() {
+    fetchAPI(
+        `/api/${tripleSelected.value}s`,
+        {
+            method: "POST",
+            body: JSON.stringify(formData),
+        },
+        { showError: true },
+    )
+        .then((response) => {
+            console.log("Form submitted successfully:", response);
+            // Reset form data after successful submission
+            Object.keys(formData).forEach((key) => {
+                formData[key] = "";
+            });
+        })
+        .catch((error) => {
+            console.error("Error submitting form:", error);
+        });
 }
 </script>
