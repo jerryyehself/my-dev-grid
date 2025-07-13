@@ -22,32 +22,38 @@ export const fetchAPI = async (url, fetchOptions = {}) => {
     while (retryCount < MAX_RETRIES) {
         try {
             const response = await fetch(url, mergedOptions);
-            if (!response.ok) {
-                const errorText = await response.text();
+
+            if (response.status === 422) {
+                const errorJson = await response.json();
                 throw new Error(
-                    `API Error: ${response.status} ${response.statusText} - ${errorText}`,
+                    `Validation Error: ${JSON.stringify(errorJson)}`,
                 );
             }
+
+            if (!response.ok) {
+                throw new Error(
+                    `API Error ${response.status}: ${await response.text()}`,
+                );
+            }
+
             try {
                 return await response.json();
             } catch {
                 return null;
             }
-        } catch (error) {
-            lastError = error;
-            console.warn(
-                `fetchAPI: Attempt ${retryCount + 1} failed:`,
-                error.message,
-            );
-            retryCount++;
-            if (retryCount < MAX_RETRIES) {
-                await new Promise((resolve) =>
-                    setTimeout(resolve, 300 * retryCount),
-                );
+        } catch (err) {
+            if (err.message.startsWith("Validation Error")) {
+                throw err;
             }
+
+            // 其餘錯誤 -> 重試
+            lastError = err;
+            retryCount++;
+            if (retryCount >= MAX_RETRIES) break;
+            await new Promise((r) => setTimeout(r, 300 * retryCount));
         }
     }
     throw new Error(
-        `API failed after ${MAX_RETRIES} attempts: ${lastError?.message || "Unknown error"}`,
+        `API failed after ${MAX_RETRIES} attempts: ${lastError?.message ?? "Unknown"}`,
     );
 };
