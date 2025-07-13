@@ -70,7 +70,7 @@
                 </div>
             </div>
         </div>
-        <AppTripleFloatingWidget :detail="detail" />
+        <AppTripleFloatingWidget :target="target" />
     </div>
 </template>
 

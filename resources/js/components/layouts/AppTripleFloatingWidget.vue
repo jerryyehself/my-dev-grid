@@ -22,9 +22,11 @@ import {
     TrashIcon,
     PlusIcon,
 } from "@heroicons/vue/24/outline";
+import { fetchAPI } from "../../fetchAPI";
+import { useData } from "../../stores/useData";
 
 const props = defineProps({
-    detail: {
+    target: {
         type: [Object, null],
         required: true,
     },
@@ -37,15 +39,25 @@ const buttonConfigs = [
         label: "Modify",
         color: "bg-stone-500",
         icon: h(DocumentArrowUpIcon, { class: "w-4 h-4" }),
-        ability: computed(() => !!props.detail),
+        ability: computed(() => !!props.target),
         action: () => setAction("update"),
     },
     {
         label: "Delete",
         color: "bg-red-400",
         icon: h(TrashIcon, { class: "w-4 h-4" }),
-        ability: computed(() => !!props.detail),
-        action: () => setAction("delete"),
+        ability: computed(() => !!props.target),
+        action: () => {
+            fetchAPI(`/api/${props.target.title}/${props.target.item.id}`, {
+                method: "DELETE",
+            })
+                .then(({ status, body }) => {
+                    useData().fetchData();
+                })
+                .catch((error) => {
+                    console.error("Error submitting form:", error);
+                });
+        },
     },
 ];
 </script>

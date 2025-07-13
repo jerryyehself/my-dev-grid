@@ -1,3 +1,5 @@
+import { useErrors } from "./stores/useErrors";
+
 /**
  * 發送 API 請求，最多重試 3 次
  * @param {string} targetURI
@@ -25,9 +27,11 @@ export const fetchAPI = async (url, fetchOptions = {}) => {
 
             if (response.status === 422) {
                 const errorJson = await response.json();
-                throw new Error(
-                    `Validation Error: ${JSON.stringify(errorJson)}`,
+                useErrors().setErrors(
+                    errorJson.errors || errorJson.message || {},
                 );
+
+                throw new Error(`Validation Error`);
             }
 
             if (!response.ok) {
@@ -37,7 +41,10 @@ export const fetchAPI = async (url, fetchOptions = {}) => {
             }
 
             try {
-                return await response.json();
+                const body = response.json();
+                return response.status === 200
+                    ? body
+                    : { body: body, status: response.status };
             } catch {
                 return null;
             }

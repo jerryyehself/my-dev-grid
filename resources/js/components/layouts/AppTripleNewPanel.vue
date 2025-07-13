@@ -25,7 +25,13 @@
                     :key="index"
                     :class="{ 'mb-2': field.label }"
                 >
-                    <label class="grid grid-cols-[4rem_1fr] items-center gap-2">
+                    <label
+                        :class="[
+                            'grid grid-cols-[4rem_1fr] items-center gap-2',
+                            errors[index] &&
+                                'border border-red-500 text-red-500 rounded-sm p-2',
+                        ]"
+                    >
                         <span class="text-sm font-medium text-gray-700">
                             {{ field?.label }}
                         </span>
@@ -39,6 +45,9 @@
                             v-model="formData[index]"
                         />
                     </label>
+                    <span v-if="errors[index]" class="text-red-500">
+                        {{ errors[index] }}
+                    </span>
                 </div>
                 <div class="flex items-end justify-center flex-1">
                     <AppWidgetButton :button="submitButton" />
@@ -56,6 +65,9 @@ import AppWidgetButton from "../widgets/AppWidgetButton.vue";
 import { CheckCircleIcon } from "@heroicons/vue/16/solid";
 import { useData } from "../../stores/useData";
 import { fetchAPI } from "../../fetchAPI";
+import { useErrors } from "@/stores/useErrors";
+
+const errors = computed(() => useErrors().messages);
 
 const formData = reactive({
     name: "",
@@ -124,9 +136,13 @@ function onSubmit() {
         },
         { showError: true },
     )
-        .then((response) => {
-            console.log("Form submitted successfully:", response);
-            // Reset form data after successful submission
+        .then(({ status, body }) => {
+            if (status === 201) {
+                window.location.reload();
+                return;
+            }
+
+            console.log("Form submitted:", data);
             Object.keys(formData).forEach((key) => {
                 formData[key] = "";
             });

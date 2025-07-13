@@ -4,6 +4,8 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 
 class StoreScopeRequest extends FormRequest
 {
@@ -25,9 +27,18 @@ class StoreScopeRequest extends FormRequest
         return [
             'class_number' => 'required|numeric',
             'call_number' => 'nullable|numeric',
-            'name' => 'required|unique:scopes',
+            'name' => ['required', Rule::unique('scopes')->whereNull('deleted_at')],
             'comment' => 'max:100',
             'note' => 'max:255'
         ];
+    }
+
+    protected function failedValidation(Validator $validator)
+    {
+        throw new HttpResponseException(
+            response()->json([
+                'errors' => $validator->errors(),
+            ], 422)
+        );
     }
 }

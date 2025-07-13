@@ -8,7 +8,7 @@
                 : 'opacity-50 cursor-not-allowed',
         ]"
         :disabled="!button.ability.value"
-        @click="action"
+        @click="button.action"
     >
         <component :is="button.icon" :class="button.iconClass" />
         <span class="text-sm font-medium tracking-wide">
