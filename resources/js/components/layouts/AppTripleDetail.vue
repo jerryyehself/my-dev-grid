@@ -70,6 +70,9 @@
                 </div>
             </div>
         </div>
+        <div v-else class="flex items-center justify-center h-full">
+            <p class="text-gray-500">請選擇一個項目以查看詳細資訊。</p>
+        </div>
         <AppTripleFloatingWidget :target="target" />
     </div>
 </template>
@@ -142,9 +145,10 @@ watch(
 watch(
     () => selection.selected,
     async (newSelected) => {
-        if (!newSelected || !target.value?.title || !target.value?.item?.id)
+        if (!newSelected || !target.value?.title || !target.value?.item?.id) {
+            detail.value = null;
             return;
-
+        }
         try {
             const response = await fetchAPI(
                 `/api/${target.value.title}/${target.value.item.id}`,

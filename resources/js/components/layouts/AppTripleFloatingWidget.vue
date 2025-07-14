@@ -24,6 +24,7 @@ import {
 } from "@heroicons/vue/24/outline";
 import { fetchAPI } from "../../fetchAPI";
 import { useData } from "../../stores/useData";
+import { useSelectionStore } from "../../stores/useSelectionStore";
 
 const props = defineProps({
     target: {
@@ -53,6 +54,7 @@ const buttonConfigs = [
             })
                 .then(({ status, body }) => {
                     useData().fetchData();
+                    useSelectionStore().setSelection(props.target.title, null);
                 })
                 .catch((error) => {
                     console.error("Error submitting form:", error);
