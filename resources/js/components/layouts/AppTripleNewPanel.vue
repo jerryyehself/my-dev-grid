@@ -111,7 +111,9 @@ watch(
                 item.class_number === newClass && item.call_number == "00",
         )?.id;
 
-        const relationCallNumber = await fetchCallNumberByClass(classId);
+        const relationCallNumber = classId
+            ? await fetchCallNumberByClass(classId)
+            : "00";
 
         formData.value.class_number = newClass;
         formData.value.call_number = relationCallNumber;
