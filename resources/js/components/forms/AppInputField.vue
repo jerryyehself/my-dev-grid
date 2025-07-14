@@ -48,6 +48,7 @@
         rows="4"
         :placeholder="input.placeholder"
         v-model="setValue"
+        class="px-2 py-1"
     ></textarea>
 </template>
 
