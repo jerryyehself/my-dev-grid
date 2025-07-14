@@ -41,7 +41,7 @@ export const fetchAPI = async (url, fetchOptions = {}) => {
             }
 
             try {
-                const body = response.json();
+                const body = await response.json();
                 return response.status === 200
                     ? body
                     : { body: body, status: response.status };

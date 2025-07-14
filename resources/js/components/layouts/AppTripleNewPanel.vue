@@ -25,29 +25,15 @@
                     :key="index"
                     :class="{ 'mb-2': field.label }"
                 >
-                    <label
-                        :class="[
-                            'grid grid-cols-[4rem_1fr] items-center gap-2',
-                            errors[index] &&
-                                'border border-red-500 text-red-500 rounded-sm p-2',
-                        ]"
-                    >
-                        <span class="text-sm font-medium text-gray-700">
-                            {{ field?.label }}
-                        </span>
-                        <AppInputField
-                            :input="field"
-                            :input-key="index"
-                            :type="field.type"
-                            :select="field.select"
-                            :click="field.click"
-                            class="rounded-sm bg-white border-1 border-stone-400"
-                            v-model="formData[index]"
-                        />
-                    </label>
-                    <span v-if="errors[index]" class="text-red-500">
-                        {{ errors[index] }}
-                    </span>
+                    <AppInputField
+                        :input="field"
+                        :input-key="index"
+                        :type="field.type"
+                        :select="field.select"
+                        :click="field.click"
+                        class="rounded-sm bg-white border-1 border-stone-400"
+                        v-model="formData[index]"
+                    />
                 </div>
                 <div class="flex items-end justify-center flex-1">
                     <AppWidgetButton :button="submitButton" />
@@ -63,20 +49,31 @@ import { useForms } from "@/stores/useForms";
 import AppInputField from "../forms/AppInputField.vue";
 import AppWidgetButton from "../widgets/AppWidgetButton.vue";
 import { CheckCircleIcon } from "@heroicons/vue/16/solid";
-import { useData } from "../../stores/useData";
+import { useData } from "@/stores/useData";
 import { fetchAPI } from "../../fetchAPI";
-import { useErrors } from "@/stores/useErrors";
+import { useSelectionStore } from "@/stores/useSelectionStore";
 
-const errors = computed(() => useErrors().messages);
-
-const formData = reactive({
+const formScopeData = reactive({
     name: "",
     class_number: "",
     call_number: "",
     comment: "",
     note: "",
 });
+
+const formRelationData = reactive({
+    name: "",
+    subject: "",
+    object: "",
+    call_number: "",
+    comment: "",
+});
 const tripleSelected = ref("scope");
+const formData = computed(() => {
+    return tripleSelected.value === "scope" ? formScopeData : formRelationData;
+});
+const emit = defineEmits(["updatePanel"]);
+
 const preload = useForms();
 const scopesData = useData().scopesData.data;
 const relationData = useData().relationsData.data;
@@ -93,20 +90,21 @@ const submitButton = {
 };
 
 watch(
-    () => formData.class_number,
+    () => formData.value.class_number,
     async (newClass) => {
-        formData.call_number = await fetchCallNumberByClass(newClass);
+        if (tripleSelected.value !== "scope") return;
+        formData.value.call_number = await fetchCallNumberByClass(newClass);
     },
     { deep: true },
 );
 
 watch(
-    () => [formData.subject, formData.object],
+    () => [formData.value.subject, formData.value.object],
     async ([subject, object]) => {
         if (!subject || !object) return;
         const newClass =
-            scopesData[subject]?.class_number.charAt(0) +
-            scopesData[object]?.class_number.charAt(0);
+            scopesData[subject - 1]?.class_number.charAt(0) +
+            scopesData[object - 1]?.class_number.charAt(0);
 
         const classId = relationData.find(
             (item) =>
@@ -115,8 +113,8 @@ watch(
 
         const relationCallNumber = await fetchCallNumberByClass(classId);
 
-        formData.class_number = newClass;
-        formData.call_number = relationCallNumber;
+        formData.value.class_number = newClass;
+        formData.value.call_number = relationCallNumber;
     },
 );
 
@@ -132,17 +130,20 @@ function onSubmit() {
         `/api/${tripleSelected.value}s`,
         {
             method: "POST",
-            body: JSON.stringify(formData),
+            body: JSON.stringify({ ...formData.value }),
         },
         { showError: true },
     )
         .then(({ status, body }) => {
             if (status === 201) {
-                window.location.reload();
-                return;
+                useData().fetchData();
+                useSelectionStore().setSelection(
+                    `${tripleSelected.value}s`,
+                    body.data,
+                );
+                emit("updatePanel", "admin");
             }
 
-            console.log("Form submitted:", data);
             Object.keys(formData).forEach((key) => {
                 formData[key] = "";
             });

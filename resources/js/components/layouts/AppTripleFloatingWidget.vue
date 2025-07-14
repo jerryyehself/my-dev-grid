@@ -39,14 +39,14 @@ const buttonConfigs = [
         label: "Modify",
         color: "bg-stone-500",
         icon: h(DocumentArrowUpIcon, { class: "w-4 h-4" }),
-        ability: computed(() => !!props.target),
+        ability: computed(() => !!props.target.item),
         action: () => setAction("update"),
     },
     {
         label: "Delete",
         color: "bg-red-400",
         icon: h(TrashIcon, { class: "w-4 h-4" }),
-        ability: computed(() => !!props.target),
+        ability: computed(() => !!props.target.item),
         action: () => {
             fetchAPI(`/api/${props.target.title}/${props.target.item.id}`, {
                 method: "DELETE",

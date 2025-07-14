@@ -81,6 +81,9 @@ class ScopeController extends Controller
     {
         $validatedData = $request->validated();
 
+        $validatedData['parent_class'] = $validatedData['class_number'];
+        $validatedData['class_number'] = Scope::find($validatedData['parent_class'])->class_number;
+
         $scope = Scope::firstOrCreate(
             ['name' => $validatedData['name']],
             $validatedData

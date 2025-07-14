@@ -4,7 +4,7 @@
     </section>
     <main class="flex-1 grid grid-cols-5 min-h-0 box-border">
         <template v-if="panelSelected == 'new'">
-            <AppTripleNewPanel />
+            <AppTripleNewPanel @updatePanel="panelSelected = $event" />
         </template>
         <template v-else>
             <section class="col-span-1 flex flex-col min-h-0 bg-stone-300">

@@ -2,47 +2,43 @@
     <label
         :class="[
             'grid grid-cols-[4rem_1fr] items-center gap-2',
-            errors[inputKey] &&
+            errors[index] &&
                 'border border-red-500 text-red-500 rounded-sm p-2',
         ]"
     >
         <span class="text-sm font-medium text-gray-700">
-            {{ input.label }}
+            {{ field?.label }}
         </span>
         <component
-            :is="fieldComponentMap[input.type]"
-            :input="input"
-            :input-key="inputKey"
-            v-model="setValue"
-            class="bg-white p-1 rounded border border-stone-400"
+            :is="fieldComponentMap[field.type]"
+            :key="index"
+            :input-key="index"
+            :input="field"
+            v-model="formData[field.name]"
+            class="rounded-sm bg-white border-1 border-stone-400"
         />
+        <!-- <AppInputField
+                            :input="field"
+                            :input-key="index"
+                            :type="field.type"
+                            :select="field.select"
+                            :click="field.click"
+                            class="rounded-sm bg-white border-1 border-stone-400"
+                            v-model="formData[index]"
+                        /> -->
     </label>
-    <span v-if="errors[inputKey]" class="text-red-500">
-        {{ errors[inputKey] }}
+    <span v-if="errors[index]" class="text-red-500">
+        {{ errors[index] }}
     </span>
 </template>
-
 <script setup>
-defineOptions({ inheritAttrs: false });
-import { computed } from "vue";
-import { useErrors } from "@/stores/useErrors";
-
 import AppInputText from "../forms/AppInputText.vue";
 import AppInputNumber from "../forms/AppInputNumber.vue";
 import AppInputSelect from "../forms/AppInputSelect.vue";
 import AppInputTextArea from "../forms/AppInputTextArea.vue";
 import AppInputLabel from "../forms/AppInputLabel.vue";
 import AppInputHidden from "../forms/AppInputHidden.vue";
-
-const errors = computed(() => useErrors().messages);
-
-const props = defineProps({
-    input: Object,
-    inputKey: String,
-    target: Object,
-    type: String,
-    modelValue: [String, Number, Object],
-});
+import { useForms } from "../../stores/useForms";
 const fieldComponentMap = {
     text: AppInputText,
     number: AppInputNumber,
@@ -51,10 +47,4 @@ const fieldComponentMap = {
     label: AppInputLabel,
     hidden: AppInputHidden,
 };
-const emit = defineEmits(["update:modelValue"]);
-
-const setValue = computed({
-    get: () => props.modelValue,
-    set: (val) => emit("update:modelValue", val),
-});
 </script>
