@@ -20,7 +20,9 @@
             </RouterLink>
         </nav>
     </header>
-    <RouterView />
+    <main class="relative flex-1 min-h-0 box-border overflow-hidden h-full">
+        <RouterView />
+    </main>
 </template>
 
 <script setup>
