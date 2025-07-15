@@ -14,7 +14,14 @@
                 v-for="(page, key) in pages"
                 :key="key"
                 :to="page.to"
-                class="relative inline-block px-1 after:content-[''] after:absolute after:left-0 after:bottom-0 after:h-[2px] after:w-0 after:bg-white after:transition-all after:duration-300 hover:after:w-full hover:text-white"
+                :class="[
+                    'relative inline-block px-1 after:absolute after:left-0 after:bottom-0 after:h-[2px] after:w-0 after:bg-white after:transition-all after:duration-300',
+                    {
+                        'text-white after:w-full': $route.path === page.to,
+                        'hover:after:w-full hover:text-white':
+                            $route.path !== page.to,
+                    },
+                ]"
             >
                 {{ page.label }}
             </RouterLink>
