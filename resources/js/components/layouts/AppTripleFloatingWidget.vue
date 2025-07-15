@@ -22,7 +22,7 @@ import {
     TrashIcon,
     PlusIcon,
 } from "@heroicons/vue/24/outline";
-import { fetchAPI } from "../../fetchAPI";
+import { fetchAPI } from "../../useFetchAPI";
 import { useData } from "../../stores/useData";
 import { useSelectionStore } from "../../stores/useSelectionStore";
 

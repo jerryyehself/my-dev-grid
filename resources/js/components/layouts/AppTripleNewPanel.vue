@@ -50,7 +50,7 @@ import AppInputField from "../forms/AppInputField.vue";
 import AppWidgetButton from "../widgets/AppWidgetButton.vue";
 import { CheckCircleIcon } from "@heroicons/vue/16/solid";
 import { useData } from "@/stores/useData";
-import { fetchAPI } from "../../fetchAPI";
+import { fetchAPI } from "../../useFetchAPI";
 import { useSelectionStore } from "@/stores/useSelectionStore";
 
 const formScopeData = reactive({

@@ -80,7 +80,7 @@
 <script setup>
 import { computed, ref, watch, onMounted, nextTick } from "vue";
 import { useSelectionStore } from "@/stores/useSelectionStore";
-import { fetchAPI } from "../../fetchAPI.js";
+import { fetchAPI } from "../../useFetchAPI.js";
 import { useData } from "@/stores/useData";
 import AppTripleDetailContainer from "./AppTripleDetailContainer.vue";
 import AppTripleDetailMetadata from "./AppTripleDetailMetadata.vue";

@@ -6,15 +6,15 @@
     <nav class="col-span-2 flex space-x-20 text-stone-300 font-medium justify-center xl:text-xl md:text-md">
         <a href="/"
             class="relative inline-block px-1 after:content-[''] after:absolute after:left-0 after:bottom-0 after:h-[2px] after:w-0 after:bg-white after:transition-all after:duration-300 hover:after:w-full hover:text-white">
-            home
+            Home
         </a>
         <a href="/triple-control"
             class="relative inline-block px-1 after:content-[''] after:absolute after:left-0 after:bottom-0 after:h-[2px] after:w-0 after:bg-white after:transition-all after:duration-300 hover:after:w-full hover:text-white">
-            admin
+            Admin
         </a>
         <a href="/works"
             class="relative inline-block px-1 after:content-[''] after:absolute after:left-0 after:bottom-0 after:h-[2px] after:w-0 after:bg-white after:transition-all after:duration-300 hover:after:w-full hover:text-white">
-            projects
+            Projects
         </a>
     </nav>
 </header>

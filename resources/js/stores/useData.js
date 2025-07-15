@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { fetchAPI } from "../fetchAPI";
+import { fetchAPI } from "../useFetchAPI";
 
 export const useData = defineStore("useData", () => {
     const scopesData = ref(null);
