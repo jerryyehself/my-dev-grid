@@ -40,6 +40,7 @@ import AppTripleDetail from "../components/layouts/AppTripleDetail.vue";
 import AppTripleNewPanel from "../components/layouts/AppTripleNewPanel.vue";
 import { useData } from "../stores/useData";
 import { useForms } from "../stores/useForms";
+import AppHeader from "../components/layouts/AppHeader.vue";
 
 const panelSelected = ref("admin");
 const prevPanel = ref(panelSelected.value);

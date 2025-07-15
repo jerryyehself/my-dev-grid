@@ -8,7 +8,6 @@
 </head>
 
 <body class="overflow-hidden flex flex-col">
-    @include('nav')
     <div id="app" class="flex flex-col">
     </div>
 </body>
