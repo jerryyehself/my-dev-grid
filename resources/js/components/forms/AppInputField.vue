@@ -1,11 +1,5 @@
 <template>
-    <label
-        :class="[
-            'grid grid-cols-[4rem_1fr] items-center gap-2',
-            errors[inputKey] &&
-                'border border-red-500 text-red-500 rounded-sm p-2',
-        ]"
-    >
+    <label :class="['grid grid-cols-[4rem_1fr] items-center']">
         <span class="text-sm font-medium text-gray-700">
             {{ input.label }}
         </span>
@@ -14,12 +8,17 @@
             :input="input"
             :input-key="inputKey"
             v-model="setValue"
-            class="bg-white p-1 rounded border border-stone-400"
+            :class="[
+                'bg-white border rounded',
+                errors[inputKey]
+                    ? 'border-red-500 text-red-500 '
+                    : 'border-stone-400 rounded',
+            ]"
         />
+        <span v-if="errors[inputKey]" class="text-red-500 text-sm col-start-2">
+            {{ errors[inputKey] }}
+        </span>
     </label>
-    <span v-if="errors[inputKey]" class="text-red-500">
-        {{ errors[inputKey] }}
-    </span>
 </template>
 
 <script setup>

@@ -18,10 +18,13 @@
         <div class="flex flex-col flex-1 min-h-0 w-1/2 p-2">
             <span>Step 2. Set Attributes</span>
             <div
-                class="bg-stone-300 flex-1 rounded-md border border-stone-400 p-5 overflow-auto flex flex-col h-full"
+                class="bg-stone-300 flex-1 rounded-md border border-stone-400 p-5 flex flex-col h-full min-h-0 overflow-hidden"
             >
                 <Transition name="fade" mode="out-in">
-                    <div :key="tripleSelected">
+                    <div
+                        :key="tripleSelected"
+                        class="flex-1 overflow-auto scroll-m-1 scroll-blend"
+                    >
                         <div
                             v-for="(field, index) in formFields"
                             :key="index"
@@ -39,7 +42,7 @@
                         </div>
                     </div>
                 </Transition>
-                <div class="flex items-end justify-center flex-1">
+                <div class="flex items-end justify-center">
                     <AppWidgetButton :button="submitButton" />
                 </div>
             </div>
@@ -48,7 +51,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, watch, h, TransitionGroup } from "vue";
+import { ref, computed, reactive, watch, h } from "vue";
 import { useForms } from "@/stores/useForms";
 import AppInputField from "../forms/AppInputField.vue";
 import AppWidgetButton from "../widgets/AppWidgetButton.vue";
@@ -56,6 +59,7 @@ import { CheckCircleIcon } from "@heroicons/vue/16/solid";
 import { useData } from "@/stores/useData";
 import { fetchAPI } from "../../useFetchAPI";
 import { useSelectionStore } from "@/stores/useSelectionStore";
+import { useErrors } from "../../stores/useErrors";
 
 const formScopeData = reactive({
     name: "",
@@ -74,6 +78,7 @@ const formRelationData = reactive({
 });
 const tripleSelected = ref("scope");
 const formData = computed(() => {
+    useErrors().setErrors();
     return tripleSelected.value === "scope" ? formScopeData : formRelationData;
 });
 const emit = defineEmits(["updatePanel"]);
