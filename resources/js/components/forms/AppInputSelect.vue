@@ -1,8 +1,8 @@
 <template>
     <select :id="props.inputKey" :name="props.inputKey" v-model="setValue">
         <option
-            v-for="(option, key) in props.input.options"
-            :key="key"
+            v-for="option in props.input.options"
+            :key="option.id"
             :value="option.id"
         >
             {{ option.CURIE }}

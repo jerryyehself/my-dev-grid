@@ -5,8 +5,8 @@
         <h4 class="pb-2 font-bold text-center text-shadow-lg">Action</h4>
         <div class="flex flex-col gap-2">
             <AppWidgetButton
-                v-for="(button, index) in buttonConfigs"
-                :key="index"
+                v-for="button in buttonConfigs"
+                :key="button.label"
                 :button="button"
             />
         </div>

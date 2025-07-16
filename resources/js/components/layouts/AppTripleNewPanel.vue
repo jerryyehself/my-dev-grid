@@ -20,21 +20,25 @@
             <div
                 class="bg-stone-300 flex-1 rounded-md border border-stone-400 p-5 overflow-auto flex flex-col h-full"
             >
-                <div
-                    v-for="(field, index) in formFields"
-                    :key="index"
-                    :class="{ 'mb-2': field.label }"
-                >
-                    <AppInputField
-                        :input="field"
-                        :input-key="index"
-                        :type="field.type"
-                        :select="field.select"
-                        :click="field.click"
-                        class="rounded-sm bg-white border-1 border-stone-400"
-                        v-model="formData[index]"
-                    />
-                </div>
+                <Transition name="fade" mode="out-in">
+                    <div :key="tripleSelected">
+                        <div
+                            v-for="(field, index) in formFields"
+                            :key="index"
+                            :class="{ 'mb-2': field.label }"
+                        >
+                            <AppInputField
+                                :input="field"
+                                :input-key="index"
+                                :type="field.type"
+                                :select="field.select"
+                                :click="field.click"
+                                class="rounded-sm bg-white border-1 border-stone-400"
+                                v-model="formData[index]"
+                            />
+                        </div>
+                    </div>
+                </Transition>
                 <div class="flex items-end justify-center flex-1">
                     <AppWidgetButton :button="submitButton" />
                 </div>
@@ -44,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, watch, h } from "vue";
+import { ref, computed, reactive, watch, h, TransitionGroup } from "vue";
 import { useForms } from "@/stores/useForms";
 import AppInputField from "../forms/AppInputField.vue";
 import AppWidgetButton from "../widgets/AppWidgetButton.vue";
@@ -155,3 +159,14 @@ function onSubmit() {
         });
 }
 </script>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+</style>
