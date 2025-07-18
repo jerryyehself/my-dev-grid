@@ -29,10 +29,15 @@
     </header>
     <main class="relative flex-1 min-h-0 box-border overflow-hidden h-full">
         <RouterView />
+        <AppConfirmMessage />
     </main>
+    <footer></footer>
 </template>
 
 <script setup>
+import { ref } from "vue";
+import AppConfirmMessage from "@/components/widgets/AppConfirmMessage.vue";
+const showWarning = ref(true);
 const pages = {
     home: {
         to: "/",

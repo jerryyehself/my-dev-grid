@@ -16,15 +16,11 @@
 <script setup>
 import { h, computed } from "vue";
 import AppWidgetButton from "../widgets/AppWidgetButton.vue";
-import { useTripleAction } from "@/stores/useTripleAction";
-import {
-    DocumentArrowUpIcon,
-    TrashIcon,
-    PlusIcon,
-} from "@heroicons/vue/24/outline";
+import { DocumentArrowUpIcon, TrashIcon } from "@heroicons/vue/24/outline";
 import { fetchAPI } from "../../useFetchAPI";
-import { useData } from "../../stores/useData";
-import { useSelectionStore } from "../../stores/useSelectionStore";
+import { useData } from "../../stores/useDataStore";
+import { useSelectionStore } from "../../stores/useTripleSelctionStore";
+import { useConfirmStore } from "@/stores/useConfirm";
 
 const props = defineProps({
     target: {
@@ -33,8 +29,6 @@ const props = defineProps({
     },
 });
 
-const selectAction = useTripleAction();
-const action = computed(() => selectAction.action);
 const buttonConfigs = [
     {
         label: "Modify",
@@ -47,18 +41,26 @@ const buttonConfigs = [
         label: "Delete",
         color: "bg-red-400",
         icon: h(TrashIcon, { class: "w-4 h-4" }),
-        ability: computed(() => !!props.target.item),
-        action: () => {
-            fetchAPI(`/api/${props.target.title}/${props.target.item.id}`, {
-                method: "DELETE",
-            })
-                .then(({ status, body }) => {
-                    useData().fetchData();
-                    useSelectionStore().setSelection(props.target.title, null);
+        ability: computed(() => !!props.target.item?.parent),
+        action: async () => {
+            const confirm = useConfirmStore();
+            const confirmed = await confirm.show("確定要刪除嗎？");
+            if (confirmed) {
+                fetchAPI(`/api/${props.target.title}/${props.target.item.id}`, {
+                    method: "DELETE",
                 })
-                .catch((error) => {
-                    console.error("Error submitting form:", error);
-                });
+                    .then(({ status, body }) => {
+                        useData().fetchData();
+                        useTripleSelctionStore().setTripleSelction(
+                            props.target.title,
+                            null,
+                        );
+                    })
+                    .catch((error) => {
+                        console.error("Error submitting form:", error);
+                    });
+            }
+            return true;
         },
     },
 ];

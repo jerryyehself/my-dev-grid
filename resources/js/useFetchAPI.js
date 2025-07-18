@@ -1,4 +1,4 @@
-import { useErrors } from "./stores/useErrors";
+import { useErrors } from "./stores/useErrorsStore";
 
 /**
  * 發送 API 請求，最多重試 3 次

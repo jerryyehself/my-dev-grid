@@ -64,7 +64,6 @@
                     <AppTripleDetailFooter :detail="detail" />
                 </div>
 
-                <!-- 右側空白 -->
                 <div class="col-span-2 py-5 flex flex-col px-6 gap-3">
                     <AppTripleDetailNav v-if="showDetailNav" />
                 </div>

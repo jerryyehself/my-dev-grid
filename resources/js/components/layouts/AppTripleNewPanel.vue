@@ -58,8 +58,8 @@ import AppWidgetButton from "../widgets/AppWidgetButton.vue";
 import { CheckCircleIcon } from "@heroicons/vue/16/solid";
 import { useData } from "@/stores/useData";
 import { fetchAPI } from "../../useFetchAPI";
-import { useSelectionStore } from "@/stores/useSelectionStore";
-import { useErrors } from "../../stores/useErrors";
+import { useTripleSelctionStore } from "@/stores/useSelectionStore";
+import { useErrors } from "../../stores/useErrorsStore";
 
 const formScopeData = reactive({
     name: "",
@@ -148,7 +148,7 @@ function onSubmit() {
         .then(({ status, body }) => {
             if (status === 201) {
                 useData().fetchData();
-                useSelectionStore().setSelection(
+                useTripleSelctionStore().setTripleSelction(
                     `${tripleSelected.value}s`,
                     body.data,
                 );

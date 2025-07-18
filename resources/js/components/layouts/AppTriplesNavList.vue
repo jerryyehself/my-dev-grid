@@ -69,7 +69,7 @@ const emit = defineEmits(["toggle", "item"]);
 
 const searchKeyword = ref("");
 const wrapperRef = ref(null);
-const selectionStore = useSelectionStore();
+const tripleSelection = useTripleSelctionStore();
 
 const itemList = computed(() => props.items || []);
 const filteredItems = computed(() => {
@@ -84,7 +84,7 @@ const filteredItems = computed(() => {
 });
 
 function handleItemClick(title, item) {
-    selectionStore.setSelection(title, item);
+    tripleSelection.setTripleSelction(title, item);
 }
 
 onMounted(() => {
