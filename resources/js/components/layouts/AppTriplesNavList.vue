@@ -32,8 +32,8 @@
                         item.call_number == '00' ? 'font-bold' : '',
                         {
                             'bg-white':
-                                selectionStore.selected?.item?.id == item.id &&
-                                selectionStore.selected?.title == title,
+                                tripleSelection.selected?.item?.id == item.id &&
+                                tripleSelection.selected?.title == title,
                         },
                     ]"
                     @click="handleItemClick(title, item)"
@@ -56,7 +56,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import autoAnimate from "@formkit/auto-animate";
-import { useSelectionStore } from "@/stores/useSelectionStore";
+import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
 import { ChevronDownIcon } from "@heroicons/vue/24/outline";
 
 const props = defineProps({
@@ -69,7 +69,7 @@ const emit = defineEmits(["toggle", "item"]);
 
 const searchKeyword = ref("");
 const wrapperRef = ref(null);
-const tripleSelection = useTripleSelctionStore();
+const tripleSelection = useTripleSelectionStore();
 
 const itemList = computed(() => props.items || []);
 const filteredItems = computed(() => {
@@ -84,7 +84,7 @@ const filteredItems = computed(() => {
 });
 
 function handleItemClick(title, item) {
-    tripleSelection.setTripleSelction(title, item);
+    tripleSelection.setTripleSelection(title, item);
 }
 
 onMounted(() => {

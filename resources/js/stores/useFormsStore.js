@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { fetchAPI } from "../useFetchAPI";
 
-export const useForms = defineStore("useForms", () => {
+export const useFormsStore = defineStore("useForms", () => {
     const scopesForm = ref(null);
     const relationsForm = ref(null);
     const isLoaded = ref(false);

@@ -9,16 +9,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch } from "vue";
 import AppTriplePanelNav from "../components/layouts/AppTriplePanelNav.vue";
-import { useData } from "../stores/useData";
-import { useForms } from "../stores/useForms";
+import { useDataStore } from "../stores/useDataStore";
+import { useFormsStore } from "../stores/useFormsStore";
 import AppTriplePanelView from "../components/layouts/AppTriplePanelView.vue";
 
 const panelSelected = ref("admin");
 const prevPanel = ref(panelSelected.value);
-const dataStore = useData();
-const formsStore = useForms();
+const dataStore = useDataStore();
+const formsStore = useFormsStore();
 
 watch(panelSelected, (newVal, oldVal) => {
     prevPanel.value = oldVal;

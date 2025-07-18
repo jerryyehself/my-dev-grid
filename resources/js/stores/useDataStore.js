@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { fetchAPI } from "../useFetchAPI";
 
-export const useData = defineStore("useData", () => {
+export const useDataStore = defineStore("data", () => {
     const scopesData = ref(null);
     const relationsData = ref(null);
     const scopesDict = ref(null);

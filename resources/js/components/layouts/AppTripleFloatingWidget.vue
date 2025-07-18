@@ -18,9 +18,9 @@ import { h, computed } from "vue";
 import AppWidgetButton from "../widgets/AppWidgetButton.vue";
 import { DocumentArrowUpIcon, TrashIcon } from "@heroicons/vue/24/outline";
 import { fetchAPI } from "../../useFetchAPI";
-import { useData } from "../../stores/useDataStore";
-import { useSelectionStore } from "../../stores/useTripleSelctionStore";
-import { useConfirmStore } from "@/stores/useConfirm";
+import { useDataStore } from "@/stores/useDataStore";
+import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
+import { useConfirmStore } from "@/stores/useConfirmStore";
 
 const props = defineProps({
     target: {
@@ -50,8 +50,8 @@ const buttonConfigs = [
                     method: "DELETE",
                 })
                     .then(({ status, body }) => {
-                        useData().fetchData();
-                        useTripleSelctionStore().setTripleSelction(
+                        useDataStore().fetchData();
+                        useTripleSelectionStore().setTripleSelection(
                             props.target.title,
                             null,
                         );

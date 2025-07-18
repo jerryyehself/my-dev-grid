@@ -52,14 +52,14 @@
 
 <script setup>
 import { ref, computed, reactive, watch, h } from "vue";
-import { useForms } from "@/stores/useForms";
+import { useFormsStore } from "@/stores/useFormsStore";
 import AppInputField from "../forms/AppInputField.vue";
 import AppWidgetButton from "../widgets/AppWidgetButton.vue";
 import { CheckCircleIcon } from "@heroicons/vue/16/solid";
-import { useData } from "@/stores/useData";
+import { useDataStore } from "@/stores/useDataStore";
 import { fetchAPI } from "../../useFetchAPI";
-import { useTripleSelctionStore } from "@/stores/useSelectionStore";
-import { useErrors } from "../../stores/useErrorsStore";
+import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
+import { useErrorsStore } from "@/stores/useErrorsStore";
 
 const formScopeData = reactive({
     name: "",
@@ -78,14 +78,14 @@ const formRelationData = reactive({
 });
 const tripleSelected = ref("scope");
 const formData = computed(() => {
-    useErrors().setErrors();
+    useErrorsStore().setErrors();
     return tripleSelected.value === "scope" ? formScopeData : formRelationData;
 });
 const emit = defineEmits(["updatePanel"]);
 
-const preload = useForms();
-const scopesData = useData().scopesData.data;
-const relationData = useData().relationsData.data;
+const preload = useFormsStore();
+const scopesData = useDataStore().scopesData.data;
+const relationData = useDataStore().relationsData.data;
 
 const formFields = computed(() => preload[`${tripleSelected.value}sForm`]);
 
@@ -147,8 +147,8 @@ function onSubmit() {
     )
         .then(({ status, body }) => {
             if (status === 201) {
-                useData().fetchData();
-                useTripleSelctionStore().setTripleSelction(
+                useDataStore().fetchData();
+                useTripleSelectionStore().setTripleSelection(
                     `${tripleSelected.value}s`,
                     body.data,
                 );

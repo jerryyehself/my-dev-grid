@@ -61,14 +61,14 @@ import AppInputUnit from "../forms/AppInputUnit.vue";
 import { computed, ref, watch } from "vue";
 import { useSelectionStore } from "@/stores/useSelectionStore";
 import { useForms } from "@/stores/useForms";
-import { useData } from "@/stores/useData";
-import { useErrors } from "@/stores/useErrors";
+import { useDataStore } from "@/stores/useDataStore";
+import { useErrorsStore } from "@/stores/useErrorsStore";
 
 const selection = useSelectionStore();
 const target = computed(() => selection.selected);
 const formRef = ref(null);
 const form = ref(null);
-const errors = useErrors();
+const errors = useErrorsStore();
 const itemMeta = computed(() => ({
     type: target.value.title,
     area: target.value.item?.parent?.name,
@@ -121,6 +121,6 @@ async function submitForm() {
         alert(message);
     }
 
-    await useData().fetchData();
+    await useDataStore().fetchData();
 }
 </script>

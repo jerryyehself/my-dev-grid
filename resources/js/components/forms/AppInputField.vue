@@ -24,7 +24,7 @@
 <script setup>
 defineOptions({ inheritAttrs: false });
 import { computed } from "vue";
-import { useErrors } from "@/stores/useErrors";
+import { useErrorsStore } from "@/stores/useErrorsStore";
 
 import AppInputText from "../forms/AppInputText.vue";
 import AppInputNumber from "../forms/AppInputNumber.vue";
@@ -33,7 +33,7 @@ import AppInputTextArea from "../forms/AppInputTextArea.vue";
 import AppInputLabel from "../forms/AppInputLabel.vue";
 import AppInputHidden from "../forms/AppInputHidden.vue";
 
-const errors = computed(() => useErrors().messages);
+const errors = computed(() => useErrorsStore().messages);
 
 const props = defineProps({
     input: Object,

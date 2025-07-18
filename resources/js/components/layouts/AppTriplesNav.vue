@@ -45,10 +45,10 @@
 
 <script setup>
 import { ref, computed } from "vue";
-import { useData } from "@/stores/useData";
+import { useDataStore } from "@/stores/useDataStore";
 import AppTriplesNavList from "./AppTriplesNavList.vue";
 
-const dataStore = useData();
+const dataStore = useDataStore();
 const searchKeyword = ref("");
 const expandedSection = ref("scopes");
 

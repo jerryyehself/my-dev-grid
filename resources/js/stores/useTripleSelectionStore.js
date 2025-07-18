@@ -1,13 +1,13 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { useErrors } from "./useErrorsStore";
+import { useErrorsStore } from "./useErrorsStore";
 
-export const useTripleSelctionStore = defineStore("triple-selction", () => {
+export const useTripleSelectionStore = defineStore("triple-selection", () => {
     const selected = ref({ title: "", item: null, CURIE: "" });
-    function setTripleSelction(title, item) {
+    function setTripleSelection(title, item) {
         if (item && selected.value.CURIE !== item.CURIE) {
             selected.value = { title, item, CURIE: item.CURIE };
-            useErrors().setErrors();
+            useErrorsStore().setErrors();
         } else {
             selected.value = { title, item: null, CURIE: "" };
         }
@@ -15,6 +15,6 @@ export const useTripleSelctionStore = defineStore("triple-selction", () => {
 
     return {
         selected,
-        setTripleSelction,
+        setTripleSelection,
     };
 });

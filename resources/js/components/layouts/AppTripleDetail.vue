@@ -78,9 +78,9 @@
 
 <script setup>
 import { computed, ref, watch, onMounted, nextTick } from "vue";
-import { useSelectionStore } from "@/stores/useSelectionStore";
+import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
 import { fetchAPI } from "../../useFetchAPI.js";
-import { useData } from "@/stores/useData";
+import { useDataStore } from "@/stores/useDataStore";
 import AppTripleDetailContainer from "./AppTripleDetailContainer.vue";
 import AppTripleDetailMetadata from "./AppTripleDetailMetadata.vue";
 import AppTripleDetailRelationship from "./AppTripleDetailRelationship.vue";
@@ -96,9 +96,9 @@ import {
     ChartBarSquareIcon,
 } from "@heroicons/vue/16/solid";
 
-const preload = useData();
+const preload = useDataStore();
 
-const selection = useSelectionStore();
+const selection = useTripleSelectionStore();
 
 const target = computed(() => selection.selected);
 const detail = ref(null);

@@ -1,3 +1,20 @@
+<template>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+        <AppTripleDetailStaticCard
+            v-if="!props.detail.parent"
+            :static-card="staticCards.children"
+        />
+
+        <AppTripleDetailStaticCard v-else :static-card="staticCards.siblings" />
+
+        <AppTripleDetailStaticCard
+            v-if="props.type === 'scopes'"
+            :static-card="staticCards.relationships"
+        />
+
+        <AppTripleDetailStaticCard :static-card="staticCards.records" />
+    </div>
+</template>
 <script setup>
 import { computed } from "vue";
 import AppTripleDetailStaticCard from "./AppTripleDetailStaticCard.vue";
@@ -41,21 +58,3 @@ const staticCards = computed(() => ({
     },
 }));
 </script>
-
-<template>
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-        <AppTripleDetailStaticCard
-            v-if="!props.detail.parent"
-            :static-card="staticCards.children"
-        />
-
-        <AppTripleDetailStaticCard v-else :static-card="staticCards.siblings" />
-
-        <AppTripleDetailStaticCard
-            v-if="props.type === 'scopes'"
-            :static-card="staticCards.relationships"
-        />
-
-        <AppTripleDetailStaticCard :static-card="staticCards.records" />
-    </div>
-</template>
