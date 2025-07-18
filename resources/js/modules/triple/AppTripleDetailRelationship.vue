@@ -28,7 +28,7 @@
 
     <!-- 滾動區 -->
     <div class="flex-1 divide-y divide-stone-200 pr-1">
-        <RelationRow
+        <AppTripleRelationRow
             v-for="row in relationRows"
             :key="row.key"
             v-bind="row.props"
@@ -38,7 +38,7 @@
 
 <script setup>
 import { ref, watch, computed } from "vue";
-import RelationRow from "./AppRelationRow.vue";
+import AppTripleRelationRow from "./AppTripleRelationRow.vue";
 
 const props = defineProps({
     detail: {

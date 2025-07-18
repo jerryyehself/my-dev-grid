@@ -11,7 +11,7 @@
                 class="col-span-5 grid grid-cols-5 min-h-0 max-h-full overflow-hidden h-full"
             >
                 <section class="col-span-1 flex flex-col min-h-0 bg-stone-300">
-                    <AppTriplesNav />
+                    <AppTripleNavList />
                 </section>
                 <section
                     class="col-span-4 flex flex-col min-h-0 max-h-full overflow-hidden h-full"
@@ -25,7 +25,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import AppTripleNewPanel from "./AppTripleNewPanel.vue";
-import AppTriplesNav from "./AppTriplesNav.vue";
+import AppTripleNavList from "./AppTripleNav.vue";
 import AppTripleDetail from "./AppTripleDetail.vue";
 
 const props = defineProps({

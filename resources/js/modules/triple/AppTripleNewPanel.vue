@@ -53,11 +53,11 @@
 <script setup>
 import { ref, computed, reactive, watch, h } from "vue";
 import { useFormsStore } from "@/stores/useFormsStore";
-import AppInputField from "../forms/AppInputField.vue";
-import AppWidgetButton from "../widgets/AppWidgetButton.vue";
+import AppInputField from "../../components/forms/AppInputField.vue";
+import AppWidgetButton from "../../components/widgets/AppWidgetButton.vue";
 import { CheckCircleIcon } from "@heroicons/vue/16/solid";
 import { useDataStore } from "@/stores/useDataStore";
-import { fetchAPI } from "../../useFetchAPI";
+import { fetchAPI } from "../../utils/useFetchAPI";
 import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
 import { useErrorsStore } from "@/stores/useErrorsStore";
 

@@ -62,7 +62,7 @@
 </template>
 
 <script setup>
-import AppDirectionArrows from "../icons/AppDirectionArrows.vue";
+import AppDirectionArrows from "../../components/icons/AppDirectionArrows.vue";
 const props = defineProps({
     type: String,
     relation: Object,

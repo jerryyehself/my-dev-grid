@@ -10,10 +10,10 @@
 
 <script setup>
 import { ref, onMounted, watch } from "vue";
-import AppTriplePanelNav from "../components/layouts/AppTriplePanelNav.vue";
+import AppTriplePanelNav from "../modules/triple/AppTriplePanelNav.vue";
 import { useDataStore } from "../stores/useDataStore";
 import { useFormsStore } from "../stores/useFormsStore";
-import AppTriplePanelView from "../components/layouts/AppTriplePanelView.vue";
+import AppTriplePanelView from "../modules/triple/AppTriplePanelView.vue";
 
 const panelSelected = ref("admin");
 const prevPanel = ref(panelSelected.value);

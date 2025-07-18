@@ -56,7 +56,7 @@
 </template>
 
 <script setup>
-import AppTripleItemMetaTag from "./AppTripleItemMetaTag.vue";
+import AppTripleItemMetaTag from "../../modules/triple/AppTripleItemMetaTag.vue";
 import AppInputUnit from "../forms/AppInputUnit.vue";
 import { computed, ref, watch } from "vue";
 import { useSelectionStore } from "@/stores/useSelectionStore";

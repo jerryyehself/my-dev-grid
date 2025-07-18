@@ -31,7 +31,7 @@
             :key="section.key"
         >
             <hr class="border-t border-stone-300 dark:border-stone-600" />
-            <AppTriplesNavList
+            <AppTripleNavList
                 :title="section.title"
                 :items="section.items"
                 :type="section.type"
@@ -46,7 +46,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useDataStore } from "@/stores/useDataStore";
-import AppTriplesNavList from "./AppTriplesNavList.vue";
+import AppTripleNavList from "./AppTripleNavList.vue";
 
 const dataStore = useDataStore();
 const searchKeyword = ref("");

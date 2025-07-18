@@ -15,9 +15,9 @@
 
 <script setup>
 import { h, computed } from "vue";
-import AppWidgetButton from "../widgets/AppWidgetButton.vue";
+import AppWidgetButton from "../../components/widgets/AppWidgetButton.vue";
 import { DocumentArrowUpIcon, TrashIcon } from "@heroicons/vue/24/outline";
-import { fetchAPI } from "../../useFetchAPI";
+import { fetchAPI } from "../../utils/useFetchAPI";
 import { useDataStore } from "@/stores/useDataStore";
 import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
 import { useConfirmStore } from "@/stores/useConfirmStore";
