@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
-export const useErrorsStore = defineStore("useErrors", () => {
+export const useErrorsStore = defineStore("errors", () => {
     const isError = ref(false);
     const messages = ref({});
 

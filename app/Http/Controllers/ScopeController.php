@@ -90,7 +90,7 @@ class ScopeController extends Controller
         );
 
         return response()->json([
-            'data' => $scope,
+            'data' => new ScopeResource($scope->load('parent', 'children')),
             'message' => $scope->wasRecentlyCreated
                 ? 'Scope created.'
                 : 'Scope already exists.',

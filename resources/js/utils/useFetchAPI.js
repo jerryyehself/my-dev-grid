@@ -27,7 +27,7 @@ export const fetchAPI = async (url, fetchOptions = {}) => {
 
             if (response.status === 422) {
                 const errorJson = await response.json();
-                useErrors().setErrors(
+                useErrorsStore().setErrors(
                     errorJson.errors || errorJson.message || {},
                 );
 

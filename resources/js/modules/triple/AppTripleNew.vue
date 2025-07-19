@@ -58,8 +58,9 @@ import AppWidgetButton from "../../components/widgets/AppWidgetButton.vue";
 import { CheckCircleIcon } from "@heroicons/vue/16/solid";
 import { useDataStore } from "@/stores/useDataStore";
 import { fetchAPI } from "../../utils/useFetchAPI";
-import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
+import { useTriplePanelSelectionStore } from "@/stores/useTriplePanelSelectionStore";
 import { useErrorsStore } from "@/stores/useErrorsStore";
+import { useTripleSelectionStore } from "../../stores/useTripleSelectionStore";
 
 const formScopeData = reactive({
     name: "",
@@ -152,7 +153,7 @@ function onSubmit() {
                     `${tripleSelected.value}s`,
                     body.data,
                 );
-                emit("updatePanel", "admin");
+                useTriplePanelSelectionStore().setPanel("admin");
             }
 
             Object.keys(formData).forEach((key) => {

@@ -5,10 +5,10 @@
         <button
             v-for="(panel, key) in panelNavList"
             :key="key"
-            @click="model = key"
+            @click="panelStatus.setPanel(key)"
             :class="[
                 'shadow-inner font-bold text-center p-3 cursor-pointer flex items-center justify-center',
-                model === key
+                panelStatus.panelSelected === key
                     ? 'bg-stone-600 text-white'
                     : 'bg-stone-300 text-gray-700',
             ]"
@@ -25,8 +25,10 @@ import {
     DocumentPlusIcon,
     AdjustmentsVerticalIcon,
 } from "@heroicons/vue/16/solid";
+import { useTriplePanelSelectionStore } from "@/stores/useTriplePanelSelectionStore";
 
-const model = defineModel();
+const panelStatus = useTriplePanelSelectionStore();
+
 const panelNavList = {
     admin: {
         label: "Admin",

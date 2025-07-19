@@ -1,8 +1,7 @@
 <template>
     <div class="flex flex-col h-full">
-        <AppTriplePanelNav v-model="panelSelected" />
+        <AppTriplePanelNav />
         <AppTriplePanelView
-            :panel-selected="panelSelected"
             class="flex-1 h-full min-h-0 max-h-full overflow-hidden"
         />
     </div>
@@ -13,6 +12,7 @@ import { ref, onMounted, watch } from "vue";
 import AppTriplePanelNav from "../modules/triple/AppTriplePanelNav.vue";
 import { useDataStore } from "../stores/useDataStore";
 import { useFormsStore } from "../stores/useFormsStore";
+
 import AppTriplePanelView from "../modules/triple/AppTriplePanelView.vue";
 
 const panelSelected = ref("admin");

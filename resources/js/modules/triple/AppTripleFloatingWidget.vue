@@ -4,6 +4,7 @@
     >
         <h4 class="pb-2 font-bold text-center text-shadow-lg">Action</h4>
         <div class="flex flex-col gap-2">
+            {{ props.item }}
             <AppWidgetButton
                 v-for="button in buttonConfigs"
                 :key="button.label"
@@ -14,7 +15,7 @@
 </template>
 
 <script setup>
-import { h, computed } from "vue";
+import { h, computed, watch } from "vue";
 import AppWidgetButton from "../../components/widgets/AppWidgetButton.vue";
 import { DocumentArrowUpIcon, TrashIcon } from "@heroicons/vue/24/outline";
 import { fetchAPI } from "../../utils/useFetchAPI";
@@ -41,7 +42,7 @@ const buttonConfigs = [
         label: "Delete",
         color: "bg-red-400",
         icon: h(TrashIcon, { class: "w-4 h-4" }),
-        ability: computed(() => !!props.target.item?.parent),
+        ability: computed(() => !!props.target?.item?.parent),
         action: async () => {
             const confirm = useConfirmStore();
             const confirmed = await confirm.show("確定要刪除嗎？");

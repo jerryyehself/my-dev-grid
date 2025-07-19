@@ -28,7 +28,7 @@ class StoreScopeRequest extends FormRequest
             'class_number' => 'required|numeric',
             'call_number' => 'nullable|numeric',
             'name' => ['required', Rule::unique('scopes')->whereNull('deleted_at')],
-            'comment' => 'max:100',
+            'comment' => 'required|max:100',
             'note' => 'max:255'
         ];
     }

@@ -1,10 +1,7 @@
 <template>
-    <Transition :name="transitionName" mode="out-in">
-        <template v-if="props.panelSelected == 'new'">
-            <AppTripleNewPanel
-                class="h-full w-full flex flex-col"
-                @updatePanel="props.panelSelected = $event"
-            />
+    <Transition :name="panelChange" mode="out-in">
+        <template v-if="panelSelected === 'new'">
+            <AppTripleNew class="h-full w-full flex flex-col" />
         </template>
         <template v-else>
             <div
@@ -22,25 +19,33 @@
         </template>
     </Transition>
 </template>
+
 <script setup>
-import { ref, computed } from "vue";
-import AppTripleNewPanel from "./AppTripleNewPanel.vue";
+import { ref, watch, computed } from "vue";
+import { storeToRefs } from "pinia";
+import AppTripleNew from "./AppTripleNew.vue";
 import AppTripleNavList from "./AppTripleNav.vue";
 import AppTripleDetail from "./AppTripleDetail.vue";
+import { useTriplePanelSelectionStore } from "@/stores/useTriplePanelSelectionStore";
 
-const props = defineProps({
-    panelSelected: {
-        type: String,
-        required: true,
-    },
+// 取 store 狀態
+const store = useTriplePanelSelectionStore();
+const { panelSelected } = storeToRefs(store);
+
+// 記錄前一個 panel
+const prevPanel = ref(panelSelected.value);
+
+// 每次 panel 改變時更新 prevPanel
+watch(panelSelected, (newVal, oldVal) => {
+    prevPanel.value = oldVal; // 先記錄舊值
 });
-const prevPanel = ref(props.panelSelected);
 
-const transitionName = computed(() => {
-    return prevPanel.value !== "new" && props.panelSelected === "new"
+// 動畫方向：從其他 -> new 就 slide-left，反之 slide-right
+const panelChange = computed(() =>
+    prevPanel.value !== "new" && panelSelected.value === "new"
         ? "slide-left"
-        : "slide-right";
-});
+        : "slide-right",
+);
 </script>
 
 <style scoped>

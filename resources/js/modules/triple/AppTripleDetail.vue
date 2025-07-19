@@ -72,12 +72,14 @@
         <div v-else class="flex items-center justify-center h-full">
             <p class="text-gray-500">請選擇一個項目以查看詳細資訊。</p>
         </div>
+
+        <!-- 這裡改成傳 ref 了 -->
         <AppTripleFloatingWidget :target="target" />
     </div>
 </template>
-
 <script setup>
-import { computed, ref, watch, onMounted, nextTick } from "vue";
+import { ref, watch, onMounted, nextTick } from "vue";
+import { storeToRefs } from "pinia";
 import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
 import { fetchAPI } from "../../utils/useFetchAPI.js";
 import { useDataStore } from "@/stores/useDataStore";
@@ -99,14 +101,12 @@ import {
 const preload = useDataStore();
 
 const selection = useTripleSelectionStore();
-
-const target = computed(() => selection.selected);
+const { selected: target } = storeToRefs(selection);
 const detail = ref(null);
 
 const scrollContainer = ref(null);
 const showTopShadow = ref(false);
 const showBottomShadow = ref(false);
-
 const showDetailNav = ref(false);
 
 const onScroll = (e) => {
@@ -121,18 +121,15 @@ onMounted(() => {
 
 const checkScrollable = () => {
     const el = scrollContainer.value;
-
     if (!el) return;
-
     const { scrollTop, scrollHeight, clientHeight } = el;
-
     showTopShadow.value = scrollTop > 0;
     showBottomShadow.value = scrollTop + clientHeight < scrollHeight - 1;
     showDetailNav.value = scrollHeight > clientHeight;
 };
 
 watch(
-    () => detail,
+    detail,
     () => {
         nextTick(() => {
             checkScrollable();
@@ -142,15 +139,15 @@ watch(
 );
 
 watch(
-    () => selection.selected,
+    () => target.value,
     async (newSelected) => {
-        if (!newSelected || !target.value?.title || !target.value?.item?.id) {
+        if (!newSelected || !newSelected.title || !newSelected.item?.id) {
             detail.value = null;
             return;
         }
         try {
             const response = await fetchAPI(
-                `/api/${target.value.title}/${target.value.item.id}`,
+                `/api/${newSelected.title}/${newSelected.item.id}`,
             );
             detail.value = response;
         } catch (error) {
@@ -158,6 +155,6 @@ watch(
             detail.value = null;
         }
     },
-    { immediate: true },
+    { immediate: true, deep: true },
 );
 </script>
