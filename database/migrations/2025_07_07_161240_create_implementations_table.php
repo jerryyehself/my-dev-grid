@@ -14,12 +14,12 @@ return new class extends Migration
         Schema::create('implementations', function (Blueprint $table) {
             $table->foreignId('type')->constrained('scopes')->comment('類型');
             $table->string('title')->comment('名稱');
-            $table->string('sub_title')->comment('並列名稱');
+            $table->string('sub_title')->comment('並列名稱')->nullable();
             $table->string('description')->comment('說明')->nullable();
-            $table->text('url')->comment('')->nullable();
+            $table->text('url')->comment('url')->nullable();
             $table->string('git_repo_id')->comment('說明')->nullable();
-            $table->integer('git_repo_created_at')->comment('狀態')->nullable();
-            $table->timestamp('creation_date')->comment('類型')->nullable();
+            $table->boolean('is_visible')->comment('顯示狀態')->default(true);
+            $table->boolean('maintain_status')->comment('維護類型')->nullable(true);
             $table->timestamps();
         });
     }

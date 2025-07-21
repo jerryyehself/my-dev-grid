@@ -4,6 +4,7 @@
     >
         <h4 class="pb-2 font-bold text-center text-shadow-lg">Action</h4>
         <div class="flex flex-col gap-2">
+            {{ props.target }}
             {{ props.item }}
             <AppWidgetButton
                 v-for="button in buttonConfigs"

@@ -82,6 +82,7 @@ const formData = computed(() => {
     useErrorsStore().setErrors();
     return tripleSelected.value === "scope" ? formScopeData : formRelationData;
 });
+
 const emit = defineEmits(["updatePanel"]);
 
 const preload = useFormsStore();

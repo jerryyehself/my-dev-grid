@@ -103,7 +103,7 @@ class RelationController extends Controller
         $validatedData = $request->validated();
 
         if ($validatedData['call_number'] != '00') {
-            $validatedData['parent_number'] = Relation::where('class_number', $validatedData['class_number'])
+            $validatedData['parent_class'] = Relation::where('class_number', $validatedData['class_number'])
                 ->where('call_number', '00')
                 ->value('id');
         }
@@ -114,7 +114,7 @@ class RelationController extends Controller
         );
 
         return response()->json([
-            'data' => new RelationResource($relation),
+            'data' => new RelationResource($relation->load('parent', 'children')),
             'message' => $relation->wasRecentlyCreated
                 ? 'Relation created.'
                 : 'Relation already exists.',

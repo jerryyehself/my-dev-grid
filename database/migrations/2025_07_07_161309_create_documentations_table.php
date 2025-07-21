@@ -15,11 +15,11 @@ return new class extends Migration
             $table->id();
             $table->foreignId('type')->constrained('scopes')->comment('類型');
             $table->string('title')->comment('名稱');
-            $table->text('url')->comment('')->nullable();
-            $table->text('uri')->comment('')->nullable();
-            $table->text('note')->comment('說明')->nullable();
-            $table->integer('status')->comment('狀態')->nullable();
-            $table->timestamp('creation_date')->comment('類型')->nullable();
+            $table->text('url')->comment('url')->nullable();
+            $table->text('uri')->comment('uri')->nullable();
+            $table->text('note')->comment('註解')->nullable();
+            $table->integer('status')->comment('狀態')->default(1)->nullable();
+            $table->timestamp('creation_date')->comment('建立日期')->nullable();
             $table->timestamps();
         });
     }
