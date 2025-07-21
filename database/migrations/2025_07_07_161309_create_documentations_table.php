@@ -20,6 +20,7 @@ return new class extends Migration
             $table->text('note')->comment('註解')->nullable();
             $table->integer('status')->comment('狀態')->default(1)->nullable();
             $table->timestamp('creation_date')->comment('建立日期')->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
     }

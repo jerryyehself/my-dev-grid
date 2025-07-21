@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('git_repo_id')->comment('說明')->nullable();
             $table->boolean('is_visible')->comment('顯示狀態')->default(true);
             $table->boolean('maintain_status')->comment('維護類型')->nullable(true);
+            $table->softDeletes();
             $table->timestamps();
         });
     }

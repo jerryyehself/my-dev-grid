@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('title')->comment('名稱');
             $table->string('version')->comment('版本')->nullable();
             $table->string('note')->comment('註釋')->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
     }
