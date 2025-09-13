@@ -1,6 +1,9 @@
 <template>
-    <footer class="py-5 px-4">
-        <dl class="grid grid-cols-2 gap-2 text-gray-600 text-sm">
+    <button
+        class="flex flex-col gap-2 text-gray-600 border-2 border-stone-400 rounded p-1 cursot-pointer text-left cursor-pointer"
+    >
+        <span class="font-bold">ver.1</span>
+        <dl class="text-sm">
             <div>
                 <dt class="font-medium text-gray-900">Created at</dt>
                 <dd>{{ createdAt }}</dd>
@@ -10,7 +13,7 @@
                 <dd>{{ updatedAt }}</dd>
             </div>
         </dl>
-    </footer>
+    </button>
 </template>
 
 <script setup>

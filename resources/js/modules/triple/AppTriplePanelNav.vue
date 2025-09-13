@@ -1,19 +1,16 @@
 <template>
-    <div
-        class="grid grid-cols-2 col-span-5 shadow-sm border-b-1 border-stone-400"
-    >
+    <div class="flex w-full bg-stone-200 gap-6 px-5">
         <button
             v-for="(panel, key) in panelNavList"
             :key="key"
             @click="panelStatus.setPanel(key)"
             :class="[
-                'shadow-inner font-bold text-center p-3 cursor-pointer flex items-center justify-center',
+                'font-bold text-center p-3 cursor-pointer flex items-center justify-center ',
                 panelStatus.panelSelected === key
-                    ? 'bg-stone-600 text-white'
-                    : 'bg-stone-300 text-gray-700',
+                    ? 'shadow-[inset_0_-5px_0_0_rgb(168,162,158)]'
+                    : '',
             ]"
         >
-            <component :is="panel.icon" />
             <span>{{ panel.label }}</span>
         </button>
     </div>

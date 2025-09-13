@@ -1,23 +1,22 @@
 <template>
-    <div>
+    <div class="h-full">
         <div v-if="detail" class="flex flex-col h-full">
+            <!-- Header -->
             <AppTripleDetailHeader :target="target" :detail="detail" />
-            <div class="grid grid-cols-12 h-full overflow-hidden">
-                <div class="col-span-10 flex flex-col h-full overflow-hidden">
+
+            <div
+                class="flex flex-1 min-h-0 overflow-hidden px-5 pb-5 gap-3 w-full"
+            >
+                <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <AppTripleDetailContentTable />
+                    <!-- Scrollable content -->
+
                     <div
+                        class="flex-1 overflow-auto min-h-0 scroll-blend"
                         ref="scrollContainer"
                         @scroll="onScroll"
-                        :class="[
-                            'flex-1 flex flex-col overflow-y-auto min-h-0 scroll-blend transition-shadow duration-200 scroll-smooth',
-                            {
-                                'shadow-[inset_0_6px_6px_-6px_rgba(0,0,0,0.2)]':
-                                    showTopShadow,
-                                'shadow-[inset_0_-6px_6px_-6px_rgba(0,0,0,0.2)]':
-                                    showBottomShadow,
-                            },
-                        ]"
                     >
-                        <div class="flex flex-col gap-4 py-2 px-4">
+                        <div class="flex flex-col gap-4 py-2 w-full">
                             <AppTripleDetailContainer content-title="Metadata">
                                 <template #icon>
                                     <CodeBracketSquareIcon
@@ -53,7 +52,6 @@
                                         class="inline-block w-[1em] h-[1em]"
                                     />
                                 </template>
-
                                 <AppTripleDetailStatic
                                     :detail="detail"
                                     :type="target.title"
@@ -61,11 +59,9 @@
                             </AppTripleDetailContainer>
                         </div>
                     </div>
-                    <AppTripleDetailFooter :detail="detail" />
                 </div>
-
-                <div class="col-span-2 py-5 flex flex-col px-6 gap-3">
-                    <AppTripleDetailNav v-if="showDetailNav" />
+                <div class="flex flex-col">
+                    <AppTripleDetailVersion :detail="detail" />
                 </div>
             </div>
         </div>
@@ -74,7 +70,7 @@
         </div>
 
         <!-- 這裡改成傳 ref 了 -->
-        <AppTripleFloatingWidget :target="target" />
+        <!-- <AppTripleFloatingWidget :target="target" /> -->
     </div>
 </template>
 <script setup>
@@ -88,9 +84,10 @@ import AppTripleDetailMetadata from "./AppTripleDetailMetadata.vue";
 import AppTripleDetailRelationship from "./AppTripleDetailRelationship.vue";
 import AppTripleDetailStatic from "./AppTripleDetailStatic.vue";
 import AppTripleDetailHeader from "./AppTripleDetailHeader.vue";
-import AppTripleDetailFooter from "./AppTripleDetailFooter.vue";
+import AppTripleDetailVersion from "./AppTripleDetailVersion.vue";
 import AppTripleFloatingWidget from "./AppTripleFloatingWidget.vue";
 import AppTripleDetailNav from "./AppTripleDetailNav.vue";
+import AppTripleDetailContentTable from "./AppTripleDetailContentTable.vue";
 
 import {
     CodeBracketSquareIcon,
@@ -157,4 +154,11 @@ watch(
     },
     { immediate: true, deep: true },
 );
+
+const selectedNav = ref("Metadata");
+const sections = ["Metadata", "Relationship", "Statistic"];
+
+function currentSelectedDetailNav(section) {
+    selectedNav.value = section;
+}
 </script>

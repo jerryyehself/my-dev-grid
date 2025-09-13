@@ -4,13 +4,54 @@
         class="flex flex-col h-full min-h-0 overflow-hidden"
     >
         <!-- 搜尋欄 -->
-        <div class="p-2">
-            <input
-                v-model="searchKeyword"
-                type="text"
-                class="w-full rounded border border-stone-400 px-2 py-1 text-sm text-stone-800 dark:text-white dark:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-600"
-                placeholder="Search..."
-            />
+        <div class="p-3 m-5 bg-stone-200 h-16">
+            <label
+                class="relative h-full w-full flex items-center group cursor-pointer"
+            >
+                <div
+                    class="absolute left-2 top-1/2 -translate-y-1/2 flex items-center justify-center z-20 pointer-events-none"
+                >
+                    <svg
+                        class="w-5 h-5 text-stone-500"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="M21 21l-4.35-4.35"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        ></path>
+                        <circle
+                            cx="11"
+                            cy="11"
+                            r="6"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        ></circle>
+                    </svg>
+                </div>
+
+                <!-- 輸入框 -->
+                <div class="relative w-64">
+                    <input
+                        v-model="searchKeyword"
+                        id="search"
+                        type="text"
+                        placeholder="Search..."
+                        class="peer w-full bg-transparent border-none outline-none text-stone-900 pl-8 py-1"
+                    />
+                    <!-- 聚焦時跑底線 -->
+                    <span
+                        class="absolute bottom-0 left-0 h-[2px] w-0 bg-stone-400 transition-all duration-300 peer-focus:w-full z-10"
+                    ></span>
+                </div>
+            </label>
         </div>
 
         <template
@@ -30,7 +71,6 @@
             ]"
             :key="section.key"
         >
-            <hr class="border-t border-stone-300 dark:border-stone-600" />
             <AppTripleNavList
                 :title="section.title"
                 :items="section.items"

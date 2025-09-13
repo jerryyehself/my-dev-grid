@@ -7,13 +7,13 @@
             <div
                 class="col-span-5 grid grid-cols-5 min-h-0 max-h-full overflow-hidden h-full"
             >
-                <section class="col-span-1 flex flex-col min-h-0 bg-stone-300">
+                <section class="col-span-1 flex flex-col min-h-0">
                     <AppTripleNavList />
                 </section>
                 <section
-                    class="col-span-4 flex flex-col min-h-0 max-h-full overflow-hidden h-full"
+                    class="col-span-4 flex flex-col min-h-0 max-h-full overflow-hidden h-full px-8"
                 >
-                    <AppTripleDetail class="flex-1 overflow-auto" />
+                    <AppTripleDetail class="flex-1" />
                 </section>
             </div>
         </template>

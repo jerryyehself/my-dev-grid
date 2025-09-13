@@ -6,10 +6,9 @@
     >
         <div
             class="flex items-center justify-between text-xl font-bold px-2 py-1 cursor-pointer"
-            :class="{ 'shadow-lg shadow-grey': expand }"
             @click="$emit('toggle')"
         >
-            <h2>{{ title }}</h2>
+            <h2 class="px-5">{{ title }}</h2>
             <ChevronDownIcon
                 :class="[
                     'w-5 h-5 transition-transform duration-300',
@@ -19,19 +18,19 @@
             />
         </div>
 
-        <div v-if="isOpen" class="flex flex-col min-h-0 flex-1 box-border">
+        <div v-if="isOpen" class="flex flex-col min-h-0 flex-1 py-2">
             <ul
                 v-if="filteredItems.length"
-                class="divide-y divide-stone-400 overflow-auto flex-1 min-h-0 scroll-blend"
+                class="divide-stone-400 overflow-auto flex-1 min-h-0 scroll-blend"
             >
                 <li
                     v-for="(item, index) in filteredItems"
                     :key="index"
-                    class="hover:border-stone-400 hover:border-l-8 text-stone-900 px-2 py-1 cursor-pointer text-sm pr-1.5"
+                    class="hover:bg-stone-400 hover:text-white text-stone-900 px-6 py-1 cursor-pointer text-sm"
                     :class="[
                         item.call_number == '00' ? 'font-bold' : '',
                         {
-                            'bg-white':
+                            'bg-stone-400 text-white':
                                 tripleSelection.selected?.item?.id == item.id &&
                                 tripleSelection.selected?.title == title,
                         },
