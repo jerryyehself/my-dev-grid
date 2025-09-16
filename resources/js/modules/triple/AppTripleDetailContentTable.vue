@@ -1,7 +1,5 @@
 <template>
-    <ul
-        class="flex gap-4 py-2 border-b border-stone-200 text-sm text-stone-600 overflow-x-auto"
-    >
+    <ul class="flex gap-4 py-2 text-sm text-stone-600 overflow-x-auto">
         <li
             v-for="section in sections"
             :key="section"

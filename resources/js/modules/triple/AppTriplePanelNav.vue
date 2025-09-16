@@ -1,5 +1,5 @@
 <template>
-    <div class="flex w-full bg-stone-200 gap-6 px-5">
+    <div class="flex w-full bg-stone-200 gap-6 px-20">
         <button
             v-for="(panel, key) in panelNavList"
             :key="key"

@@ -4,7 +4,7 @@
         class="flex flex-col h-full min-h-0 overflow-hidden"
     >
         <!-- 搜尋欄 -->
-        <div class="p-3 m-5 bg-stone-200 h-16">
+        <div class="px-5 bg-stone-200 h-16">
             <label
                 class="relative h-full w-full flex items-center group cursor-pointer"
             >

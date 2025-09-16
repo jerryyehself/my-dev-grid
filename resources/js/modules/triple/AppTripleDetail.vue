@@ -4,9 +4,7 @@
             <!-- Header -->
             <AppTripleDetailHeader :target="target" :detail="detail" />
 
-            <div
-                class="flex flex-1 min-h-0 overflow-hidden px-5 pb-5 gap-3 w-full"
-            >
+            <div class="flex flex-1 min-h-0 overflow-hidden gap-3 w-full">
                 <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <AppTripleDetailContentTable />
                     <!-- Scrollable content -->

@@ -5,7 +5,7 @@
         </template>
         <template v-else>
             <div
-                class="col-span-5 grid grid-cols-5 min-h-0 max-h-full overflow-hidden h-full"
+                class="col-span-5 grid grid-cols-5 min-h-0 max-h-full overflow-hidden h-full px-20 py-5"
             >
                 <section class="col-span-1 flex flex-col min-h-0">
                     <AppTripleNavList />

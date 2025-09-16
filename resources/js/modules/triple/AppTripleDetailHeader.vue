@@ -1,7 +1,7 @@
 <template>
     <header class="flex flex-col">
         <!-- <AppTripleItemMetaTag :itemMeta="itemMeta" /> -->
-        <div class="mx-5 mt-5 flex justify-between h-16">
+        <div class="flex justify-between h-16">
             <div class="flex flex-col justify-center">
                 <span class="text-sm">{{ itemMeta.type }}</span>
                 <h2 class="text-2xl font-extrabold text-stone-800">

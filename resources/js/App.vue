@@ -1,11 +1,11 @@
 <template>
     <header
-        class="h-18 bg-gradient-to-b text-stone-700 grid grid-cols-4 items-center p-2 box-border shadow-stone-500 shadow-sm relative z-10"
+        class="h-18 bg-gradient-to-b text-stone-700 grid grid-cols-4 items-center py-2 px-20 box-border shadow-stone-500 shadow-sm relative z-10"
     >
         <h1
             class="col-span-1 xl:text-4xl md:text-2xl font-bold relative inline-block font-serif"
         >
-            <a href="/" class="block p-3">My Dev Grid</a>
+            <a href="/" class="block">My Dev Grid</a>
         </h1>
         <nav
             class="col-span-2 flex space-x-20 text-stone-700 font-medium justify-center xl:text-xl md:text-md"

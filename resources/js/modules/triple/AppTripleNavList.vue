@@ -1,14 +1,14 @@
 <template>
     <section
-        class="flex flex-col"
+        class="flex flex-col my-2"
         ref="wrapperRef"
         :class="{ 'min-h-0': expand }"
     >
         <div
-            class="flex items-center justify-between text-xl font-bold px-2 py-1 cursor-pointer"
+            class="flex items-center justify-between text-xl font-bold cursor-pointer px-2"
             @click="$emit('toggle')"
         >
-            <h2 class="px-5">{{ title }}</h2>
+            <h2 class="">{{ title }}</h2>
             <ChevronDownIcon
                 :class="[
                     'w-5 h-5 transition-transform duration-300',
@@ -37,13 +37,13 @@
                     ]"
                     @click="handleItemClick(title, item)"
                 >
-                    <div class="flex gap-1">
-                        <span class="w-1/5 px-1">
+                    <div class="flex flex-wrap gap-1">
+                        <div class="">
                             {{ item.full_call_number }}
-                        </span>
-                        <span class="w-4/5">
+                        </div>
+                        <div class="">
                             {{ item.name }}
-                        </span>
+                        </div>
                     </div>
                 </li>
             </ul>

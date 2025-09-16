@@ -5,9 +5,9 @@
         @submit.prevent="onSubmit"
     >
         <label class="flex flex-col p-2 w-1/2">
-            Step 1. Selected Triple isLoaded,
+            Step 1. Select Triple Type
             <select
-                class="bg-stone-300 rounded-md border border-stone-400 px-4 py-2 w-full focus:border-3"
+                class="bg-stone-200 px-4 py-2 w-full focus:border-1 focus:border-stone-400"
                 v-model="tripleSelected"
             >
                 <option value="scope">Scope</option>
@@ -16,9 +16,9 @@
         </label>
 
         <div class="flex flex-col flex-1 min-h-0 w-1/2 p-2">
-            <span>Step 2. Set Attributes</span>
+            <span>Step 2. Set Properties</span>
             <div
-                class="bg-stone-300 flex-1 rounded-md border border-stone-400 p-5 flex flex-col h-full min-h-0 overflow-hidden"
+                class="bg-stone-200 flex-1 p-5 flex flex-col h-full min-h-0 overflow-hidden"
             >
                 <Transition name="fade" mode="out-in">
                     <div
