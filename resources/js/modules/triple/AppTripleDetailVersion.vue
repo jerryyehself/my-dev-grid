@@ -1,8 +1,8 @@
 <template>
     <button
-        class="flex flex-col gap-2 text-gray-600 border-2 border-stone-400 rounded p-1 cursot-pointer text-left cursor-pointer"
+        class="flex flex-col gap-2 text-gray-600 border-1 bg-stone-100 border-stone-200 p-1 cursot-pointer text-left cursor-pointer"
     >
-        <span class="font-bold">ver.1</span>
+        <span class="font-bold text-stone-400">ver.1</span>
         <dl class="text-sm">
             <div>
                 <dt class="font-medium text-gray-900">Created at</dt>

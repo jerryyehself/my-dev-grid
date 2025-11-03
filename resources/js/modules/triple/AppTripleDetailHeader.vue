@@ -21,10 +21,12 @@
 </template>
 
 <script setup>
-import { computed, h, ref } from "vue";
+import { computed, h } from "vue";
 import { DocumentArrowUpIcon, TrashIcon } from "@heroicons/vue/24/outline";
 import AppWidgetButton from "../../components/widgets/AppWidgetButton.vue";
 import { useConfirmStore } from "@/stores/useConfirmStore";
+import { fetchAPI } from "../../utils/useFetchAPI";
+import { useDataStore } from "@/stores/useDataStore";
 
 import AppTripleItemMetaTag from "./AppTripleItemMetaTag.vue";
 
@@ -47,14 +49,18 @@ const itemMeta = computed(() => ({
 const buttonConfigs = [
     {
         label: "Modify",
-        color: "bg-stone-500",
+        color: "bg-stone-100",
+        borderColor: "border-stone-200",
+        textColor: "text-stone-500",
         icon: h(DocumentArrowUpIcon, { class: "w-4 h-4" }),
         ability: computed(() => !!props.target.item),
         action: () => setAction("update"),
     },
     {
         label: "Delete",
-        color: "bg-red-400",
+        color: "bg-red-200",
+        borderColor: "border-red-200",
+        textColor: "text-stone-500",
         icon: h(TrashIcon, { class: "w-4 h-4" }),
         ability: computed(() => !!props.target?.item?.parent),
         action: async () => {
