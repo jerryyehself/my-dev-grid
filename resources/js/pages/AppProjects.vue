@@ -50,7 +50,8 @@
                             class="mt-4 flex justify-between items-center border-t border-stone-100 pt-3"
                         >
                             <a
-                                href="#"
+                                :href="value.html_url"
+                                target="_blank"
                                 class="text-stone-700 text-sm font-medium hover:underline"
                                 >查看程式碼 →</a
                             >

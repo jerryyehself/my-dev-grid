@@ -92,7 +92,8 @@ const relationData = useDataStore().relationsData.data;
 const formFields = computed(() => preload[`${tripleSelected.value}sForm`]);
 
 const submitButton = {
-    color: "bg-stone-600",
+    color: "bg-stone-100",
+    borderColor: "border border-stone-300",
     label: "submit",
     value: "submit",
     ability: ref(true),

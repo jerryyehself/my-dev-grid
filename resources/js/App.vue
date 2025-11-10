@@ -1,6 +1,6 @@
 <template>
     <header
-        class="h-18 bg-gradient-to-b text-stone-700 grid grid-cols-4 items-center py-2 px-20 box-border shadow-stone-500 shadow-sm relative z-10"
+        class="h-18 bg-gradient-to-b text-stone-700 grid grid-cols-4 items-center py-2 px-20 box-border relative z-10"
     >
         <h1
             class="col-span-1 xl:text-4xl md:text-2xl font-bold relative inline-block font-serif"
@@ -14,14 +14,12 @@
                 v-for="(page, key) in pages"
                 :key="key"
                 :to="page.to"
-                :class="[
-                    'relative inline-block px-1 after:absolute after:left-0 after:bottom-0 after:h-[2px] after:w-0 after:bg-white after:transition-all after:duration-300',
-                    {
-                        'text-stone-700 after:w-full': $route.path === page.to,
-                        'hover:after:w-full hover:text-stone-700':
-                            $route.path !== page.to,
-                    },
-                ]"
+                class="relative inline-block px-1 after:absolute after:left-0 after:bottom-0 after:h-[2px] after:bg-stone-700 after:transition-all after:duration-300 after:w-0 after:block after:content-['']"
+                :class="{
+                    'text-stone-700 after:w-full': $route.path === page.to,
+                    'hover:after:w-full hover:text-stone-700':
+                        $route.path !== page.to,
+                }"
             >
                 {{ page.label }}
             </RouterLink>
