@@ -8,7 +8,7 @@
             <a href="/" class="block">My Dev Grid</a>
         </h1>
         <nav
-            class="col-span-2 flex space-x-20 text-stone-700 font-medium justify-center xl:text-xl md:text-md"
+            class="col-span-2 flex space-x-15 text-stone-700 font-light justify-center items-center md:text-md"
         >
             <RouterLink
                 v-for="(page, key) in pages"
@@ -41,13 +41,17 @@ const pages = {
         to: "/",
         label: "Home",
     },
-    article: {
+    admin: {
         to: "/triple-control",
         label: "Admin",
     },
-    about: {
+    project: {
         to: "/projects",
         label: "Projects",
+    },
+    about: {
+        to: "/about",
+        label: "About Me",
     },
 };
 </script>
