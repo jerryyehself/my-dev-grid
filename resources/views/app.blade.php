@@ -8,7 +8,7 @@
 </head>
 
 <body class="overflow-hidden flex flex-col">
-    <div id="app" class="flex flex-col">
+    <div id="app" class="flex flex-col h-screen relative">
     </div>
 </body>
 

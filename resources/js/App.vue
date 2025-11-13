@@ -1,6 +1,6 @@
 <template>
     <header
-        class="h-18 bg-gradient-to-b text-stone-700 grid grid-cols-4 items-center py-2 px-20 box-border relative z-10"
+        class="h-20 bg-gradient-to-b text-stone-700 grid grid-cols-4 items-center py-2 px-20 box-border relative z-10"
     >
         <h1
             class="col-span-1 xl:text-4xl md:text-2xl font-bold relative inline-block font-serif"
