@@ -67,16 +67,23 @@
             </div>
         </div>
     </div>
+    <div
+        v-else-if="errorStore.isError"
+        class="m-0 text-2xl text-stone-400 flex justify-center items-center h-full"
+    >
+        {{ errorStore.messages.message }}
+    </div>
 </template>
 <script setup>
 import { onMounted } from "vue";
 import { useProjectsStore } from "@/stores/useProjectsStore";
 import AppProjectSearch from "../modules/projects/AppProjectSearch.vue";
+import { useErrorsStore } from "../stores/useErrorsStore";
 
 const dataStore = useProjectsStore();
+const errorStore = useErrorsStore();
 
 onMounted(async () => {
     if (!dataStore.isLoaded) await dataStore.fetchProjects();
-    console.log(dataStore.projectsData[0].gitService[0].name);
 });
 </script>

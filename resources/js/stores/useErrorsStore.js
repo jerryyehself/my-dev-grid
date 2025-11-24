@@ -18,9 +18,15 @@ export const useErrorsStore = defineStore("errors", () => {
         }
     }
 
+    async function githubError(errorMessage) {
+        isError.value = true;
+        messages.value = { message: errorMessage };
+    }
+
     return {
         isError,
         messages,
         setErrors,
+        githubError,
     };
 });

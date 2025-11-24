@@ -34,6 +34,13 @@ export const fetchAPI = async (url, fetchOptions = {}) => {
                 throw new Error(`Validation Error`);
             }
 
+            if (response.status === 401) {
+                const errorJson = await response.json();
+                useErrorsStore().githubError(errorJson.message);
+
+                throw new Error(`github Error`);
+            }
+
             if (!response.ok) {
                 throw new Error(
                     `API Error ${response.status}: ${await response.text()}`,
