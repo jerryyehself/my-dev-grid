@@ -35,11 +35,6 @@
                             >LinkedIn</a
                         >
                     </li>
-                    <li>
-                        <a href="https://jerryyehself.github.io/"
-                            >Personal Blog</a
-                        >
-                    </li>
                 </ul>
             </div>
             <!-- <div class="w-1 mx-4 my-auto h-1/2 bg-stone-400"></div> -->

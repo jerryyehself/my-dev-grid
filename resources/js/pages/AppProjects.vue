@@ -10,7 +10,7 @@
             <!-- {{ dataStore.projectsData[0].gitService[0] }} -->
             <div
                 class="row-span-1"
-                v-for="value in dataStore.projectsData[0].gitService"
+                v-for="value in dataStore.projectsData[0]"
                 :key="value.id"
             >
                 <div
@@ -20,7 +20,11 @@
                     <div
                         class="bg-stone-100 h-40 flex items-center justify-center text-stone-400 text-sm"
                     >
-                        Project Preview
+                        <img
+                            :src="codingImg"
+                            alt="Coding Sample"
+                            class="scale-50 origin-center"
+                        />
                     </div>
 
                     <!-- 內容 -->
@@ -79,6 +83,7 @@ import { onMounted } from "vue";
 import { useProjectsStore } from "@/stores/useProjectsStore";
 import AppProjectSearch from "../modules/projects/AppProjectSearch.vue";
 import { useErrorsStore } from "../stores/useErrorsStore";
+import codingImg from "@/assets/images/coding-sample.png";
 
 const dataStore = useProjectsStore();
 const errorStore = useErrorsStore();
