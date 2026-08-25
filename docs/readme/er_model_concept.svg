@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 1780" width="1650" height="1780" role="img" aria-label="Documentation、Technique、Implementation 三個大類，各自底下有子類（Documentation 下有 sourcesite、document、post、conversation；Technique 下有 language、environment、packagetool、framework、assistant；Implementation 下有 work、project、problem、picture）。Technique 與 Documentation 之間是 specs 與 specifiedBy 互為反向，Implementation 與 Documentation 之間是 documents 與 documentedBy 互為反向。Technique 與 Implementation 之間有兩組謂語並存：uses 與 used 互為反向，代表技術或 AI 直接產出、執行成果；assists 與 assisted-by 互為反向，代表 AI 只提供建議，是 uses/used 的子類謂語。三個大類各自右上角都標了 entity_relations 的小迴圈，代表這個 Model 也能透過 entity_relations 表跟自己同型態的另一筆紀錄建立關聯，這是目前預留、尚未 seed 具體謂語的機制。每條線在紀錄層級都掛著 relation_id，回指某一筆 Relation。">
+  <style>
+    text { font-family: Georgia, "Noto Serif TC", serif; }
+    .box-doc  { fill: rgba(63,98,18,0.07);  stroke: #3f6212; }
+    .box-tech { fill: rgba(180,83,9,0.07); stroke: #b45309; }
+    .box-impl { fill: rgba(69,26,3,0.06); stroke: #451a03; }
+    .title-doc  { fill: #3f6212; }
+    .title-tech { fill: #b45309; }
+    .title-impl { fill: #451a03; }
+    .node       { fill: #fcfaf2; stroke-width: 2.5; }
+    .node-doc   { stroke: #3f6212; }
+    .node-tech  { stroke: #b45309; }
+    .node-impl  { stroke: #451a03; }
+    .node-label { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 17px; font-weight: 500; text-anchor: middle; }
+    .label-doc  { fill: #3f6212; }
+    .label-tech { fill: #b45309; }
+    .label-impl { fill: #451a03; }
+    .title-text { font-family: Georgia, "Noto Serif TC", serif; font-weight: 700; font-size: 27px; text-anchor: middle; }
+    .field-list { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 16px; fill: #78350f; text-anchor: middle; }
+    .field-head { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 13px; fill: #b45309; letter-spacing: 0.06em; text-anchor: middle; }
+    .edge        { fill: none; stroke: #b45309; stroke-width: 2.5; }
+    .edge-assist { fill: none; stroke: #b45309; stroke-width: 2.5; }
+    .edge-label  { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 17px; font-weight: 500; text-anchor: middle; fill: #451a03; }
+    .edge-label-bg { fill: #f4f0e1; }
+    .meta-text  { font-family: Helvetica, Arial, "Noto Sans TC", sans-serif; font-size: 16px; fill: #78350f; }
+    .tag-small  { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 13px; fill: #b45309; }
+    .legend { font-family: Helvetica, Arial, "Noto Sans TC", sans-serif; font-size: 15.5px; fill: #b45309; }
+  </style>
+
+  <rect width="1650" height="1780" fill="#fcfaf2"></rect>
+
+  <defs>
+    <marker id="arrowMuted2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"></path>
+    </marker>
+    <marker id="arrowAssist" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"></path>
+    </marker>
+  </defs>
+
+  <!-- ===== edges (under boxes) ===== -->
+  <!-- Technique <-> Documentation : specs / specifiedBy -->
+  <path class="edge" d="M 380 840 C 380 740, 550 660, 715 600" marker-start="url(#arrowMuted2)" marker-end="url(#arrowMuted2)"></path>
+  <rect class="edge-label-bg" x="438" y="686" width="220" height="30" rx="6"></rect>
+  <text class="edge-label" x="548" y="707">specs / specifiedBy</text>
+
+  <!-- Implementation <-> Documentation : documents / documentedBy -->
+  <path class="edge" d="M 1270 840 C 1270 740, 1100 660, 935 600" marker-start="url(#arrowMuted2)" marker-end="url(#arrowMuted2)"></path>
+  <rect class="edge-label-bg" x="972" y="686" width="260" height="30" rx="6"></rect>
+  <text class="edge-label" x="1102" y="707">documents / documentedBy</text>
+
+  <!-- Technique <-> Implementation : uses / used (existing) -->
+  <path class="edge" d="M 650 1000 L 1000 1000" marker-start="url(#arrowMuted2)" marker-end="url(#arrowMuted2)"></path>
+  <rect class="edge-label-bg" x="755" y="985" width="140" height="30" rx="6"></rect>
+  <text class="edge-label" x="825" y="1006">uses / used</text>
+
+  <!-- Technique <-> Implementation : assists / assisted-by (advisory, child of uses/used) -->
+  <path class="edge-assist" d="M 650 1080 L 1000 1080" marker-start="url(#arrowAssist)" marker-end="url(#arrowAssist)"></path>
+  <rect class="edge-label-bg" x="705" y="1065" width="240" height="30" rx="6"></rect>
+  <text class="edge-label" x="825" y="1086" fill="#b45309">assists / assisted-by</text>
+  <text class="meta-text" x="825" y="1125" text-anchor="middle" fill="#b45309" style="font-size:13.5px">AI 僅提供建議 · 與 uses/used 並存，不是取代</text>
+
+  <!-- ===== Documentation box ===== -->
+  <rect class="box-doc" x="555" y="40" width="540" height="560" rx="26" stroke-width="3"></rect>
+  <text class="title-text title-doc" x="825" y="86">Documentation</text>
+
+  <path class="edge" stroke-dasharray="4 4" d="M 1029 84 C 1029 58, 1061 58, 1061 84" marker-end="url(#arrowMuted2)"></path>
+  <text class="tag-small" x="1085" y="100" text-anchor="end">entity_relations</text>
+
+  <text class="field-head" x="825" y="110">FIELDS</text>
+  <text class="field-list" x="825" y="132">type · title · url · uri</text>
+  <text class="field-list" x="825" y="154">note · status · creation_date</text>
+
+  <circle class="node node-doc" cx="715" cy="270" r="70"></circle>
+  <text class="node-label label-doc" x="715" y="276">sourcesite</text>
+
+  <circle class="node node-doc" cx="935" cy="270" r="70"></circle>
+  <text class="node-label label-doc" x="935" y="276">document</text>
+
+  <circle class="node node-doc" cx="715" cy="490" r="70"></circle>
+  <text class="node-label label-doc" x="715" y="496">post</text>
+
+  <circle class="node node-doc" cx="935" cy="490" r="70"></circle>
+  <text class="node-label label-doc" x="935" y="496">conversation</text>
+
+  <!-- ===== Technique box ===== -->
+  <rect class="box-tech" x="110" y="840" width="540" height="760" rx="26" stroke-width="3"></rect>
+  <text class="title-text title-tech" x="380" y="886">Technique</text>
+
+  <path class="edge" stroke-dasharray="4 4" d="M 584 884 C 584 858, 616 858, 616 884" marker-end="url(#arrowMuted2)"></path>
+  <text class="tag-small" x="640" y="900" text-anchor="end">entity_relations</text>
+
+  <text class="field-head" x="380" y="910">FIELDS</text>
+  <text class="field-list" x="380" y="932">type · title · version · note</text>
+
+  <circle class="node node-tech" cx="270" cy="1050" r="70"></circle>
+  <text class="node-label label-tech" x="270" y="1056">language</text>
+
+  <circle class="node node-tech" cx="490" cy="1050" r="70"></circle>
+  <text class="node-label label-tech" x="490" y="1056">environment</text>
+
+  <circle class="node node-tech" cx="270" cy="1270" r="70"></circle>
+  <text class="node-label label-tech" x="270" y="1276">packagetool</text>
+
+  <circle class="node node-tech" cx="490" cy="1270" r="70"></circle>
+  <text class="node-label label-tech" x="490" y="1276">framework</text>
+
+  <circle class="node node-tech" cx="380" cy="1490" r="70"></circle>
+  <text class="node-label label-tech" x="380" y="1496">assistant</text>
+
+  <!-- ===== Implementation box ===== -->
+  <rect class="box-impl" x="1000" y="840" width="540" height="580" rx="26" stroke-width="3"></rect>
+  <text class="title-text title-impl" x="1270" y="886">Implementation</text>
+
+  <path class="edge" stroke-dasharray="4 4" d="M 1474 884 C 1474 858, 1506 858, 1506 884" marker-end="url(#arrowMuted2)"></path>
+  <text class="tag-small" x="1530" y="900" text-anchor="end">entity_relations</text>
+
+  <text class="field-head" x="1270" y="910">FIELDS</text>
+  <text class="field-list" x="1270" y="932">type · title · sub_title</text>
+  <text class="field-list" x="1270" y="954">description · url</text>
+  <text class="field-list" x="1270" y="976">git_repo_id · is_visible · maintain_status</text>
+
+  <circle class="node node-impl" cx="1160" cy="1090" r="70"></circle>
+  <text class="node-label label-impl" x="1160" y="1096">work</text>
+
+  <circle class="node node-impl" cx="1380" cy="1090" r="70"></circle>
+  <text class="node-label label-impl" x="1380" y="1096">project</text>
+
+  <circle class="node node-impl" cx="1160" cy="1310" r="70"></circle>
+  <text class="node-label label-impl" x="1160" y="1316">problem</text>
+
+  <circle class="node node-impl" cx="1380" cy="1310" r="70"></circle>
+  <text class="node-label label-impl" x="1380" y="1316">picture</text>
+
+  <!-- ===== legend ===== -->
+  <line x1="110" y1="1650" x2="170" y2="1650" class="edge"></line>
+  <text class="legend" x="182" y="1655">直接產出／執行（specs、documents、uses…）</text>
+
+  <line x1="110" y1="1685" x2="170" y2="1685" class="edge-assist"></line>
+  <text class="legend" x="182" y="1690">AI 僅提供建議（assists／assisted-by）</text>
+
+  <path class="edge" stroke-dasharray="4 4" d="M 124 1710 C 124 1694, 156 1694, 156 1710" marker-end="url(#arrowMuted2)"></path>
+  <text class="legend" x="182" y="1720">entity_relations（同型態，預留機制）</text>
+</svg>

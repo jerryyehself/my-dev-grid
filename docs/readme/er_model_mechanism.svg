@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 760" width="1650" height="760" role="img" aria-label="Scope 表以 parent_class 自我參照形成階層並產生 CURIE。Relation 表以 subject_id／object_id 指向兩個 Scope、name 是謂語、reverse_id 指向反向那筆記錄；一旦被任何紀錄層級的邊引用，name／class_number／call_number／parent_class 就鎖定為唯讀，只剩 note 可編輯。紀錄層級有兩種邊：documentation_technique、documentation_implementation、technique_implementation 三張跨類別樞紐表，各自帶 relation_id 外鍵與（pair, relation_id）唯一鍵，讓同一對紀錄可以同時存在好幾筆不同語意的邊；entity_relations 一張表則用 entity_type 欄位處理同型態互指（Documentation-Documentation、Technique-Technique、Implementation-Implementation），資料庫層沒有外鍵，完整性在 Model 層檢查，一樣掛 relation_id。">
+  <style>
+    text { font-family: Georgia, "Noto Serif TC", serif; }
+    .box-meta { fill: #fcfaf2; stroke: #b45309; }
+    .title-text { font-family: Georgia, "Noto Serif TC", serif; font-weight: 700; font-size: 27px; text-anchor: middle; fill: #451a03; }
+    .meta-text { font-family: Helvetica, Arial, "Noto Sans TC", sans-serif; font-size: 16px; fill: #78350f; }
+    .meta-mono { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 15.5px; fill: #78350f; }
+    .edge { fill: none; stroke: #b45309; stroke-width: 2.5; }
+    .edge-label { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 17px; font-weight: 500; text-anchor: middle; fill: #451a03; }
+  </style>
+
+  <rect width="1650" height="760" fill="#fcfaf2"></rect>
+
+  <defs>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"></path>
+    </marker>
+  </defs>
+
+  <!-- Scope card -->
+  <rect class="box-meta" x="40" y="30" width="500" height="360" rx="18" stroke-width="2.5"></rect>
+  <text class="title-text" x="290" y="70">Scope</text>
+  <text class="meta-text" x="290" y="94" text-anchor="middle" fill="#b45309">分類節點・CURIE</text>
+  <text class="meta-mono" x="70" y="134">class_number</text>
+  <text class="meta-mono" x="70" y="160">call_number</text>
+  <text class="meta-mono" x="70" y="186">parent_class ──┐</text>
+  <text class="meta-mono" x="70" y="212">name / comment / note</text>
+  <path class="edge" d="M 420 186 C 480 186, 480 246, 420 246" marker-end="url(#arrowMuted)"></path>
+  <text class="meta-text" x="70" y="284" fill="#b45309">自我參照 → 形成分類階層</text>
+  <text class="meta-mono" x="70" y="346" fill="#b45309">CURIE = TYPE: FullCallNumber name</text>
+  <text class="meta-mono" x="70" y="368" fill="#b45309" style="font-size:13.5px">（class_number+call_number 直接相接，無分隔符）</text>
+
+  <!-- Relation card -->
+  <rect class="box-meta" x="580" y="30" width="1030" height="360" rx="18" stroke-width="2.5"></rect>
+  <text class="title-text" x="1095" y="70">Relation</text>
+  <text class="meta-text" x="1095" y="94" text-anchor="middle" fill="#b45309">Scope ↔ Scope 的 RDF 三元組</text>
+
+  <rect x="620" y="126" width="140" height="50" rx="10" class="box-meta"></rect>
+  <text class="meta-mono" x="690" y="157" text-anchor="middle">subject_id</text>
+  <line class="edge" x1="760" y1="151" x2="950" y2="151" marker-end="url(#arrowMuted)"></line>
+  <text class="edge-label" x="855" y="140">name（謂語）</text>
+  <rect x="950" y="126" width="140" height="50" rx="10" class="box-meta"></rect>
+  <text class="meta-mono" x="1020" y="157" text-anchor="middle">object_id</text>
+
+  <text class="meta-mono" x="620" y="222">class_number / call_number</text>
+  <text class="meta-mono" x="620" y="248">parent_class ── 謂語也能分子類</text>
+  <text class="meta-mono" x="620" y="274">reverse_id ──┐</text>
+  <path class="edge" d="M 880 266 C 950 266, 950 306, 880 306" marker-end="url(#arrowMuted)"></path>
+  <text class="meta-text" x="620" y="340" fill="#b45309">reverse_id 指向反向那筆（如 uses ↔ used）</text>
+
+  <!-- lock rule -->
+  <rect x="1150" y="120" width="430" height="250" rx="14" class="box-meta" stroke-dasharray="4 4"></rect>
+  <text class="meta-text" x="1365" y="152" text-anchor="middle" fill="#451a03" style="font-family:Georgia,serif;font-weight:600;font-size:18px">🔒 一旦被引用 → 唯讀鎖定</text>
+  <text class="meta-mono" x="1174" y="188">name / class_number /</text>
+  <text class="meta-mono" x="1174" y="212">call_number / parent_class</text>
+  <text class="meta-text" x="1174" y="244" fill="#b45309">→ 鎖定，只有 note 可編輯</text>
+  <text class="meta-text" x="1174" y="284" fill="#b45309">引用來源：任一筆 pivot 或</text>
+  <text class="meta-text" x="1174" y="306" fill="#b45309">entity_relations</text>
+  <text class="meta-text" x="1174" y="338" fill="#b45309">→ 只能新增子類謂語或整筆刪除</text>
+
+  <!-- Cross-class pivot card -->
+  <rect class="box-meta" x="40" y="420" width="760" height="310" rx="18" stroke-width="2.5"></rect>
+  <text class="title-text" style="font-size:23px" x="420" y="460">跨類別的邊</text>
+  <text class="meta-mono" x="70" y="494">documentation_technique</text>
+  <text class="meta-mono" x="70" y="520">documentation_implementation</text>
+  <text class="meta-mono" x="70" y="546">technique_implementation</text>
+  <text class="meta-text" x="70" y="584" fill="#78350f">+ relation_id → relations.id</text>
+  <text class="meta-text" x="70" y="610" fill="#78350f">unique(兩個實體 id, relation_id)</text>
+  <text class="meta-text" x="70" y="646" fill="#b45309">→ 同一對紀錄可掛多筆不同謂語的邊</text>
+  <text class="meta-text" x="70" y="672" fill="#b45309">（例如同時 uses 又 assists）</text>
+
+  <!-- entity_relations card -->
+  <rect class="box-meta" x="840" y="420" width="770" height="310" rx="18" stroke-width="2.5" stroke-dasharray="4 4"></rect>
+  <text class="title-text" style="font-size:23px" x="1225" y="460">同型態的邊</text>
+  <text class="meta-mono" x="870" y="494">entity_relations</text>
+  <text class="meta-text" x="870" y="524" fill="#78350f">entity_type + subject_id / object_id</text>
+  <text class="meta-text" x="870" y="550" fill="#78350f">（DB 無外鍵，Model 層驗證）+ relation_id</text>
+  <text class="meta-text" x="870" y="588" fill="#b45309">→ Documentation／Technique／</text>
+  <text class="meta-text" x="870" y="614" fill="#b45309">Implementation 各自對同型態建立關聯</text>
+  <text class="meta-text" x="870" y="650" fill="#b45309">（預留機制，尚未 seed 具體謂語）</text>
+</svg>
