@@ -15,7 +15,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('documentation_id')->constrained()->cascadeOnDelete();
             $table->foreignId('implementation_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('relation_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
+
+            $table->unique(['documentation_id', 'implementation_id', 'relation_id']);
         });
     }
 

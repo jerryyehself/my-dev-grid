@@ -27,11 +27,11 @@ class Technique extends Model
 
     public function documentations()
     {
-        return $this->belongsToMany(Documentation::class);
+        return $this->belongsToMany(Documentation::class)->withPivot('relation_id');
     }
 
     public function implementations()
     {
-        return $this->belongsToMany(Implementation::class, 'technique_implementation');
+        return $this->belongsToMany(Implementation::class, 'technique_implementation')->withPivot('relation_id');
     }
 }

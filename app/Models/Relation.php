@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Exceptions\RelationLockedException;
 use App\Traits\SetCURIEAttribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -27,6 +28,29 @@ class Relation extends Model
 
     protected $appends = ['CURIE', 'NewChildCallNumber'];
 
+    /**
+     * Once a Relation is referenced by an existing pivot link, its identity
+     * (name/class_number/call_number/parent_class) is locked read-only —
+     * only note may still change. Semantics only evolve forward (new child
+     * relations) or disappear (soft delete), never mutate in place.
+     */
+    public const LOCKED_FIELDS = ['name', 'class_number', 'call_number', 'parent_class'];
+
+    protected static function booted()
+    {
+        static::updating(function (Relation $relation) {
+            if (! $relation->isReferenced()) {
+                return;
+            }
+
+            $lockedChanges = array_intersect(array_keys($relation->getDirty()), self::LOCKED_FIELDS);
+
+            if (! empty($lockedChanges)) {
+                throw new RelationLockedException($lockedChanges);
+            }
+        });
+    }
+
     public function subject()
     {
         return $this->belongsTo(Scope::class, 'subject_id');
@@ -35,5 +59,33 @@ class Relation extends Model
     public function object()
     {
         return $this->belongsTo(Scope::class, 'object_id');
+    }
+
+    public function documentationImplementationLinks()
+    {
+        return $this->hasMany(DocumentationImplementationLink::class);
+    }
+
+    public function documentationTechniqueLinks()
+    {
+        return $this->hasMany(DocumentationTechniqueLink::class);
+    }
+
+    public function techniqueImplementationLinks()
+    {
+        return $this->hasMany(TechniqueImplementationLink::class);
+    }
+
+    public function entityRelations()
+    {
+        return $this->hasMany(EntityRelation::class);
+    }
+
+    public function isReferenced(): bool
+    {
+        return $this->documentationImplementationLinks()->exists()
+            || $this->documentationTechniqueLinks()->exists()
+            || $this->techniqueImplementationLinks()->exists()
+            || $this->entityRelations()->exists();
     }
 }

@@ -36,11 +36,11 @@ class Implementation extends Model
 
     public function documentations()
     {
-        return $this->belongsToMany(Documentation::class);
+        return $this->belongsToMany(Documentation::class)->withPivot('relation_id');
     }
 
     public function techniques()
     {
-        return $this->belongsToMany(Technique::class, 'technique_implementation');
+        return $this->belongsToMany(Technique::class, 'technique_implementation')->withPivot('relation_id');
     }
 }

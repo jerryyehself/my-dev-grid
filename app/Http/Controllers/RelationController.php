@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\RelationLockedException;
 use App\Http\Requests\StoreRelationRequest;
 use App\Http\Requests\UpdateRelationRequest;
 use App\Http\Resources\RelationResource;
@@ -147,7 +148,15 @@ class RelationController extends Controller
     {
         $validatedData = $request->validated();
 
-        $isUpdated = $relation->update($validatedData);
+        try {
+            $isUpdated = $relation->update($validatedData);
+        } catch (RelationLockedException $e) {
+            return response()->json([
+                'errors' => [
+                    'locked' => [$e->getMessage()],
+                ],
+            ], 422);
+        }
 
         return response()->json([
             'data' => new RelationResource($relation),
