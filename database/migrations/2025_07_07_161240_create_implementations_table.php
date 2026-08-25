@@ -12,6 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('implementations', function (Blueprint $table) {
+            $table->id();
             $table->foreignId('type')->constrained('scopes')->comment('類型');
             $table->string('title')->comment('名稱');
             $table->string('sub_title')->comment('並列名稱')->nullable();

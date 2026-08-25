@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreTechniqueRequest;
+use App\Http\Requests\UpdateTechniqueRequest;
+use App\Http\Resources\TechniqueResource;
 use App\Models\Technique;
-use App\Service\GitService;
-use App\Service\SaveReposDataService;
-use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class TechniqueController extends Controller
 {
@@ -14,24 +15,29 @@ class TechniqueController extends Controller
      */
     public function index()
     {
-        $service = new SaveReposDataService;
-        return $service->save_repos_data();
-    }
+        $techniques = Technique::with('scope')->orderBy('title')->get();
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
+        return response()->json([
+            "type" => Str::of(Technique::class)
+                ->classBasename()
+                ->lower()
+                ->plural()
+                ->toString(),
+            "data" => TechniqueResource::collection($techniques),
+        ]);
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreTechniqueRequest $request)
     {
-        //
+        $technique = Technique::create($request->validated());
+
+        return response()->json([
+            'data' => new TechniqueResource($technique->load('scope')),
+            'message' => 'Technique created.',
+        ], 201);
     }
 
     /**
@@ -39,23 +45,24 @@ class TechniqueController extends Controller
      */
     public function show(Technique $technique)
     {
-        //
-    }
+        $technique->load(['scope', 'documentations', 'implementations']);
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Technique $technique)
-    {
-        //
+        return response()->json(new TechniqueResource($technique));
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Technique $technique)
+    public function update(UpdateTechniqueRequest $request, Technique $technique)
     {
-        //
+        $isUpdated = $technique->update($request->validated());
+
+        return response()->json([
+            'data' => new TechniqueResource($technique),
+            'message' => $isUpdated
+                ? 'Technique updated.'
+                : 'Technique update failed',
+        ]);
     }
 
     /**
@@ -63,6 +70,11 @@ class TechniqueController extends Controller
      */
     public function destroy(Technique $technique)
     {
-        //
+        $title = $technique->title;
+        $technique->delete();
+
+        return response()->json([
+            'message' => "$title was deleted."
+        ]);
     }
 }

@@ -13,6 +13,8 @@ return new class extends Migration
     {
         Schema::create('documentation_technique', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('documentation_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('technique_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
         });
     }
