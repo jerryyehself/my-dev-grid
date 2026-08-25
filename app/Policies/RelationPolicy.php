@@ -3,8 +3,7 @@
 namespace App\Policies;
 
 use App\Models\User;
-use App\Models\relation;
-use Illuminate\Auth\Access\Response;
+use App\Models\Relation;
 
 class RelationPolicy
 {
@@ -19,7 +18,7 @@ class RelationPolicy
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, relation $relation): bool
+    public function view(User $user, Relation $relation): bool
     {
         return false;
     }
@@ -35,7 +34,7 @@ class RelationPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, relation $relation): bool
+    public function update(User $user, Relation $relation): bool
     {
         return false;
     }
@@ -43,7 +42,7 @@ class RelationPolicy
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, relation $relation): bool
+    public function delete(User $user, Relation $relation): bool
     {
         return false;
     }
@@ -51,7 +50,7 @@ class RelationPolicy
     /**
      * Determine whether the user can restore the model.
      */
-    public function restore(User $user, relation $relation): bool
+    public function restore(User $user, Relation $relation): bool
     {
         return false;
     }
@@ -59,7 +58,7 @@ class RelationPolicy
     /**
      * Determine whether the user can permanently delete the model.
      */
-    public function forceDelete(User $user, relation $relation): bool
+    public function forceDelete(User $user, Relation $relation): bool
     {
         return false;
     }

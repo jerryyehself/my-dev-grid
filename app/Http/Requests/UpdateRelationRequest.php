@@ -3,8 +3,9 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
-class UpdaterelationRequest extends FormRequest
+class UpdateRelationRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -22,13 +23,16 @@ class UpdaterelationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'subject_id' => 'required',
-            'object_id' => 'required',
+            'subject_id' => 'required|exists:scopes,id',
+            'object_id' => 'required|exists:scopes,id',
             'class_number' => 'required|numeric',
             'call_number' => 'nullable|numeric',
-            'name' => 'required|unique:scopes',
-            'comment' => 'max:100',
-            'note' => 'max:255'
+            'name' => [
+                'required',
+                Rule::unique('relations')->ignore($this->relation->id),
+            ],
+            'note' => 'max:255',
+            'reverse_id' => 'nullable|exists:relations,id',
         ];
     }
 }

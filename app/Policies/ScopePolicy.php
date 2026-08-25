@@ -3,8 +3,7 @@
 namespace App\Policies;
 
 use App\Models\User;
-use App\Models\scope;
-use Illuminate\Auth\Access\Response;
+use App\Models\Scope;
 
 class ScopePolicy
 {
@@ -19,7 +18,7 @@ class ScopePolicy
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, scope $scope): bool
+    public function view(User $user, Scope $scope): bool
     {
         return true;
     }
@@ -35,7 +34,7 @@ class ScopePolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, scope $scope): bool
+    public function update(User $user, Scope $scope): bool
     {
         return true;
     }
@@ -43,7 +42,7 @@ class ScopePolicy
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, scope $scope): bool
+    public function delete(User $user, Scope $scope): bool
     {
         return true;
     }
@@ -51,16 +50,15 @@ class ScopePolicy
     /**
      * Determine whether the user can restore the model.
      */
-    public function restore(User $user, scope $scope): bool
+    public function restore(User $user, Scope $scope): bool
     {
-        dd('hit policy');
         return true;
     }
 
     /**
      * Determine whether the user can permanently delete the model.
      */
-    public function forceDelete(User $user, scope $scope): bool
+    public function forceDelete(User $user, Scope $scope): bool
     {
         return true;
     }

@@ -53,7 +53,7 @@ class RelationController extends Controller
                     'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
                 ]
             ],
-            'subject' => [
+            'subject_id' => [
                 'label' => '主體',
                 'required' => true,
                 'type' => 'select',
@@ -62,7 +62,7 @@ class RelationController extends Controller
                     'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
                 ]
             ],
-            'object' => [
+            'object_id' => [
                 'label' => '客體',
                 'required' => true,
                 'type' => 'select',

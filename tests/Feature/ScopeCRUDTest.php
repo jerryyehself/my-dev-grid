@@ -14,17 +14,40 @@ class ScopeCRUDTest extends TestCase
 
     public function test_create_scope()
     {
+        $parent = Scope::factory()->create([
+            'class_number' => '99',
+            'call_number' => '00',
+            'parent_class' => null,
+        ]);
+
         $response = $this->postJson('/api/scopes', [
             'name' => 'Test',
-            'class_number' => '99',
-            'call_number' => '99',
+            'class_number' => $parent->id,
+            'call_number' => '10',
             'comment' => 'unit test comment',
         ]);
 
         $response->assertCreated()
             ->assertJsonFragment(['name' => 'Test']);
 
-        $this->assertDatabaseHas('scopes', ['name' => 'Test']);
+        $this->assertDatabaseHas('scopes', [
+            'name' => 'Test',
+            'parent_class' => $parent->id,
+            'class_number' => $parent->class_number,
+        ]);
+    }
+
+    public function test_create_scope_rejects_unknown_parent()
+    {
+        $response = $this->postJson('/api/scopes', [
+            'name' => 'Test',
+            'class_number' => '99999',
+            'call_number' => '10',
+            'comment' => 'unit test comment',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('class_number');
     }
 
     public function test_view_scope()
@@ -60,7 +83,8 @@ class ScopeCRUDTest extends TestCase
 
         $response = $this->deleteJson("/api/scopes/{$scope->id}");
 
-        $response->assertNoContent();
+        $response->assertOk()
+            ->assertJsonFragment(['message' => "{$scope->name} was deleted."]);
 
         $this->assertSoftDeleted('scopes', ['id' => $scope->id]);
     }
