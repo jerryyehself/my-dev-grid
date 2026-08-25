@@ -60,6 +60,34 @@ class RelationSeeder extends Seeder
             Relation::where('name', $subject)->update(['reverse_id' => $reverseId]);
         }
 
+        // 「assisted-by」/「assists」跟「used」/「uses」同一組 class_number,
+        // 差別在 AI 只提供建議(assisted-by/assists)還是直接產出/執行成品(uses/used)
+        $childSeeds = [
+            ['20', '10', 'assisted-by', 'used'],
+            ['10', '20', 'assists', 'uses'],
+        ];
+
+        foreach ($childSeeds as [$from, $to, $name, $parentRelationName]) {
+            $subject = $leadScopes->firstWhere('class_number', $from);
+            $object = $leadScopes->firstWhere('class_number', $to);
+            $parentId = Relation::where('name', $parentRelationName)->value('id');
+
+            Relation::create([
+                'subject_id' => $subject->id,
+                'object_id' => $object->id,
+                'parent_class' => $parentId,
+                'class_number' => $subject->class_number[0] . $object->class_number[0],
+                'call_number' => '10',
+                'name' => $name,
+                'note' => 'AI 輔助但非直接產出/執行成品',
+            ]);
+        }
+
+        $reverseId = Relation::where('name', 'assists')->value('id');
+        Relation::where('name', 'assisted-by')->update(['reverse_id' => $reverseId]);
+        $reverseId = Relation::where('name', 'assisted-by')->value('id');
+        Relation::where('name', 'assists')->update(['reverse_id' => $reverseId]);
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 
