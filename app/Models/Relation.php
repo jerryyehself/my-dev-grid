@@ -26,7 +26,7 @@ class Relation extends Model
 
     protected $dateFormat = 'Y-m-d H:i:s';
 
-    protected $appends = ['CURIE', 'NewChildCallNumber'];
+    protected $appends = ['ReferenceCode', 'NewChildCallNumber'];
 
     /**
      * Once a Relation is referenced by an existing pivot link, its identity

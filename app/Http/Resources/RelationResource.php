@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Models\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,7 +24,7 @@ class RelationResource extends JsonResource
             'reverse_id' => $this->reverse_id,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
-            'CURIE' => strtoupper(class_basename(Relation::class)) . ": {$this->FullCallNumber} {$this->name}",
+            'ReferenceCode' => $this->ReferenceCode,
             'parent' => new RelationResource($this->whenLoaded('parent')),
             'children' => RelationResource::collection($this->whenLoaded('children')),
             'subject' => optional($this->subject)->id,
