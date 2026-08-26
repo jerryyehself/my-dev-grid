@@ -105,7 +105,21 @@ class ScopeSeeder extends Seeder
                 'parent_class' => '10',
                 'name' => 'picture',
                 'comment' => 'test'
-            ]
+            ],
+            [
+                'class_number' => '10',
+                'call_number' => '50',
+                'parent_class' => '5',
+                'name' => 'assistant',
+                'comment' => 'AI 工具本身的身分節點,例如 Claude Code、ChatGPT、GitHub Copilot'
+            ],
+            [
+                'class_number' => '00',
+                'call_number' => '40',
+                'parent_class' => '1',
+                'name' => 'conversation',
+                'comment' => '值得引用的具體 AI 對話紀錄'
+            ],
         ];
 
         collect($seeds)->each(fn($seed) => Scope::create($seed));

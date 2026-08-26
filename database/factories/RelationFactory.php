@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Scope;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -17,12 +18,12 @@ class RelationFactory extends Factory
     public function definition(): array
     {
         return [
-            'subject_id' => 1,
-            'object_id' => 2,
-            'name' => fake()->word(),
+            'subject_id' => Scope::factory(),
+            'object_id' => Scope::factory(),
+            'class_number' => fake()->numerify('##'),
+            'call_number' => '00',
+            'name' => fake()->unique()->word(),
             'note' => fake()->sentence(),
-            'created_at' => now(),
-            'updated_at' => now(),
         ];
     }
 }

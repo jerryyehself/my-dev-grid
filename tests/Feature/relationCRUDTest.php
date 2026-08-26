@@ -21,7 +21,6 @@ class relationCRUDTest extends TestCase
             'name' => 'Test',
             'class_number' => '99',
             'call_number' => '99',
-            'comment' => 'unit test comment',
             'reverse_id' => 1
         ]);
         // $response->dump();
@@ -55,13 +54,33 @@ class relationCRUDTest extends TestCase
             'name' => 'Updated name',
             'class_number' => $relation->class_number,
             'call_number' => $relation->call_number,
-            'comment' => 'Updated comment',
         ]);
 
         $response->assertOk()
             ->assertJsonFragment(['name' => 'Updated name']);
 
         $this->assertDatabaseHas('relations', ['id' => $relation->id, 'name' => 'Updated name']);
+    }
+
+    public function test_update_relation_name_unique_check_is_scoped_to_relations_table()
+    {
+        $this->seed();
+
+        // A Scope happens to share this name; updating a Relation to the same
+        // name must not be blocked by a uniqueness check against the wrong table.
+        $scopeName = \App\Models\Scope::first()->name;
+        $relation = Relation::inRandomOrder()->first();
+
+        $response = $this->putJson("/api/relations/{$relation->id}", [
+            'subject_id' => $relation->subject_id,
+            'object_id' => $relation->object_id,
+            'name' => $scopeName,
+            'class_number' => $relation->class_number,
+            'call_number' => $relation->call_number,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonFragment(['name' => $scopeName]);
     }
 
     public function test_delete_relation()
@@ -72,7 +91,8 @@ class relationCRUDTest extends TestCase
 
         $response = $this->deleteJson("/api/relations/{$relation->id}");
 
-        $response->assertNoContent();
+        $response->assertOk()
+            ->assertJsonFragment(['message' => "{$relation->name} was deleted."]);
 
         $this->assertSoftDeleted('relations', ['id' => $relation->id]);
     }

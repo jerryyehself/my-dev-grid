@@ -24,21 +24,14 @@ class StoreRelationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'subject_id' => 'required',
-            'object_id' => 'required',
+            'subject_id' => 'required|exists:scopes,id',
+            'object_id' => 'required|exists:scopes,id',
             'class_number' => 'required|numeric',
             'call_number' => 'nullable|numeric',
             'name' => 'required|unique:relations',
-            'note' => ''
+            'note' => '',
+            'reverse_id' => 'nullable|exists:relations,id',
         ];
-    }
-
-    protected function prepareForValidation()
-    {
-        $this->merge([
-            'subject_id' => $this->input('subject'),
-            'object_id' => $this->input('object'),
-        ]);
     }
 
     protected function failedValidation(Validator $validator)

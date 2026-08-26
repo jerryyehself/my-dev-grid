@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\RelationLockedException;
 use App\Http\Requests\StoreRelationRequest;
 use App\Http\Requests\UpdateRelationRequest;
 use App\Http\Resources\RelationResource;
@@ -53,7 +54,7 @@ class RelationController extends Controller
                     'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
                 ]
             ],
-            'subject' => [
+            'subject_id' => [
                 'label' => '主體',
                 'required' => true,
                 'type' => 'select',
@@ -62,7 +63,7 @@ class RelationController extends Controller
                     'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
                 ]
             ],
-            'object' => [
+            'object_id' => [
                 'label' => '客體',
                 'required' => true,
                 'type' => 'select',
@@ -147,7 +148,15 @@ class RelationController extends Controller
     {
         $validatedData = $request->validated();
 
-        $isUpdated = $relation->update($validatedData);
+        try {
+            $isUpdated = $relation->update($validatedData);
+        } catch (RelationLockedException $e) {
+            return response()->json([
+                'errors' => [
+                    'locked' => [$e->getMessage()],
+                ],
+            ], 422);
+        }
 
         return response()->json([
             'data' => new RelationResource($relation),

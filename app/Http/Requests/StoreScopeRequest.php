@@ -25,7 +25,10 @@ class StoreScopeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'class_number' => 'required|numeric',
+            'class_number' => [
+                'required',
+                Rule::exists('scopes', 'id')->whereNull('parent_class'),
+            ],
             'call_number' => 'nullable|numeric',
             'name' => ['required', Rule::unique('scopes')->whereNull('deleted_at')],
             'comment' => 'required|max:100',

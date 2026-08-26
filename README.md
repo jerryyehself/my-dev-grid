@@ -6,7 +6,9 @@
 
 借鑑Linked Data三元組的觀念，將做side project或學習特定程式的過程記錄下來。
 
-![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model.png?raw=true "架構概念圖")
+![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_mechanism.svg?raw=true "本體機制圖：Scope 階層、Relation 三元組、唯讀鎖定規則")
+
+![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_concept.svg?raw=true "三大類、子類與跨類關聯圖")
 
 ### Scope(主詞/受詞)
 

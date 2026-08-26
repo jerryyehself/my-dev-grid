@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Technique extends Model
 {
-    use SoftDeletes;
+    /** @use HasFactory<\Database\Factories\TechniqueFactory> */
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'type',
@@ -17,4 +19,19 @@ class Technique extends Model
     ];
 
     protected $dateFormat = 'Y-m-d H:i:s';
+
+    public function scope()
+    {
+        return $this->belongsTo(Scope::class, 'type');
+    }
+
+    public function documentations()
+    {
+        return $this->belongsToMany(Documentation::class)->withPivot('relation_id');
+    }
+
+    public function implementations()
+    {
+        return $this->belongsToMany(Implementation::class, 'technique_implementation')->withPivot('relation_id');
+    }
 }
