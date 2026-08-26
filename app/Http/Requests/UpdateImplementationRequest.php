@@ -28,7 +28,7 @@ class UpdateImplementationRequest extends FormRequest
             'description' => 'nullable|string|max:255',
             'url' => 'nullable|url',
             'git_repo_id' => 'nullable|string|max:255',
-            'is_visible' => 'boolean',
+            'is_visible' => 'nullable|boolean',
             'maintain_status' => 'nullable|boolean',
         ];
     }

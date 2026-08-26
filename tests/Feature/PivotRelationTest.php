@@ -99,6 +99,19 @@ class PivotRelationTest extends TestCase
         $relation->update(['name' => 'renamed']);
     }
 
+    public function test_relation_referenced_by_a_link_locks_subject_and_object()
+    {
+        $documentation = Documentation::factory()->create();
+        $technique = Technique::factory()->create();
+        $relation = Relation::factory()->create();
+        $documentation->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
+
+        $otherScope = \App\Models\Scope::factory()->create();
+
+        $this->expectException(RelationLockedException::class);
+        $relation->update(['subject_id' => $otherScope->id]);
+    }
+
     public function test_relation_referenced_by_a_link_still_allows_note_edits()
     {
         $documentation = Documentation::factory()->create();

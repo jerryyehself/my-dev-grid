@@ -30,11 +30,12 @@ class Relation extends Model
 
     /**
      * Once a Relation is referenced by an existing pivot link, its identity
-     * (name/class_number/call_number/parent_class) is locked read-only —
-     * only note may still change. Semantics only evolve forward (new child
-     * relations) or disappear (soft delete), never mutate in place.
+     * (subject_id/object_id/name/class_number/call_number/parent_class) is
+     * locked read-only — only note may still change. Semantics only evolve
+     * forward (new child relations) or disappear (soft delete), never
+     * mutate in place.
      */
-    public const LOCKED_FIELDS = ['name', 'class_number', 'call_number', 'parent_class'];
+    public const LOCKED_FIELDS = ['subject_id', 'object_id', 'name', 'class_number', 'call_number', 'parent_class'];
 
     protected static function booted()
     {
