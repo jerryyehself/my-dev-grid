@@ -5,7 +5,7 @@
             :key="option.id"
             :value="option.id"
         >
-            {{ option.CURIE }}
+            {{ option.ReferenceCode }}
         </option>
     </select>
 </template>

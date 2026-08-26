@@ -123,7 +123,7 @@ class RelationSeeder extends Seeder
                     'call_number' => $callNumber,
                 ]);
 
-                $relationData = Arr::except($relation->attributesToArray(), ['CURIE']);
+                $relationData = Arr::except($relation->attributesToArray(), ['ReferenceCode']);
 
                 $relationData['created_at'] = now()->format('Y-m-d H:i:s');
                 $relationData['updated_at'] = now()->format('Y-m-d H:i:s');

@@ -10,10 +10,10 @@ trait SetCURIEAttribute
         return $this->class_number . $this->call_number;
     }
 
-    public function getCURIEAttribute()
+    public function getReferenceCodeAttribute()
     {
-        $lable = $this->name ?? $this->title;
-        return strtoupper(class_basename($this)) . ": {$this->FullCallNumber} {$lable}";
+        $label = $this->name ?? $this->title;
+        return strtoupper(class_basename($this)) . ": {$this->FullCallNumber} {$label}";
     }
 
     public function parent()

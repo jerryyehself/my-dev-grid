@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Models\Scope;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,7 +24,7 @@ class ScopeResource extends JsonResource
             'note' => $this->note,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
-            'CURIE' =>  strtoupper(class_basename(Scope::class)) . ": {$this->FullCallNumber} {$this->name}",
+            'ReferenceCode' => $this->ReferenceCode,
             'parent' => new ScopeResource($this->whenLoaded('parent')),
             'children' => ScopeResource::collection($this->whenLoaded('children')),
             'siblings' => $this->siblings,

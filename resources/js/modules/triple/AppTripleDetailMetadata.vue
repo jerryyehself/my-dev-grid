@@ -24,13 +24,13 @@
                 <div>
                     <dt class="font-medium text-gray-700 pb-1">主詞</dt>
                     <dd class="rounded-sm bg-stone-200 pl-1">
-                        {{ subjectCURIE }}
+                        {{ subjectReferenceCode }}
                     </dd>
                 </div>
                 <div>
                     <dt class="font-medium text-gray-700 pb-1">受詞</dt>
                     <dd class="rounded-sm bg-stone-200 pl-1">
-                        {{ objectCURIE }}
+                        {{ objectReferenceCode }}
                     </dd>
                 </div>
             </dl>
@@ -74,10 +74,10 @@ const classNumber = computed(() => props.detail?.class_number ?? "-");
 const callNumber = computed(() => props.detail?.call_number ?? "-");
 const comment = computed(() => props.detail?.comment ?? "");
 const note = computed(() => props.detail?.note ?? "");
-const subjectCURIE = computed(
-    () => props.preload?.scopesDict?.[props.detail?.subject]?.CURIE ?? "-",
+const subjectReferenceCode = computed(
+    () => props.preload?.scopesDict?.[props.detail?.subject]?.ReferenceCode ?? "-",
 );
-const objectCURIE = computed(
-    () => props.preload?.scopesDict?.[props.detail?.object]?.CURIE ?? "-",
+const objectReferenceCode = computed(
+    () => props.preload?.scopesDict?.[props.detail?.object]?.ReferenceCode ?? "-",
 );
 </script>
