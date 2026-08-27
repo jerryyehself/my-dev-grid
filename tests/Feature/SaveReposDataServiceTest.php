@@ -25,6 +25,7 @@ class SaveReposDataServiceTest extends TestCase
                 'name' => 'demo',
                 'languages_url' => 'https://api.github.com/repos/acme/demo/languages',
                 'topics' => ['laravel'],
+                'created_at' => '2026-06-15T00:00:00Z',
             ],
         ];
 
@@ -53,6 +54,17 @@ class SaveReposDataServiceTest extends TestCase
             'url' => 'https://github.com/acme/demo',
             'type' => $projectScopeId,
         ]);
+    }
+
+    public function test_save_repos_data_stores_git_repo_created_at()
+    {
+        $this->seed();
+        $this->fakeGitHub();
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $implementation = Implementation::where('git_repo_id', 111)->firstOrFail();
+        $this->assertSame('2026-06-15 00:00:00', $implementation->git_repo_created_at->format('Y-m-d H:i:s'));
     }
 
     public function test_save_repos_data_creates_techniques_for_languages_and_topics()

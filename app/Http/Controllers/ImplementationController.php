@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateImplementationRequest;
 use App\Http\Resources\ImplementationResource;
 use App\Models\Implementation;
 use App\Traits\SyncsPivotRelations;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
@@ -16,18 +17,24 @@ class ImplementationController extends Controller
 
     /**
      * Display a listing of the resource.
+     *
+     * Optionally filter by Scope type (e.g. `?type=12` to list only one
+     * Implementation sub-category such as "project").
      */
-    public function index()
+    public function index(Request $request)
     {
-        $implementations = Implementation::with('scope')->orderBy('title')->get();
+        $implementations = Implementation::with(['scope', 'techniques'])
+            ->when($request->filled('type'), fn ($query) => $query->where('type', $request->query('type')))
+            ->orderBy('title')
+            ->get();
 
         return response()->json([
-            "type" => Str::of(Implementation::class)
+            'type' => Str::of(Implementation::class)
                 ->classBasename()
                 ->lower()
                 ->plural()
                 ->toString(),
-            "data" => ImplementationResource::collection($implementations),
+            'data' => ImplementationResource::collection($implementations),
         ]);
     }
 
@@ -94,7 +101,7 @@ class ImplementationController extends Controller
         $implementation->delete();
 
         return response()->json([
-            'message' => "$title was deleted."
+            'message' => "$title was deleted.",
         ]);
     }
 }

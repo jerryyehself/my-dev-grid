@@ -63,7 +63,7 @@ class GitService
             return null;
         }
 
-        $work = Arr::only($repo, ['id', 'html_url', 'name', 'languages_url', 'topics']);
+        $work = Arr::only($repo, ['id', 'html_url', 'name', 'languages_url', 'topics', 'created_at']);
 
         return array_merge($work, [
             'git_repo_id' => $work['id'],

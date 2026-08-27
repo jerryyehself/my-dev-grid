@@ -59,6 +59,7 @@ class SaveReposDataService
                 'type' => $this->scope_id('project'),
                 'title' => $repo['title'],
                 'url' => $repo['html_url'] ?? null,
+                'git_repo_created_at' => $repo['created_at'] ?? null,
             ]
         );
     }
