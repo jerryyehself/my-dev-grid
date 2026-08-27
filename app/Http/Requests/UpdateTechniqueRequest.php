@@ -26,6 +26,12 @@ class UpdateTechniqueRequest extends FormRequest
             'title' => 'required|string|max:255',
             'version' => 'nullable|string|max:255',
             'note' => 'nullable|string|max:255',
+            'documentations' => 'sometimes|array',
+            'documentations.*.id' => 'required|integer|exists:documentations,id',
+            'documentations.*.relation_id' => 'required|integer|exists:relations,id',
+            'implementations' => 'sometimes|array',
+            'implementations.*.id' => 'required|integer|exists:implementations,id',
+            'implementations.*.relation_id' => 'required|integer|exists:relations,id',
         ];
     }
 }

@@ -25,6 +25,7 @@ class DocumentationResource extends JsonResource
             'creation_date' => $this->creation_date,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
+            'relation_id' => $this->when(isset($this->pivot), fn () => $this->pivot->relation_id),
             'scope' => new ScopeResource($this->whenLoaded('scope')),
             'techniques' => TechniqueResource::collection($this->whenLoaded('techniques')),
             'implementations' => ImplementationResource::collection($this->whenLoaded('implementations')),

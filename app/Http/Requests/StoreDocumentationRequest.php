@@ -29,6 +29,12 @@ class StoreDocumentationRequest extends FormRequest
             'note' => 'nullable|string',
             'status' => 'nullable|integer',
             'creation_date' => 'nullable|date',
+            'techniques' => 'sometimes|array',
+            'techniques.*.id' => 'required|integer|exists:techniques,id',
+            'techniques.*.relation_id' => 'required|integer|exists:relations,id',
+            'implementations' => 'sometimes|array',
+            'implementations.*.id' => 'required|integer|exists:implementations,id',
+            'implementations.*.relation_id' => 'required|integer|exists:relations,id',
         ];
     }
 }

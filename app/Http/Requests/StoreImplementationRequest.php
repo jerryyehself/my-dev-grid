@@ -30,6 +30,12 @@ class StoreImplementationRequest extends FormRequest
             'git_repo_id' => 'nullable|string|max:255',
             'is_visible' => 'nullable|boolean',
             'maintain_status' => 'nullable|boolean',
+            'documentations' => 'sometimes|array',
+            'documentations.*.id' => 'required|integer|exists:documentations,id',
+            'documentations.*.relation_id' => 'required|integer|exists:relations,id',
+            'techniques' => 'sometimes|array',
+            'techniques.*.id' => 'required|integer|exists:techniques,id',
+            'techniques.*.relation_id' => 'required|integer|exists:relations,id',
         ];
     }
 }
