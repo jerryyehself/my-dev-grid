@@ -26,6 +26,7 @@ class ImplementationResource extends JsonResource
             'maintain_status' => $this->maintain_status,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
+            'relation_id' => $this->when(isset($this->pivot), fn () => $this->pivot->relation_id),
             'scope' => new ScopeResource($this->whenLoaded('scope')),
             'documentations' => DocumentationResource::collection($this->whenLoaded('documentations')),
             'techniques' => TechniqueResource::collection($this->whenLoaded('techniques')),

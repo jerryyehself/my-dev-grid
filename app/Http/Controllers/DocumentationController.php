@@ -6,10 +6,14 @@ use App\Http\Requests\StoreDocumentationRequest;
 use App\Http\Requests\UpdateDocumentationRequest;
 use App\Http\Resources\DocumentationResource;
 use App\Models\Documentation;
+use App\Traits\SyncsPivotRelations;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 class DocumentationController extends Controller
 {
+    use SyncsPivotRelations;
+
     /**
      * Display a listing of the resource.
      */
@@ -32,10 +36,18 @@ class DocumentationController extends Controller
      */
     public function store(StoreDocumentationRequest $request)
     {
-        $documentation = Documentation::create($request->validated());
+        $data = $request->validated();
+        $documentation = Documentation::create(Arr::except($data, ['techniques', 'implementations']));
+
+        if (isset($data['techniques'])) {
+            $documentation->techniques()->sync($this->pivotSyncData($data['techniques']));
+        }
+        if (isset($data['implementations'])) {
+            $documentation->implementations()->sync($this->pivotSyncData($data['implementations']));
+        }
 
         return response()->json([
-            'data' => new DocumentationResource($documentation->load('scope')),
+            'data' => new DocumentationResource($documentation->load(['scope', 'techniques', 'implementations'])),
             'message' => 'Documentation created.',
         ], 201);
     }
@@ -55,10 +67,18 @@ class DocumentationController extends Controller
      */
     public function update(UpdateDocumentationRequest $request, Documentation $documentation)
     {
-        $isUpdated = $documentation->update($request->validated());
+        $data = $request->validated();
+        $isUpdated = $documentation->update(Arr::except($data, ['techniques', 'implementations']));
+
+        if (isset($data['techniques'])) {
+            $documentation->techniques()->sync($this->pivotSyncData($data['techniques']));
+        }
+        if (isset($data['implementations'])) {
+            $documentation->implementations()->sync($this->pivotSyncData($data['implementations']));
+        }
 
         return response()->json([
-            'data' => new DocumentationResource($documentation),
+            'data' => new DocumentationResource($documentation->load(['scope', 'techniques', 'implementations'])),
             'message' => $isUpdated
                 ? 'Documentation updated.'
                 : 'Documentation update failed',

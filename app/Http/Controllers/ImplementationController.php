@@ -6,10 +6,14 @@ use App\Http\Requests\StoreImplementationRequest;
 use App\Http\Requests\UpdateImplementationRequest;
 use App\Http\Resources\ImplementationResource;
 use App\Models\Implementation;
+use App\Traits\SyncsPivotRelations;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 class ImplementationController extends Controller
 {
+    use SyncsPivotRelations;
+
     /**
      * Display a listing of the resource.
      */
@@ -32,10 +36,18 @@ class ImplementationController extends Controller
      */
     public function store(StoreImplementationRequest $request)
     {
-        $implementation = Implementation::create($request->validated());
+        $data = $request->validated();
+        $implementation = Implementation::create(Arr::except($data, ['documentations', 'techniques']));
+
+        if (isset($data['documentations'])) {
+            $implementation->documentations()->sync($this->pivotSyncData($data['documentations']));
+        }
+        if (isset($data['techniques'])) {
+            $implementation->techniques()->sync($this->pivotSyncData($data['techniques']));
+        }
 
         return response()->json([
-            'data' => new ImplementationResource($implementation->load('scope')),
+            'data' => new ImplementationResource($implementation->load(['scope', 'documentations', 'techniques'])),
             'message' => 'Implementation created.',
         ], 201);
     }
@@ -55,10 +67,18 @@ class ImplementationController extends Controller
      */
     public function update(UpdateImplementationRequest $request, Implementation $implementation)
     {
-        $isUpdated = $implementation->update($request->validated());
+        $data = $request->validated();
+        $isUpdated = $implementation->update(Arr::except($data, ['documentations', 'techniques']));
+
+        if (isset($data['documentations'])) {
+            $implementation->documentations()->sync($this->pivotSyncData($data['documentations']));
+        }
+        if (isset($data['techniques'])) {
+            $implementation->techniques()->sync($this->pivotSyncData($data['techniques']));
+        }
 
         return response()->json([
-            'data' => new ImplementationResource($implementation),
+            'data' => new ImplementationResource($implementation->load(['scope', 'documentations', 'techniques'])),
             'message' => $isUpdated
                 ? 'Implementation updated.'
                 : 'Implementation update failed',
