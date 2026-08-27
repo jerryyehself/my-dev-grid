@@ -22,6 +22,7 @@ class ImplementationResource extends JsonResource
             'description' => $this->description,
             'url' => $this->url,
             'git_repo_id' => $this->git_repo_id,
+            'git_repo_created_at' => optional($this->git_repo_created_at)->format('Y-m-d H:i:s'),
             'is_visible' => $this->is_visible,
             'maintain_status' => $this->maintain_status,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),

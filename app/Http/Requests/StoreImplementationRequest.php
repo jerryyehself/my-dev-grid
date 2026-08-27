@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreImplementationRequest extends FormRequest
@@ -17,7 +18,7 @@ class StoreImplementationRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -28,6 +29,7 @@ class StoreImplementationRequest extends FormRequest
             'description' => 'nullable|string|max:255',
             'url' => 'nullable|url',
             'git_repo_id' => 'nullable|string|max:255',
+            'git_repo_created_at' => 'nullable|date',
             'is_visible' => 'nullable|boolean',
             'maintain_status' => 'nullable|boolean',
             'documentations' => 'sometimes|array',

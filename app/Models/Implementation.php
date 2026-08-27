@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\ImplementationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Implementation extends Model
 {
-    /** @use HasFactory<\Database\Factories\ImplementationFactory> */
+    /** @use HasFactory<ImplementationFactory> */
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -18,6 +19,7 @@ class Implementation extends Model
         'description',
         'url',
         'git_repo_id',
+        'git_repo_created_at',
         'is_visible',
         'maintain_status',
     ];
@@ -25,6 +27,7 @@ class Implementation extends Model
     protected $casts = [
         'is_visible' => 'boolean',
         'maintain_status' => 'boolean',
+        'git_repo_created_at' => 'datetime',
     ];
 
     protected $dateFormat = 'Y-m-d H:i:s';
