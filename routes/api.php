@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DocumentationController;
+use App\Http\Controllers\GraphController;
 use App\Http\Controllers\ImplementationController;
 use App\Http\Controllers\RelationController;
 use App\Http\Controllers\ScopeController;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Route;
 // Route::get('/user', function (Request $request) {
 //     return $request->user();
 // })->middleware('auth:sanctum');
+
+Route::get('/graph', [GraphController::class, 'index']);
 
 Route::apiResources([
     'scopes' => ScopeController::class,

@@ -88,6 +88,41 @@ class RelationSeeder extends Seeder
         $reverseId = Relation::where('name', 'assisted-by')->value('id');
         Relation::where('name', 'assists')->update(['reverse_id' => $reverseId]);
 
+        // dcterms:requires / dcterms:isRequiredBy (Dublin Core) — same-type
+        // dependency, used via entity_relations (e.g. a Technique that
+        // requires another Technique). Previously proposed and deferred
+        // by backend. entity_relations doesn't cross-check a Relation's
+        // own subject_id/object_id against the entities it links (see
+        // EntityRelation::assertValidEntityReferences — it only checks
+        // entity_type and that both ids exist in that entity's table), so
+        // one generic self-paired Relation covers every entity_type;
+        // Technique is picked as the representative subject/object scope
+        // since class_number 11 (Technique-self) is otherwise unused by
+        // the seeded predicates above (01/02/10/12/20/21).
+        $technique = $leadScopes->firstWhere('class_number', '10');
+
+        $requires = Relation::create([
+            'subject_id' => $technique->id,
+            'object_id' => $technique->id,
+            'class_number' => '11',
+            'call_number' => '00',
+            'name' => 'requires',
+            'note' => 'dcterms:requires — same-type dependency (e.g. a Technique that requires another Technique).',
+        ]);
+
+        $isRequiredBy = Relation::create([
+            'subject_id' => $technique->id,
+            'object_id' => $technique->id,
+            'class_number' => '11',
+            'call_number' => '10',
+            'parent_class' => $requires->id,
+            'name' => 'isRequiredBy',
+            'note' => 'dcterms:isRequiredBy — reverse of requires.',
+        ]);
+
+        $requires->update(['reverse_id' => $isRequiredBy->id]);
+        $isRequiredBy->update(['reverse_id' => $requires->id]);
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 
