@@ -58,8 +58,14 @@ class SaveReposDataService
             [
                 'type' => $this->scope_id('project'),
                 'title' => $repo['title'],
+                'description' => $repo['description'] ?? null,
                 'url' => $repo['html_url'] ?? null,
                 'git_repo_created_at' => $repo['created_at'] ?? null,
+                // maintain_status 對應「repo 目前是否仍在維護」，跟 GitHub 的
+                // archived flag 相反（archived = 不再維護）；語意來源見
+                // my-dev-grid-front 舊版 scripts/sync-projects.mjs 的
+                // status/statusType 推導邏輯（同一批資料的原始設計）。
+                'maintain_status' => ! ($repo['archived'] ?? false),
             ]
         );
     }
