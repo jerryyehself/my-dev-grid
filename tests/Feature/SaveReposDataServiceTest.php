@@ -23,9 +23,11 @@ class SaveReposDataServiceTest extends TestCase
                 'private' => false,
                 'html_url' => 'https://github.com/acme/demo',
                 'name' => 'demo',
+                'description' => 'A demo repo',
                 'languages_url' => 'https://api.github.com/repos/acme/demo/languages',
                 'topics' => ['laravel'],
                 'created_at' => '2026-06-15T00:00:00Z',
+                'archived' => false,
             ],
         ];
 
@@ -65,6 +67,48 @@ class SaveReposDataServiceTest extends TestCase
 
         $implementation = Implementation::where('git_repo_id', 111)->firstOrFail();
         $this->assertSame('2026-06-15 00:00:00', $implementation->git_repo_created_at->format('Y-m-d H:i:s'));
+    }
+
+    public function test_save_repos_data_stores_description()
+    {
+        $this->seed();
+        $this->fakeGitHub();
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $this->assertDatabaseHas('implementations', ['git_repo_id' => 111, 'description' => 'A demo repo']);
+    }
+
+    public function test_save_repos_data_marks_non_archived_repo_as_maintained()
+    {
+        $this->seed();
+        $this->fakeGitHub();
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $implementation = Implementation::where('git_repo_id', 111)->firstOrFail();
+        $this->assertTrue($implementation->maintain_status);
+    }
+
+    public function test_save_repos_data_marks_archived_repo_as_not_maintained()
+    {
+        $this->seed();
+        $this->fakeGitHub([
+            [
+                'id' => 111,
+                'private' => false,
+                'html_url' => 'https://github.com/acme/demo',
+                'name' => 'demo',
+                'languages_url' => 'https://api.github.com/repos/acme/demo/languages',
+                'topics' => [],
+                'archived' => true,
+            ],
+        ]);
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $implementation = Implementation::where('git_repo_id', 111)->firstOrFail();
+        $this->assertFalse($implementation->maintain_status);
     }
 
     public function test_save_repos_data_creates_techniques_for_languages_and_topics()
