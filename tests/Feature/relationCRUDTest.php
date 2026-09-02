@@ -110,4 +110,15 @@ class relationCRUDTest extends TestCase
             'name' => 'specs'
         ]);
     }
+
+    public function test_seeder_creates_requires_and_is_required_by_as_reciprocal_pair()
+    {
+        $this->seed();
+
+        $requires = Relation::where('name', 'requires')->firstOrFail();
+        $isRequiredBy = Relation::where('name', 'isRequiredBy')->firstOrFail();
+
+        $this->assertSame($isRequiredBy->id, $requires->reverse_id);
+        $this->assertSame($requires->id, $isRequiredBy->reverse_id);
+    }
 }
