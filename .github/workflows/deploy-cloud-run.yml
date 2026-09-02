@@ -1,0 +1,141 @@
+name: Deploy to Cloud Run
+
+# Builds the Dockerfile, pushes it to Artifact Registry, runs pending
+# migrations as a Cloud Run Job, then deploys the image to the Cloud Run
+# service. Authenticates to Google Cloud via Workload Identity Federation —
+# no service-account JSON key is stored in GitHub.
+#
+# This workflow does nothing until the repository variables below are set
+# (the job-level `if` skips it cleanly instead of failing red), and it can't
+# succeed until the GCP-side setup in docs/deployment-gcp.md is done: the
+# WIF pool/provider, the deployer service account and its IAM bindings, the
+# Artifact Registry repo, the Cloud SQL instance, and the Secret Manager
+# secrets all have to exist first.
+#
+# Required repository variables (Settings > Secrets and variables > Actions
+# > Variables) — see docs/deployment-gcp.md for how to get each value:
+#   GCP_PROJECT_ID                 GCP project ID
+#   GCP_REGION                     e.g. asia-east1
+#   GCP_WORKLOAD_IDENTITY_PROVIDER full WIF provider resource name
+#   GCP_DEPLOYER_SERVICE_ACCOUNT   email of the SA GitHub Actions impersonates
+#   GCP_ARTIFACT_REGISTRY_REPO     Artifact Registry Docker repo name
+#   CLOUD_RUN_SERVICE              Cloud Run service name
+#   CLOUD_SQL_CONNECTION_NAME      PROJECT_ID:REGION:INSTANCE
+#   DB_DATABASE                    Postgres database name
+#   DB_USERNAME                    Postgres role used by the app
+#   CLOUD_RUN_SERVICE_ACCOUNT      runtime service account the Cloud Run
+#                                   service/job run as (needs
+#                                   roles/secretmanager.secretAccessor +
+#                                   roles/cloudsql.client) — deliberately not
+#                                   the deployer SA above, and not the
+#                                   project's default compute SA
+# Optional:
+#   CLOUD_RUN_MIGRATE_JOB          Cloud Run Job name that runs
+#                                   `php artisan migrate --force` against
+#                                   this image; the migration step is
+#                                   skipped when this isn't set
+#
+# No repository *secrets* are needed — app secrets (APP_KEY, DB_PASSWORD,
+# GITHUB_TOKEN) live in Secret Manager and are wired in via --set-secrets
+# below, never copied through GitHub.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REGISTRY_REPO }}/${{ vars.CLOUD_RUN_SERVICE }}:${{ github.sha }}
+
+jobs:
+  deploy:
+    name: Build, push, migrate, deploy
+    runs-on: ubuntu-latest
+    # Skip cleanly (no red X) until the GCP-side setup is done and these
+    # variables are populated, per docs/deployment-gcp.md.
+    if: vars.GCP_PROJECT_ID != '' && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: docker build -t "$IMAGE" .
+
+      - name: Push image
+        run: docker push "$IMAGE"
+
+      - name: Run database migrations
+        if: vars.CLOUD_RUN_MIGRATE_JOB != ''
+        # `jobs deploy` creates the Job on its first run and updates it in
+        # place afterwards, so there's nothing to set up by hand beyond
+        # picking a name for CLOUD_RUN_MIGRATE_JOB.
+        run: |
+          gcloud run jobs deploy "${{ vars.CLOUD_RUN_MIGRATE_JOB }}" \
+            --region="${{ vars.GCP_REGION }}" \
+            --image="$IMAGE" \
+            --command=php \
+            --args=artisan,migrate,--force \
+            --service-account="${{ vars.CLOUD_RUN_SERVICE_ACCOUNT }}" \
+            --set-cloudsql-instances="${{ vars.CLOUD_SQL_CONNECTION_NAME }}" \
+            --set-env-vars="APP_ENV=production,LOG_CHANNEL=stderr,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_PORT=5432,DB_DATABASE=${{ vars.DB_DATABASE }},DB_USERNAME=${{ vars.DB_USERNAME }}" \
+            --set-secrets="APP_KEY=APP_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest" \
+            --max-retries=0 \
+            --task-timeout=600
+          gcloud run jobs execute "${{ vars.CLOUD_RUN_MIGRATE_JOB }}" \
+            --region="${{ vars.GCP_REGION }}" \
+            --wait
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          region: ${{ vars.GCP_REGION }}
+          service: ${{ vars.CLOUD_RUN_SERVICE }}
+          image: ${{ env.IMAGE }}
+          env_vars: |
+            APP_NAME=my-dev-grid
+            APP_ENV=production
+            APP_DEBUG=false
+            LOG_CHANNEL=stderr
+            LOG_LEVEL=info
+            DB_CONNECTION=pgsql
+            DB_HOST=/cloudsql/${{ vars.CLOUD_SQL_CONNECTION_NAME }}
+            DB_PORT=5432
+            DB_DATABASE=${{ vars.DB_DATABASE }}
+            DB_USERNAME=${{ vars.DB_USERNAME }}
+            SESSION_DRIVER=database
+            CACHE_STORE=database
+            QUEUE_CONNECTION=database
+            MAIL_MAILER=log
+          secrets: |
+            APP_KEY=APP_KEY:latest
+            DB_PASSWORD=DB_PASSWORD:latest
+            GITHUB_TOKEN=GITHUB_TOKEN:latest
+          flags: >-
+            --add-cloudsql-instances=${{ vars.CLOUD_SQL_CONNECTION_NAME }}
+            --allow-unauthenticated
+            --service-account=${{ vars.CLOUD_RUN_SERVICE_ACCOUNT }}
+            --min-instances=0
+            --max-instances=3
+            --memory=512Mi
+            --cpu=1
