@@ -66,6 +66,28 @@ class GitServiceTest extends TestCase
         $this->assertTrue($repo['archived']);
     }
 
+    public function test_get_repos_keeps_owner_login()
+    {
+        Http::fake([
+            'https://api.github.com/user/repos*' => Http::sequence()
+                ->push([[
+                    'id' => 1,
+                    'private' => false,
+                    'name' => 'repo-1',
+                    'html_url' => 'x',
+                    'languages_url' => 'https://api.github.com/repos/acme/repo-1/languages',
+                    'topics' => [],
+                    'owner' => ['login' => 'acme', 'id' => 999],
+                ]])
+                ->push([]),
+            'https://api.github.com/repos/acme/repo-1/languages' => Http::response(['PHP' => 1]),
+        ]);
+
+        $repo = (new GitService)->get_repos()->first();
+
+        $this->assertSame('acme', $repo['owner']);
+    }
+
     public function test_get_repos_keeps_going_when_a_single_repo_languages_fetch_fails()
     {
         Http::fake([

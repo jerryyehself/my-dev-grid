@@ -70,6 +70,10 @@ class GitService
             'title' => $work['name'],
             'topics' => $work['topics'] ?? [],
             'languages' => $this->get_languages($work['languages_url'] ?? null),
+            // /user/repos 預設 affiliation 涵蓋 collaborator、organization_member，
+            // 回傳的 repo 不保證都是 token 使用者自己 owner，所以 owner 是有意義的
+            // 獨立欄位，不是跟 token 使用者重複的資訊。
+            'owner' => $repo['owner']['login'] ?? null,
         ]);
     }
 
