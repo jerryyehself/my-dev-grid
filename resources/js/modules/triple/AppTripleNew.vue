@@ -72,10 +72,11 @@ const formScopeData = reactive({
 
 const formRelationData = reactive({
     name: "",
-    subject: "",
-    object: "",
+    subject_id: "",
+    object_id: "",
+    class_number: "",
     call_number: "",
-    comment: "",
+    note: "",
 });
 const tripleSelected = ref("scope");
 const formData = computed(() => {
@@ -110,12 +111,18 @@ watch(
 );
 
 watch(
-    () => [formData.value.subject, formData.value.object],
-    async ([subject, object]) => {
-        if (!subject || !object) return;
+    () => [formData.value.subject_id, formData.value.object_id],
+    async ([subjectId, objectId]) => {
+        if (!subjectId || !objectId) return;
+        const subjectScope = scopesData.find(
+            (scope) => scope.id === Number(subjectId),
+        );
+        const objectScope = scopesData.find(
+            (scope) => scope.id === Number(objectId),
+        );
         const newClass =
-            scopesData[subject - 1]?.class_number.charAt(0) +
-            scopesData[object - 1]?.class_number.charAt(0);
+            (subjectScope?.class_number?.charAt(0) ?? "") +
+            (objectScope?.class_number?.charAt(0) ?? "");
 
         const classId = relationData.find(
             (item) =>
