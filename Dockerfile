@@ -26,7 +26,7 @@ RUN npm run build
 ##############################
 # Stage 2: runtime image     #
 ##############################
-FROM php:8.3-fpm-alpine AS app
+FROM php:8.4-fpm-alpine AS app
 
 # System packages:
 #   nginx      - HTTP server, reverse-proxies PHP requests to php-fpm
