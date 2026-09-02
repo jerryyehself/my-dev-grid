@@ -1,0 +1,58 @@
+name: Tests
+
+# Runs the PHPUnit/Pest suite (`composer test`, i.e. `php artisan test`) on
+# every push to main and every pull request targeting main, so regressions
+# are caught before merge instead of relying on someone running the suite
+# by hand afterwards.
+#
+# Deliberately does NOT run `pint --test` here — there is known pre-existing
+# style debt in the codebase and enabling lint enforcement now would make
+# this workflow red from its first run. Adding a lint job is a separate,
+# later decision.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: PHPUnit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: sqlite3, pdo_sqlite, mbstring, bcmath, ctype, fileinfo, tokenizer, xml
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Prepare environment file
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Prepare SQLite database
+        run: touch database/database.sqlite
+
+      - name: Run tests
+        run: composer test
