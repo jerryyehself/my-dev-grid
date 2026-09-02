@@ -1,0 +1,52 @@
+worker_processes auto;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    sendfile on;
+    keepalive_timeout 65;
+    client_max_body_size 20m;
+
+    # Cloud Run collects container stdout/stderr as logs; there's no
+    # persistent disk to write access/error logs to.
+    access_log /dev/stdout;
+    error_log /dev/stderr warn;
+
+    server {
+        # Substituted from $PORT by docker/entrypoint.sh at container start
+        # (Cloud Run assigns the port the container must listen on).
+        listen ${PORT} default_server;
+        server_name _;
+
+        root /var/www/html/public;
+        index index.php;
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        location = /favicon.ico { access_log off; log_not_found off; }
+        location = /robots.txt  { access_log off; log_not_found off; }
+
+        location ~ \.php$ {
+            fastcgi_pass 127.0.0.1:9000;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param PATH_INFO $fastcgi_path_info;
+            fastcgi_read_timeout 300;
+            fastcgi_buffering off;
+        }
+
+        # Deny everything under a dot-directory except /.well-known/ (ACME
+        # challenges etc.).
+        location ~ /\.(?!well-known).* {
+            deny all;
+        }
+    }
+}
