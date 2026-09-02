@@ -25,6 +25,9 @@ import { computed, h, ref } from "vue";
 import { DocumentArrowUpIcon, TrashIcon } from "@heroicons/vue/24/outline";
 import AppWidgetButton from "../../components/widgets/AppWidgetButton.vue";
 import { useConfirmStore } from "@/stores/useConfirmStore";
+import { fetchAPI } from "../../utils/useFetchAPI.js";
+import { useDataStore } from "@/stores/useDataStore";
+import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
 
 import AppTripleItemMetaTag from "./AppTripleItemMetaTag.vue";
 
