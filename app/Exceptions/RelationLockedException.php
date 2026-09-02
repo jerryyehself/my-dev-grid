@@ -18,7 +18,7 @@ class RelationLockedException extends RuntimeException
         $this->lockedFields = $lockedFields;
 
         parent::__construct(
-            'This relation is already in use by existing links; only "note" can still be edited. Locked fields: ' . implode(', ', $lockedFields)
+            'This relation is already in use by existing links; only "note" can still be edited. Locked fields: '.implode(', ', $lockedFields)
         );
     }
 }

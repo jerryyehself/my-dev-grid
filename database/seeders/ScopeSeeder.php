@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Scope;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class ScopeSeeder extends Seeder
@@ -17,112 +16,112 @@ class ScopeSeeder extends Seeder
             [
                 'class_number' => '00',
                 'name' => 'Documentation',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '00',
                 'call_number' => '10',
                 'parent_class' => '1',
                 'name' => 'sourcesite',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '00',
                 'call_number' => '20',
                 'parent_class' => '1',
                 'name' => 'document',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '00',
                 'call_number' => '30',
                 'parent_class' => '1',
                 'name' => 'post',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '10',
                 'name' => 'Technique',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '10',
                 'call_number' => '10',
                 'parent_class' => '5',
                 'name' => 'language',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '10',
                 'call_number' => '20',
                 'parent_class' => '5',
                 'name' => 'environment',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '10',
                 'call_number' => '30',
                 'parent_class' => '5',
                 'name' => 'packagetool',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '10',
                 'call_number' => '40',
                 'parent_class' => '5',
                 'name' => 'framework',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '20',
                 'name' => 'Implementation',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '20',
                 'call_number' => '10',
                 'parent_class' => '10',
                 'name' => 'work',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '20',
                 'call_number' => '20',
                 'parent_class' => '10',
                 'name' => 'project',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '20',
                 'call_number' => '30',
                 'parent_class' => '10',
                 'name' => 'problem',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '20',
                 'call_number' => '40',
                 'parent_class' => '10',
                 'name' => 'picture',
-                'comment' => 'test'
+                'comment' => 'test',
             ],
             [
                 'class_number' => '10',
                 'call_number' => '50',
                 'parent_class' => '5',
                 'name' => 'assistant',
-                'comment' => 'AI 工具本身的身分節點,例如 Claude Code、ChatGPT、GitHub Copilot'
+                'comment' => 'AI 工具本身的身分節點,例如 Claude Code、ChatGPT、GitHub Copilot',
             ],
             [
                 'class_number' => '00',
                 'call_number' => '40',
                 'parent_class' => '1',
                 'name' => 'conversation',
-                'comment' => '值得引用的具體 AI 對話紀錄'
+                'comment' => '值得引用的具體 AI 對話紀錄',
             ],
         ];
 
-        collect($seeds)->each(fn($seed) => Scope::create($seed));
+        collect($seeds)->each(fn ($seed) => Scope::create($seed));
 
         // Scope::factory()->count(10)->create();
     }

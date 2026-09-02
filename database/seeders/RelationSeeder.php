@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Relation;
 use App\Models\Scope;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Arr;
 
@@ -38,7 +37,7 @@ class RelationSeeder extends Seeder
         $scopes = Scope::all();
 
         $leadScopes = $scopes->whereNull('parent_class');     // 沒有上層的
-        // $nonLeadScopes = $scopes->whereNotNull('parent_class'); 
+        // $nonLeadScopes = $scopes->whereNotNull('parent_class');
 
         // 建立固定關聯資料
         foreach ($seeds as [$from, $to, $name]) {
@@ -47,9 +46,9 @@ class RelationSeeder extends Seeder
             $object = $leadScopes->firstWhere('class_number', $to);
 
             Relation::create([
-                'subject_id' =>  $subject->id,
-                'object_id'  => $object->id,
-                'class_number' => $subject->class_number[0] . $object->class_number[0],
+                'subject_id' => $subject->id,
+                'object_id' => $object->id,
+                'class_number' => $subject->class_number[0].$object->class_number[0],
                 'name' => $name,
                 'note' => 'test',
             ]);
@@ -76,7 +75,7 @@ class RelationSeeder extends Seeder
                 'subject_id' => $subject->id,
                 'object_id' => $object->id,
                 'parent_class' => $parentId,
-                'class_number' => $subject->class_number[0] . $object->class_number[0],
+                'class_number' => $subject->class_number[0].$object->class_number[0],
                 'call_number' => '10',
                 'name' => $name,
                 'note' => 'AI 輔助但非直接產出/執行成品',
@@ -136,10 +135,10 @@ class RelationSeeder extends Seeder
 
             while ($relations->count() < $targetCount) {
                 $subject = $nonLeadScopes->random();
-                $object  = $nonLeadScopes->where('id', '!=', $subject->id)->random();
+                $object = $nonLeadScopes->where('id', '!=', $subject->id)->random();
 
-                $classNumber = str($subject->class_number)[0] . str($object->class_number)[0];
-                $serials[$classNumber] = !isset($serials[$classNumber]) ? 1 : ++$serials[$classNumber];
+                $classNumber = str($subject->class_number)[0].str($object->class_number)[0];
+                $serials[$classNumber] = ! isset($serials[$classNumber]) ? 1 : ++$serials[$classNumber];
 
                 $callNumber = str_pad($serials[$classNumber], 2, '0', STR_PAD_LEFT);
 
@@ -152,7 +151,7 @@ class RelationSeeder extends Seeder
 
                 $relation = Relation::factory()->make([
                     'subject_id' => $subject->id,
-                    'object_id'  => $object->id,
+                    'object_id' => $object->id,
                     'parent_class' => $parent,
                     'class_number' => $classNumber,
                     'call_number' => $callNumber,

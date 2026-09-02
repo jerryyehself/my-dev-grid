@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             ScopeSeeder::class,
-            RelationSeeder::class
+            RelationSeeder::class,
         ]);
     }
 }

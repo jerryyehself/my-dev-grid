@@ -21,12 +21,12 @@ class ScopeController extends Controller
             ->get();
 
         return response()->json([
-            "type" => Str::of(Scope::class)
+            'type' => Str::of(Scope::class)
                 ->classBasename()
                 ->lower()
                 ->plural()
                 ->toString(),
-            "data" => ScopeResource::collection($scopeList),
+            'data' => ScopeResource::collection($scopeList),
         ]);
     }
 
@@ -43,12 +43,12 @@ class ScopeController extends Controller
         return response()->json([
             'id' => [
                 'required' => false,
-                'type' => 'hidden'
+                'type' => 'hidden',
             ],
             'name' => [
                 'label' => '名稱',
                 'required' => true,
-                'type' => 'text'
+                'type' => 'text',
             ],
             'class_number' => [
                 'label' => '類號',
@@ -64,13 +64,13 @@ class ScopeController extends Controller
             'comment' => [
                 'label' => '範圍說明',
                 'required' => false,
-                'type' => 'textarea'
+                'type' => 'textarea',
             ],
             'note' => [
                 'label' => '註釋',
                 'required' => false,
-                'type' => 'textarea'
-            ]
+                'type' => 'textarea',
+            ],
         ]);
     }
 
@@ -108,8 +108,9 @@ class ScopeController extends Controller
             'parent.subjectOf',
             'parent.objectOf',
             'parent',
-            'children'
+            'children',
         ]);
+
         return response()->json(
             new ScopeResource($scope)
         );
@@ -134,7 +135,7 @@ class ScopeController extends Controller
 
         return response()->json([
             'data' => $scope,
-            'message' =>  $isUpdated
+            'message' => $isUpdated
                 ? 'Scope updated.'
                 : 'Scope update failed',
         ]);
@@ -147,8 +148,9 @@ class ScopeController extends Controller
     {
         $scopeName = $scope->name;
         $scope->delete();
+
         return response()->json([
-            'message' => "$scopeName was deleted."
+            'message' => "$scopeName was deleted.",
         ]);
     }
 }

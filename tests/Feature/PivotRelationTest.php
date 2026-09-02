@@ -7,6 +7,7 @@ use App\Models\Documentation;
 use App\Models\EntityRelation;
 use App\Models\Implementation;
 use App\Models\Relation;
+use App\Models\Scope;
 use App\Models\Technique;
 use App\Models\TechniqueImplementationLink;
 use Illuminate\Database\QueryException;
@@ -106,7 +107,7 @@ class PivotRelationTest extends TestCase
         $relation = Relation::factory()->create();
         $documentation->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
 
-        $otherScope = \App\Models\Scope::factory()->create();
+        $otherScope = Scope::factory()->create();
 
         $this->expectException(RelationLockedException::class);
         $relation->update(['subject_id' => $otherScope->id]);

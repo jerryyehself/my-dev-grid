@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\TechniqueFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Technique extends Model
 {
-    /** @use HasFactory<\Database\Factories\TechniqueFactory> */
+    /** @use HasFactory<TechniqueFactory> */
     use HasFactory, SoftDeletes;
 
     protected $fillable = [

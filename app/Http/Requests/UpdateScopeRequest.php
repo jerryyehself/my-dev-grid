@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,7 +19,7 @@ class UpdateScopeRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -30,7 +31,7 @@ class UpdateScopeRequest extends FormRequest
                 'numeric',
                 Rule::unique('scopes')
                     ->ignore($this->scope->id)
-                    ->where(fn($query) => $query->where('class_number', $this->class_number)),
+                    ->where(fn ($query) => $query->where('class_number', $this->class_number)),
             ],
             'name' => [
                 'bail',
@@ -38,7 +39,7 @@ class UpdateScopeRequest extends FormRequest
                 Rule::unique('scopes', 'name')->ignore($this->scope->id),
             ],
             'comment' => 'max:100',
-            'note' => 'max:255'
+            'note' => 'max:255',
         ];
     }
 }

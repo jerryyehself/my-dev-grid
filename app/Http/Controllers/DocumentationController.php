@@ -22,12 +22,12 @@ class DocumentationController extends Controller
         $documentations = Documentation::with('scope')->orderBy('title')->get();
 
         return response()->json([
-            "type" => Str::of(Documentation::class)
+            'type' => Str::of(Documentation::class)
                 ->classBasename()
                 ->lower()
                 ->plural()
                 ->toString(),
-            "data" => DocumentationResource::collection($documentations),
+            'data' => DocumentationResource::collection($documentations),
         ]);
     }
 
@@ -94,7 +94,7 @@ class DocumentationController extends Controller
         $documentation->delete();
 
         return response()->json([
-            'message' => "$title was deleted."
+            'message' => "$title was deleted.",
         ]);
     }
 }

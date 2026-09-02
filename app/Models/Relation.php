@@ -4,14 +4,15 @@ namespace App\Models;
 
 use App\Exceptions\RelationLockedException;
 use App\Traits\SetCURIEAttribute;
+use Database\Factories\RelationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Relation extends Model
 {
-    /** @use HasFactory<\Database\Factories\RelationFactory> */
-    use HasFactory, SoftDeletes, SetCURIEAttribute;
+    /** @use HasFactory<RelationFactory> */
+    use HasFactory, SetCURIEAttribute, SoftDeletes;
 
     protected $fillable = [
         'subject_id',
@@ -21,7 +22,7 @@ class Relation extends Model
         'call_number',
         'name',
         'note',
-        'reverse_id'
+        'reverse_id',
     ];
 
     protected $dateFormat = 'Y-m-d H:i:s';

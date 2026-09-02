@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Relation;
+use App\Models\Scope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 
 class relationCRUDTest extends TestCase
@@ -21,7 +21,7 @@ class relationCRUDTest extends TestCase
             'name' => 'Test',
             'class_number' => '99',
             'call_number' => '99',
-            'reverse_id' => 1
+            'reverse_id' => 1,
         ]);
         // $response->dump();
         $response->assertCreated()
@@ -68,7 +68,7 @@ class relationCRUDTest extends TestCase
 
         // A Scope happens to share this name; updating a Relation to the same
         // name must not be blocked by a uniqueness check against the wrong table.
-        $scopeName = \App\Models\Scope::first()->name;
+        $scopeName = Scope::first()->name;
         $relation = Relation::inRandomOrder()->first();
 
         $response = $this->putJson("/api/relations/{$relation->id}", [
@@ -107,7 +107,7 @@ class relationCRUDTest extends TestCase
         // $this->assertCount(3, $response->json('data'));
 
         $response->assertJsonFragment([
-            'name' => 'specs'
+            'name' => 'specs',
         ]);
     }
 

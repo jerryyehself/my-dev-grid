@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -20,7 +21,7 @@ class StoreScopeRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -32,7 +33,7 @@ class StoreScopeRequest extends FormRequest
             'call_number' => 'nullable|numeric',
             'name' => ['required', Rule::unique('scopes')->whereNull('deleted_at')],
             'comment' => 'required|max:100',
-            'note' => 'max:255'
+            'note' => 'max:255',
         ];
     }
 

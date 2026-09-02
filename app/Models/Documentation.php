@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\DocumentationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Documentation extends Model
 {
-    /** @use HasFactory<\Database\Factories\DocumentationFactory> */
+    /** @use HasFactory<DocumentationFactory> */
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -20,6 +21,7 @@ class Documentation extends Model
         'status',
         'creation_date',
     ];
+
     protected $dateFormat = 'Y-m-d H:i:s';
 
     public function scope()

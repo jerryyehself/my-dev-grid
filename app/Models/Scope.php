@@ -3,14 +3,15 @@
 namespace App\Models;
 
 use App\Traits\SetCURIEAttribute;
+use Database\Factories\ScopeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Scope extends Model
 {
-    /** @use HasFactory<\Database\Factories\ScopeFactory> */
-    use HasFactory, SoftDeletes, SetCURIEAttribute;
+    /** @use HasFactory<ScopeFactory> */
+    use HasFactory, SetCURIEAttribute, SoftDeletes;
 
     protected $fillable = [
         'class_number',
@@ -18,7 +19,7 @@ class Scope extends Model
         'parent_class',
         'name',
         'comment',
-        'note'
+        'note',
     ];
 
     protected $appends = ['ReferenceCode', 'FullCallNumber', 'NewChildCallNumber'];

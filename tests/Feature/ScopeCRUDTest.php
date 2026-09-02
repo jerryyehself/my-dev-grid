@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Scope;
 use Database\Seeders\ScopeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 
 class ScopeCRUDTest extends TestCase
@@ -98,7 +97,7 @@ class ScopeCRUDTest extends TestCase
         $this->assertCount(16, $response->json('data'), '錯誤');
 
         $response->assertJsonFragment([
-            'name' => 'Documentation'
+            'name' => 'Documentation',
         ]);
     }
 }

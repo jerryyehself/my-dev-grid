@@ -23,12 +23,12 @@ class RelationController extends Controller
             ->get();
 
         return response()->json([
-            "type" => Str::of(Relation::class)
+            'type' => Str::of(Relation::class)
                 ->classBasename()
                 ->lower()
                 ->plural()
                 ->toString(),
-            "data" => RelationResource::collection($relationList),
+            'data' => RelationResource::collection($relationList),
         ]);
     }
 
@@ -44,15 +44,15 @@ class RelationController extends Controller
         return response()->json([
             'id' => [
                 'required' => false,
-                'type' => 'hidden'
+                'type' => 'hidden',
             ],
             'name' => [
                 'label' => '名稱',
                 'required' => true,
                 'type' => 'text',
                 'class' => [
-                    'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
-                ]
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-4',
+                ],
             ],
             'subject_id' => [
                 'label' => '主體',
@@ -60,8 +60,8 @@ class RelationController extends Controller
                 'type' => 'select',
                 'options' => $scopeOptions,
                 'class' => [
-                    'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
-                ]
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-4',
+                ],
             ],
             'object_id' => [
                 'label' => '客體',
@@ -69,30 +69,30 @@ class RelationController extends Controller
                 'type' => 'select',
                 'options' => $scopeOptions,
                 'class' => [
-                    'w' => 'col-span-12 md:col-span-6 lg:col-span-4'
-                ]
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-4',
+                ],
             ],
             'class_number' => [
                 'label' => '類號',
                 'required' => true,
                 'type' => 'label',
                 'class' => [
-                    'w' => 'col-span-12 md:col-span-6 lg:col-span-6'
-                ]
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-6',
+                ],
             ],
             'call_number' => [
                 'label' => '子類號',
                 'required' => true,
                 'type' => 'number',
                 'class' => [
-                    'w' => 'col-span-12 md:col-span-6 lg:col-span-6'
-                ]
+                    'w' => 'col-span-12 md:col-span-6 lg:col-span-6',
+                ],
             ],
             'note' => [
                 'label' => '註釋',
                 'required' => false,
-                'type' => 'textarea'
-            ]
+                'type' => 'textarea',
+            ],
         ]);
     }
 
@@ -128,6 +128,7 @@ class RelationController extends Controller
     public function show(Relation $relation)
     {
         $relation->load(['parent', 'children']);
+
         return response()->json(
             new RelationResource($relation)
         );
@@ -160,7 +161,7 @@ class RelationController extends Controller
 
         return response()->json([
             'data' => new RelationResource($relation),
-            'message' =>  $isUpdated
+            'message' => $isUpdated
                 ? 'Relation updated.'
                 : 'Relation update failed',
         ]);
@@ -175,7 +176,7 @@ class RelationController extends Controller
         $relation->delete();
 
         return response()->json([
-            'message' => "$relationName was deleted."
+            'message' => "$relationName was deleted.",
         ]);
     }
 }

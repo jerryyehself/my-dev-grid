@@ -6,7 +6,7 @@ use App\Models\Scope;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\scope>
+ * @extends Factory<Scope>
  */
 class ScopeFactory extends Factory
 {
@@ -15,7 +15,6 @@ class ScopeFactory extends Factory
      *
      * @return array<string, mixed>
      */
-
     protected $model = Scope::class;
 
     public function definition(): array
@@ -24,7 +23,7 @@ class ScopeFactory extends Factory
         $usedCallNum = Scope::where('class_number', $classNumber)->pluck('call_number')->toArray();
 
         $availableCallNum = collect(range(0, 99))
-            ->map(fn($n) => str_pad($n, 2, '0', STR_PAD_LEFT))
+            ->map(fn ($n) => str_pad($n, 2, '0', STR_PAD_LEFT))
             ->diff($usedCallNum)
             ->values()
             ->random();
@@ -36,7 +35,7 @@ class ScopeFactory extends Factory
             'call_number' => $availableCallNum,
             'parent_class' => $parent,
             'name' => fake()->unique()->word(),
-            'comment' => fake()->text(50)
+            'comment' => fake()->text(50),
         ];
     }
 }

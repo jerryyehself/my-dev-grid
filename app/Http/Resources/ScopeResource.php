@@ -30,7 +30,7 @@ class ScopeResource extends JsonResource
             'siblings' => $this->siblings,
             'subject_of' => RelationResource::collection($this->whenLoaded('subjectOf')),
             'object_of' => RelationResource::collection($this->whenLoaded('objectOf')),
-            'new_child_call_number' => $this->NewChildCallNumber
+            'new_child_call_number' => $this->NewChildCallNumber,
         ];
     }
 }

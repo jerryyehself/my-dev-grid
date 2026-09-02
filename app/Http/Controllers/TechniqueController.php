@@ -22,12 +22,12 @@ class TechniqueController extends Controller
         $techniques = Technique::with('scope')->orderBy('title')->get();
 
         return response()->json([
-            "type" => Str::of(Technique::class)
+            'type' => Str::of(Technique::class)
                 ->classBasename()
                 ->lower()
                 ->plural()
                 ->toString(),
-            "data" => TechniqueResource::collection($techniques),
+            'data' => TechniqueResource::collection($techniques),
         ]);
     }
 
@@ -94,7 +94,7 @@ class TechniqueController extends Controller
         $technique->delete();
 
         return response()->json([
-            'message' => "$title was deleted."
+            'message' => "$title was deleted.",
         ]);
     }
 }

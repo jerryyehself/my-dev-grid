@@ -44,7 +44,7 @@ class EntityRelation extends Model
 
         if (! $entityClass) {
             throw new InvalidArgumentException(
-                "Invalid entity_type \"{$this->entity_type}\". Must be one of: " . implode(', ', array_keys(self::ENTITY_TYPES))
+                "Invalid entity_type \"{$this->entity_type}\". Must be one of: ".implode(', ', array_keys(self::ENTITY_TYPES))
             );
         }
 

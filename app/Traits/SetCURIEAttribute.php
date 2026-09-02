@@ -4,16 +4,16 @@ namespace App\Traits;
 
 trait SetCURIEAttribute
 {
-
     public function getFullCallNumberAttribute()
     {
-        return $this->class_number . $this->call_number;
+        return $this->class_number.$this->call_number;
     }
 
     public function getReferenceCodeAttribute()
     {
         $label = $this->name ?? $this->title;
-        return strtoupper(class_basename($this)) . ": {$this->FullCallNumber} {$label}";
+
+        return strtoupper(class_basename($this)).": {$this->FullCallNumber} {$label}";
     }
 
     public function parent()
@@ -32,7 +32,6 @@ trait SetCURIEAttribute
             ->where('id', '!=', $this->id)
             ->get();
     }
-
 
     public function getParentSubjectOfAttribute()
     {
