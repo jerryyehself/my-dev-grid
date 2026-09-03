@@ -2,6 +2,8 @@
 
 namespace App\Service;
 
+use App\Models\Documentation;
+use App\Models\EntityRelation;
 use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Scope;
@@ -14,6 +16,16 @@ use RuntimeException;
  * Pulls every public repo from GitService, upserts each one as an
  * Implementation (type: project), and links it to a Technique per
  * language/topic via the existing `uses` Relation.
+ *
+ * Two additional, hand-maintained relations are filled in where known:
+ * - A framework/library topic (e.g. `vue`) is linked to its single base
+ *   language Technique (e.g. `JavaScript`) via `requires` (same-type,
+ *   `entity_relations`) — see FRAMEWORK_BASE_LANGUAGE.
+ * - A Technique with a known official documentation site gets a
+ *   Documentation (type: sourcesite) linked to it via `specs` — see
+ *   OFFICIAL_DOCS.
+ * Both maps are deliberately small: a Technique not listed just doesn't
+ * get the extra edge, rather than guessing at one.
  */
 class SaveReposDataService
 {
@@ -24,6 +36,53 @@ class SaveReposDataService
      */
     private array $scopeIdCache = [];
 
+    /**
+     * GitHub repo `topics` (as GitHub stores them: lowercase) that are a
+     * framework/library with one unambiguous base language, mapped to that
+     * language exactly as GitHub's languages API names it.
+     */
+    private const FRAMEWORK_BASE_LANGUAGE = [
+        'vue' => 'JavaScript',
+        'vuejs' => 'JavaScript',
+        'react' => 'JavaScript',
+        'nextjs' => 'JavaScript',
+        'nuxt' => 'JavaScript',
+        'nuxtjs' => 'JavaScript',
+        'express' => 'JavaScript',
+        'angular' => 'TypeScript',
+        'laravel' => 'PHP',
+        'symfony' => 'PHP',
+        'django' => 'Python',
+        'flask' => 'Python',
+        'rails' => 'Ruby',
+        'spring' => 'Java',
+        'spring-boot' => 'Java',
+    ];
+
+    /**
+     * Official documentation site URL for a Technique, keyed by its title
+     * exactly as stored (topics are stored lowercase; languages are stored
+     * however GitHub's languages API names them).
+     */
+    private const OFFICIAL_DOCS = [
+        'vue' => 'https://vuejs.org/',
+        'vuejs' => 'https://vuejs.org/',
+        'react' => 'https://react.dev/',
+        'angular' => 'https://angular.dev/',
+        'laravel' => 'https://laravel.com/docs',
+        'symfony' => 'https://symfony.com/doc/current/index.html',
+        'django' => 'https://docs.djangoproject.com/',
+        'flask' => 'https://flask.palletsprojects.com/',
+        'rails' => 'https://guides.rubyonrails.org/',
+        'spring' => 'https://spring.io/docs',
+        'PHP' => 'https://www.php.net/docs.php',
+        'JavaScript' => 'https://developer.mozilla.org/en-US/docs/Web/JavaScript',
+        'TypeScript' => 'https://www.typescriptlang.org/docs/',
+        'Python' => 'https://docs.python.org/3/',
+        'Ruby' => 'https://www.ruby-lang.org/en/documentation/',
+        'Java' => 'https://docs.oracle.com/en/java/',
+    ];
+
     public function __construct()
     {
         $gitService = new GitService;
@@ -33,21 +92,29 @@ class SaveReposDataService
     public function save_repos_data(): void
     {
         $usesRelationId = $this->relation_id('uses');
+        $requiresRelationId = $this->relation_id('requires');
+        $specsRelationId = $this->relation_id('specs');
 
-        $this->gitService->each(function ($repo) use ($usesRelationId) {
+        $this->gitService->each(function ($repo) use ($usesRelationId, $requiresRelationId, $specsRelationId) {
             $project = $this->save_repos_content($repo);
 
-            $techniqueIds = collect($repo['languages'] ?? [])
+            $techniques = collect($repo['languages'] ?? [])
                 ->map(fn ($language) => $this->find_or_create_technique($language, 'language'))
                 ->concat(
-                    collect($repo['topics'] ?? [])
-                        ->map(fn ($topic) => $this->find_or_create_technique($topic, 'packagetool'))
+                    collect($repo['topics'] ?? [])->map(function ($topic) use ($requiresRelationId) {
+                        $technique = $this->find_or_create_technique($topic, 'packagetool');
+                        $this->link_framework_to_base_language($technique, $topic, $requiresRelationId);
+
+                        return $technique;
+                    })
                 )
-                ->unique();
+                ->unique('id');
 
             $project->techniques()->syncWithoutDetaching(
-                $techniqueIds->mapWithKeys(fn ($id) => [$id => ['relation_id' => $usesRelationId]])->all()
+                $techniques->mapWithKeys(fn ($technique) => [$technique->id => ['relation_id' => $usesRelationId]])->all()
             );
+
+            $techniques->each(fn ($technique) => $this->link_official_docs($technique, $specsRelationId));
         });
     }
 
@@ -70,12 +137,63 @@ class SaveReposDataService
         );
     }
 
-    private function find_or_create_technique(string $name, string $scopeName): int
+    private function find_or_create_technique(string $name, string $scopeName): Technique
     {
         return Technique::firstOrCreate([
             'type' => $this->scope_id($scopeName),
             'title' => $name,
-        ])->id;
+        ]);
+    }
+
+    /**
+     * If $topic is a known framework/library with a single base language
+     * (FRAMEWORK_BASE_LANGUAGE), find-or-create that language's own
+     * Technique and link $framework to it via a same-type `requires`
+     * EntityRelation. A no-op for any topic not in the map.
+     */
+    private function link_framework_to_base_language(Technique $framework, string $topic, int $requiresRelationId): void
+    {
+        $baseLanguageName = self::FRAMEWORK_BASE_LANGUAGE[$topic] ?? null;
+
+        if (! $baseLanguageName) {
+            return;
+        }
+
+        $baseLanguage = $this->find_or_create_technique($baseLanguageName, 'language');
+
+        EntityRelation::firstOrCreate([
+            'entity_type' => 'technique',
+            'subject_id' => $framework->id,
+            'object_id' => $baseLanguage->id,
+            'relation_id' => $requiresRelationId,
+        ]);
+    }
+
+    /**
+     * If $technique has a known official documentation site (OFFICIAL_DOCS),
+     * find-or-create a Documentation (type: sourcesite) for it and link it
+     * to $technique via `specs`. A no-op for any Technique not in the map.
+     */
+    private function link_official_docs(Technique $technique, int $specsRelationId): void
+    {
+        $url = self::OFFICIAL_DOCS[$technique->title] ?? null;
+
+        if (! $url) {
+            return;
+        }
+
+        $documentation = Documentation::firstOrCreate(
+            ['url' => $url],
+            [
+                'type' => $this->scope_id('sourcesite'),
+                'title' => "{$technique->title} 官方文件",
+                'status' => 1,
+            ]
+        );
+
+        $documentation->techniques()->syncWithoutDetaching([
+            $technique->id => ['relation_id' => $specsRelationId],
+        ]);
     }
 
     private function scope_id(string $name): int

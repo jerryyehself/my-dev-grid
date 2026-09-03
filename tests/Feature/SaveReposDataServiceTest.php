@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Documentation;
+use App\Models\EntityRelation;
 use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Scope;
@@ -202,5 +204,115 @@ class SaveReposDataServiceTest extends TestCase
         $this->artisan('github:sync-repos')->assertSuccessful();
 
         $this->assertDatabaseHas('implementations', ['git_repo_id' => 111]);
+    }
+
+    public function test_save_repos_data_links_known_framework_topic_to_its_base_language_via_requires()
+    {
+        $this->seed();
+        $this->fakeGitHub(); // topics: ['laravel'], languages: PHP/Blade
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $laravel = Technique::where('title', 'laravel')->firstOrFail();
+        $php = Technique::where('title', 'PHP')->firstOrFail();
+        $requiresRelationId = Relation::where('name', 'requires')->value('id');
+
+        $this->assertDatabaseHas('entity_relations', [
+            'entity_type' => 'technique',
+            'subject_id' => $laravel->id,
+            'object_id' => $php->id,
+            'relation_id' => $requiresRelationId,
+        ]);
+    }
+
+    public function test_save_repos_data_does_not_invent_a_requires_edge_for_an_unmapped_topic()
+    {
+        $this->seed();
+        $this->fakeGitHub([
+            [
+                'id' => 111,
+                'private' => false,
+                'html_url' => 'https://github.com/acme/demo',
+                'name' => 'demo',
+                'languages_url' => 'https://api.github.com/repos/acme/demo/languages',
+                'topics' => ['testing'],
+                'archived' => false,
+            ],
+        ]);
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $this->assertDatabaseHas('techniques', ['title' => 'testing']);
+        $this->assertSame(0, EntityRelation::where('entity_type', 'technique')->count());
+    }
+
+    public function test_save_repos_data_creates_sourcesite_documentation_for_known_techniques_via_specs()
+    {
+        $this->seed();
+        $this->fakeGitHub(); // topics: ['laravel'], languages: PHP/Blade
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $laravel = Technique::where('title', 'laravel')->firstOrFail();
+        $php = Technique::where('title', 'PHP')->firstOrFail();
+        $specsRelationId = Relation::where('name', 'specs')->value('id');
+        $sourcesiteScopeId = Scope::where('name', 'sourcesite')->value('id');
+
+        $laravelDocs = Documentation::where('url', 'https://laravel.com/docs')->firstOrFail();
+        $this->assertSame($sourcesiteScopeId, $laravelDocs->type);
+        $this->assertDatabaseHas('documentation_technique', [
+            'documentation_id' => $laravelDocs->id,
+            'technique_id' => $laravel->id,
+            'relation_id' => $specsRelationId,
+        ]);
+
+        $phpDocs = Documentation::where('url', 'https://www.php.net/docs.php')->firstOrFail();
+        $this->assertDatabaseHas('documentation_technique', [
+            'documentation_id' => $phpDocs->id,
+            'technique_id' => $php->id,
+            'relation_id' => $specsRelationId,
+        ]);
+    }
+
+    public function test_save_repos_data_does_not_invent_a_sourcesite_for_an_unmapped_technique()
+    {
+        $this->seed();
+        $this->fakeGitHub(); // languages include 'Blade', which has no OFFICIAL_DOCS entry
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $blade = Technique::where('title', 'Blade')->firstOrFail();
+        $this->assertDatabaseMissing('documentation_technique', ['technique_id' => $blade->id]);
+    }
+
+    public function test_save_repos_data_requires_and_specs_edges_are_idempotent_across_syncs()
+    {
+        $this->seed();
+
+        $repo = [
+            'id' => 111,
+            'private' => false,
+            'html_url' => 'https://github.com/acme/demo',
+            'name' => 'demo',
+            'languages_url' => 'https://api.github.com/repos/acme/demo/languages',
+            'topics' => ['laravel'],
+        ];
+
+        // Same two-full-sync-runs shape as test_save_repos_data_reuses_existing_technique_across_repos:
+        // one Http::fake() with the /user/repos sequence doubled, not two separate fakeGitHub() calls
+        // (a second Http::fake() call doesn't append to the first sequence, it replaces it).
+        Http::fake([
+            'https://api.github.com/user/repos*' => Http::sequence()
+                ->push([$repo])->push([])
+                ->push([$repo])->push([]),
+            'https://api.github.com/repos/acme/demo/languages' => Http::response(['PHP' => 12345]),
+        ]);
+
+        (new SaveReposDataService)->save_repos_data();
+        (new SaveReposDataService)->save_repos_data();
+
+        $this->assertSame(1, EntityRelation::where('entity_type', 'technique')->count());
+        $this->assertSame(1, Documentation::where('url', 'https://laravel.com/docs')->count());
+        $this->assertSame(1, Documentation::where('url', 'https://www.php.net/docs.php')->count());
     }
 }
