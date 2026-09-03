@@ -137,4 +137,27 @@ class GraphApiTest extends TestCase
 
         $response->assertOk()->assertJsonStructure(['nodes', 'edges']);
     }
+
+    public function test_graph_only_reports_created_at_for_implementation_nodes()
+    {
+        $documentation = Documentation::factory()->create();
+        $technique = Technique::factory()->create();
+        $implementation = Implementation::factory()->create(['git_repo_created_at' => '2025-06-11 00:00:00']);
+
+        $response = $this->getJson('/api/graph');
+
+        $response->assertOk();
+        $response->assertJsonFragment([
+            'id' => "documentation-{$documentation->id}",
+            'created_at' => null,
+        ]);
+        $response->assertJsonFragment([
+            'id' => "technique-{$technique->id}",
+            'created_at' => null,
+        ]);
+        $response->assertJsonFragment([
+            'id' => "implementation-{$implementation->id}",
+            'created_at' => '2025-06-11',
+        ]);
+    }
 }

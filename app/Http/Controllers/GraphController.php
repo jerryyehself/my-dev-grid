@@ -26,8 +26,11 @@ class GraphController extends Controller
      * round trip.
      *
      * Shaped for a force-directed graph frontend: nodes as
-     * {id, type, label}, edges as {source, target, predicate, label,
-     * relation_id} where source/target reference node ids.
+     * {id, type, label, created_at}, edges as {source, target, predicate,
+     * label, relation_id} where source/target reference node ids.
+     * created_at is only populated for implementation nodes (from
+     * git_repo_created_at) — documentation/technique have no equivalent
+     * field and always report null.
      */
     public function index()
     {
@@ -79,6 +82,12 @@ class GraphController extends Controller
             'id' => $this->nodeId($type, $model->id),
             'type' => $type,
             'label' => $model->title,
+            // 只有 Implementation 有這個欄位（git_repo_created_at，來自 GitHub API），
+            // Documentation/Technique 完全沒有對應的時間概念，一律回傳 null——不是
+            // 每個節點都有意義的「熱度」資料，前端要誠實處理這個缺口，不是掰一個假時間。
+            'created_at' => $type === 'implementation' && $model->git_repo_created_at
+                ? $model->git_repo_created_at->format('Y-m-d')
+                : null,
         ]);
     }
 
