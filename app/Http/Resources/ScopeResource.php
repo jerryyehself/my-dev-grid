@@ -27,7 +27,10 @@ class ScopeResource extends JsonResource
             'ReferenceCode' => $this->ReferenceCode,
             'parent' => new ScopeResource($this->whenLoaded('parent')),
             'children' => ScopeResource::collection($this->whenLoaded('children')),
-            'siblings' => $this->siblings,
+            'siblings' => ScopeResource::collection($this->whenLoaded(
+                'siblings',
+                fn ($siblings) => $siblings->reject(fn ($sibling) => $sibling->is($this->resource))
+            )),
             'subject_of' => RelationResource::collection($this->whenLoaded('subjectOf')),
             'object_of' => RelationResource::collection($this->whenLoaded('objectOf')),
             'new_child_call_number' => $this->NewChildCallNumber,
