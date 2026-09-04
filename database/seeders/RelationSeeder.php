@@ -16,12 +16,12 @@ class RelationSeeder extends Seeder
     {
 
         $seeds = [
-            ['00', '10', 'specs'],
-            ['00', '20', 'documents'],
-            ['10', '00', 'specifiedBy'],
-            ['10', '20', 'uses'],
-            ['20', '00', 'documentedBy'],
-            ['20', '10', 'used'],
+            ['00', '10', 'specs', 'No clean external-vocabulary mapping; closest is Dublin Core dcterms:conformsTo, but direction/semantics don\'t fully align — kept as a project-specific predicate (Documentation specs a Technique).'],
+            ['00', '20', 'documents', 'SPDX DOCUMENTATION_OF — Documentation documents an Implementation (SPDX 2.3 relationships spec).'],
+            ['10', '00', 'specifiedBy', 'Reverse of specs.'],
+            ['10', '20', 'uses', 'Close in spirit to SPDX DEPENDS_ON/DEPENDENCY_OF and PROV-O prov:used (Activity used Entity); this project\'s subject direction (Technique as subject) is a project convention, not a literal PROV-O mapping — kept as-is since data already exists.'],
+            ['20', '00', 'documentedBy', 'Reverse of documents.'],
+            ['20', '10', 'used', 'Reverse of uses.'],
         ];
 
         $reverseSeed = [
@@ -40,7 +40,7 @@ class RelationSeeder extends Seeder
         // $nonLeadScopes = $scopes->whereNotNull('parent_class');
 
         // 建立固定關聯資料
-        foreach ($seeds as [$from, $to, $name]) {
+        foreach ($seeds as [$from, $to, $name, $note]) {
 
             $subject = $leadScopes->firstWhere('class_number', $from);
             $object = $leadScopes->firstWhere('class_number', $to);
@@ -50,7 +50,7 @@ class RelationSeeder extends Seeder
                 'object_id' => $object->id,
                 'class_number' => $subject->class_number[0].$object->class_number[0],
                 'name' => $name,
-                'note' => 'test',
+                'note' => $note,
             ]);
         }
 
