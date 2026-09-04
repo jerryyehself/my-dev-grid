@@ -100,4 +100,69 @@ class ScopeCRUDTest extends TestCase
             'name' => 'Documentation',
         ]);
     }
+
+    public function test_view_scope_returns_siblings()
+    {
+        $parent = Scope::factory()->create([
+            'class_number' => '99',
+            'call_number' => '00',
+            'parent_class' => null,
+        ]);
+        $scope = Scope::factory()->create([
+            'class_number' => '99',
+            'call_number' => '01',
+            'parent_class' => $parent->id,
+        ]);
+        $sibling = Scope::factory()->create([
+            'class_number' => '99',
+            'call_number' => '02',
+            'parent_class' => $parent->id,
+        ]);
+
+        $response = $this->getJson("/api/scopes/{$scope->id}");
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('siblings'));
+        $this->assertSame($sibling->id, $response->json('siblings.0.id'));
+        $response->assertJsonFragment(['name' => $sibling->name]);
+    }
+
+    public function test_view_scope_without_siblings_returns_empty_array()
+    {
+        $parent = Scope::factory()->create([
+            'class_number' => '99',
+            'call_number' => '00',
+            'parent_class' => null,
+        ]);
+        $onlyChild = Scope::factory()->create([
+            'class_number' => '99',
+            'call_number' => '01',
+            'parent_class' => $parent->id,
+        ]);
+
+        $response = $this->getJson("/api/scopes/{$onlyChild->id}");
+
+        $response->assertOk();
+        $this->assertSame([], $response->json('siblings'));
+    }
+
+    public function test_view_top_level_scope_has_no_siblings_or_parent()
+    {
+        Scope::factory()->create([
+            'class_number' => '98',
+            'call_number' => '00',
+            'parent_class' => null,
+        ]);
+        $topLevelScope = Scope::factory()->create([
+            'class_number' => '99',
+            'call_number' => '00',
+            'parent_class' => null,
+        ]);
+
+        $response = $this->getJson("/api/scopes/{$topLevelScope->id}");
+
+        $response->assertOk();
+        $this->assertSame([], $response->json('siblings'), '沒有 parent 的頂層 scope 不應該把其他頂層 scope 當成 siblings');
+        $this->assertNull($response->json('parent'));
+    }
 }
