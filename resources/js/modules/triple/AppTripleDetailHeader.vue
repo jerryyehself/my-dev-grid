@@ -28,6 +28,7 @@ import { useConfirmStore } from "@/stores/useConfirmStore";
 import { fetchAPI } from "../../utils/useFetchAPI.js";
 import { useDataStore } from "@/stores/useDataStore";
 import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
+import { useTriplePanelSelectionStore } from "@/stores/useTriplePanelSelectionStore";
 
 import AppTripleItemMetaTag from "./AppTripleItemMetaTag.vue";
 
@@ -46,6 +47,15 @@ const itemMeta = computed(() => ({
     type: props.target?.title,
     area: props.target?.item?.parent?.name,
 }));
+
+// 現有的 action-dispatch 慣例：呼叫 useTriplePanelSelectionStore().setPanel()
+// 切換 AppTriplePanelView 顯示的畫面（既有的 "admin"／"new" 就是這樣切的）。
+// "update" 對應到新增的 "edit" 畫面（AppTripleEdit.vue）。
+function setAction(action) {
+    if (action === "update") {
+        useTriplePanelSelectionStore().setPanel("edit");
+    }
+}
 
 const buttonConfigs = [
     {

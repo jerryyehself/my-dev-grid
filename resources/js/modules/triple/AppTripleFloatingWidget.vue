@@ -21,6 +21,7 @@ import { fetchAPI } from "../../utils/useFetchAPI";
 import { useDataStore } from "@/stores/useDataStore";
 import { useTripleSelectionStore } from "@/stores/useTripleSelectionStore";
 import { useConfirmStore } from "@/stores/useConfirmStore";
+import { useTriplePanelSelectionStore } from "@/stores/useTriplePanelSelectionStore";
 
 const props = defineProps({
     target: {
@@ -28,6 +29,13 @@ const props = defineProps({
         required: true,
     },
 });
+
+// 見 AppTripleDetailHeader.vue 同名函式：沿用既有的 setPanel() 切換畫面慣例。
+function setAction(action) {
+    if (action === "update") {
+        useTriplePanelSelectionStore().setPanel("edit");
+    }
+}
 
 const buttonConfigs = [
     {

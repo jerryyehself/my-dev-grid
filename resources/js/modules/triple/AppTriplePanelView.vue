@@ -3,6 +3,9 @@
         <template v-if="panelSelected === 'new'">
             <AppTripleNew class="h-full w-full flex flex-col" />
         </template>
+        <template v-else-if="panelSelected === 'edit'">
+            <AppTripleEdit class="h-full w-full flex flex-col" />
+        </template>
         <template v-else>
             <div
                 class="col-span-5 grid grid-cols-5 min-h-0 max-h-full overflow-hidden h-full px-20 py-5"
@@ -24,6 +27,7 @@
 import { ref, watch, computed } from "vue";
 import { storeToRefs } from "pinia";
 import AppTripleNew from "./AppTripleNew.vue";
+import AppTripleEdit from "./AppTripleEdit.vue";
 import AppTripleNavList from "./AppTripleNav.vue";
 import AppTripleDetail from "./AppTripleDetail.vue";
 import { useTriplePanelSelectionStore } from "@/stores/useTriplePanelSelectionStore";
