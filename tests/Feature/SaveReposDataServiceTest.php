@@ -121,11 +121,14 @@ class SaveReposDataServiceTest extends TestCase
         (new SaveReposDataService)->save_repos_data();
 
         $languageScopeId = Scope::where('name', 'language')->value('id');
-        $packagetoolScopeId = Scope::where('name', 'packagetool')->value('id');
+        $frameworkScopeId = Scope::where('name', 'framework')->value('id');
 
         $this->assertDatabaseHas('techniques', ['title' => 'PHP', 'type' => $languageScopeId]);
         $this->assertDatabaseHas('techniques', ['title' => 'Blade', 'type' => $languageScopeId]);
-        $this->assertDatabaseHas('techniques', ['title' => 'laravel', 'type' => $packagetoolScopeId]);
+        // laravel 是 FRAMEWORK_BASE_LANGUAGE 已知的 topic,歸類到 framework
+        // scope,不是 packagetool——覆蓋 packagetool 的分支見另一個測試
+        // (test_save_repos_data_classifies_unmapped_topic_as_packagetool_scope)。
+        $this->assertDatabaseHas('techniques', ['title' => 'laravel', 'type' => $frameworkScopeId]);
     }
 
     public function test_save_repos_data_links_project_to_techniques_via_uses_relation()
@@ -283,6 +286,100 @@ class SaveReposDataServiceTest extends TestCase
 
         $blade = Technique::where('title', 'Blade')->firstOrFail();
         $this->assertDatabaseMissing('documentation_technique', ['technique_id' => $blade->id]);
+    }
+
+    public function test_save_repos_data_classifies_known_framework_topic_as_framework_scope()
+    {
+        $this->seed();
+        $this->fakeGitHub(); // topics: ['laravel'] — a FRAMEWORK_BASE_LANGUAGE key
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $frameworkScopeId = Scope::where('name', 'framework')->value('id');
+        $packagetoolScopeId = Scope::where('name', 'packagetool')->value('id');
+
+        $this->assertDatabaseHas('techniques', ['title' => 'laravel', 'type' => $frameworkScopeId]);
+        $this->assertDatabaseMissing('techniques', ['title' => 'laravel', 'type' => $packagetoolScopeId]);
+    }
+
+    public function test_save_repos_data_classifies_unmapped_topic_as_packagetool_scope()
+    {
+        $this->seed();
+        $this->fakeGitHub([
+            [
+                'id' => 111,
+                'private' => false,
+                'html_url' => 'https://github.com/acme/demo',
+                'name' => 'demo',
+                'languages_url' => 'https://api.github.com/repos/acme/demo/languages',
+                'topics' => ['testing'],
+                'archived' => false,
+            ],
+        ]);
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $packagetoolScopeId = Scope::where('name', 'packagetool')->value('id');
+        $this->assertDatabaseHas('techniques', ['title' => 'testing', 'type' => $packagetoolScopeId]);
+    }
+
+    public function test_save_repos_data_still_links_framework_scope_topic_to_base_language_via_requires()
+    {
+        $this->seed();
+        $this->fakeGitHub(); // topics: ['laravel'], languages: PHP/Blade
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $frameworkScopeId = Scope::where('name', 'framework')->value('id');
+        $laravel = Technique::where('title', 'laravel')->where('type', $frameworkScopeId)->firstOrFail();
+        $php = Technique::where('title', 'PHP')->firstOrFail();
+        $requiresRelationId = Relation::where('name', 'requires')->value('id');
+
+        $this->assertDatabaseHas('entity_relations', [
+            'entity_type' => 'technique',
+            'subject_id' => $laravel->id,
+            'object_id' => $php->id,
+            'relation_id' => $requiresRelationId,
+        ]);
+    }
+
+    public function test_reclassify_framework_topics_migration_moves_existing_packagetool_row_in_place()
+    {
+        $this->seed();
+
+        $packagetoolScopeId = Scope::where('name', 'packagetool')->value('id');
+        $frameworkScopeId = Scope::where('name', 'framework')->value('id');
+
+        // 模擬修正前的同步結果:laravel 之前被誤分類進 packagetool。
+        $existing = Technique::create(['type' => $packagetoolScopeId, 'title' => 'laravel']);
+
+        // 掛一個既有的 technique_implementation pivot row,用來驗證 migration
+        // 是就地改 type、不是刪除重建(不然這筆 pivot 就會斷連)。
+        $usesRelationId = Relation::where('name', 'uses')->value('id');
+        $project = Implementation::factory()->create();
+        $project->techniques()->attach($existing->id, ['relation_id' => $usesRelationId]);
+
+        // 不相關的 packagetool row 不該被動到。
+        $unrelated = Technique::create(['type' => $packagetoolScopeId, 'title' => 'webpack']);
+
+        // RefreshDatabase 在測試套件一開始就把所有 migration(含這支)跑過一輪
+        // 了(當時 DB 還是空的,up() 是 no-op),所以這裡不能靠再跑一次
+        // `migrate` 指令(該 migration 已經記錄在 migrations table,指令會
+        // 跳過它)。直接載入 migration 檔案、手動呼叫 up() 來驗證邏輯本身。
+        $migration = require database_path('migrations/2026_09_07_000000_reclassify_framework_topics_from_packagetool_to_framework.php');
+        $migration->up();
+
+        $existing->refresh();
+        $unrelated->refresh();
+
+        $this->assertSame($frameworkScopeId, $existing->type);
+        $this->assertSame($packagetoolScopeId, $unrelated->type);
+
+        $this->assertDatabaseHas('technique_implementation', [
+            'implementation_id' => $project->id,
+            'technique_id' => $existing->id,
+            'relation_id' => $usesRelationId,
+        ]);
     }
 
     public function test_save_repos_data_requires_and_specs_edges_are_idempotent_across_syncs()
