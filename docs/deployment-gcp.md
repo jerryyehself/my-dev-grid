@@ -87,6 +87,24 @@ Check `.env.example` if the app grows more required secrets later — anything
 that's currently a blank/sensitive value there (not `AWS_*`, which stays
 unused/blank) should get the same treatment.
 
+**Already grown, not yet wired into the workflow**: the OAuth login
+foundation (Google/LINE Socialite + Sanctum SPA cookies) added 7 new values
+to `.env.production.example`. Two are real secrets and belong here once the
+login PR lands:
+
+```bash
+printf '%s' 'GOCSPX-...' | gcloud secrets create GOOGLE_CLIENT_SECRET --data-file=-
+printf '%s' '...'        | gcloud secrets create LINE_CLIENT_SECRET   --data-file=-
+```
+
+The other 5 (`GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`, `LINE_CLIENT_ID`,
+`LINE_REDIRECT_URI`, `SANCTUM_STATEFUL_DOMAINS`) aren't sensitive — same
+treatment as `DB_DATABASE`/`DB_USERNAME` below, plain `--set-env-vars`
+values, no Secret Manager entry needed. None of this is wired into
+`.github/workflows/deploy-cloud-run.yml` yet — that workflow change (plus
+dropping `--allow-unauthenticated`) is deliberately deferred to the PR that
+actually ships the login UI end-to-end, not this foundation PR.
+
 ## 5. Runtime service account (what Cloud Run runs *as*)
 
 This is **not** the account GitHub Actions uses to deploy — it's the identity
