@@ -38,4 +38,20 @@ return [
         'token' => env('GITHUB_TOKEN'),
     ],
 
+    // Google 是 Socialite 內建 driver，不需要額外套件。
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
+
+    // LINE 由 socialiteproviders/line 提供，'bot_prompt' 是該套件自己文件要求的設定鍵
+    // （控制 LINE Login 畫面是否順便推廣加官方帳號好友，預設 'normal'）。
+    'line' => [
+        'client_id' => env('LINE_CLIENT_ID'),
+        'client_secret' => env('LINE_CLIENT_SECRET'),
+        'redirect' => env('LINE_REDIRECT_URI'),
+        'bot_prompt' => env('LINE_BOT_PROMPT', 'normal'),
+    ],
+
 ];
