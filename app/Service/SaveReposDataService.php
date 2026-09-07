@@ -15,7 +15,9 @@ use RuntimeException;
  *
  * Pulls every public repo from GitService, upserts each one as an
  * Implementation (type: project), and links it to a Technique per
- * language/topic via the existing `uses` Relation.
+ * language/topic via the existing `uses` Relation. A `topics` entry is
+ * classified `framework` scope when it's a key in FRAMEWORK_BASE_LANGUAGE,
+ * otherwise `packagetool` (see class_number/call_number in ScopeSeeder).
  *
  * Two additional, hand-maintained relations are filled in where known:
  * - A framework/library topic (e.g. `vue`) is linked to its single base
@@ -26,6 +28,20 @@ use RuntimeException;
  *   OFFICIAL_DOCS.
  * Both maps are deliberately small: a Technique not listed just doesn't
  * get the extra edge, rather than guessing at one.
+ *
+ * NOTE(2026-09-07): before this fix, every `topics` entry — framework
+ * topics included — was unconditionally classified `packagetool`. A
+ * one-time backfill migration (`..._reclassify_framework_topics_...`)
+ * re-points any pre-existing `packagetool`-scope Technique row whose title
+ * matches a FRAMEWORK_BASE_LANGUAGE key over to `framework` **in place**
+ * (same row id, so `technique_implementation`/`entity_relations`/
+ * `documentation_technique` rows already pointing at it stay valid). That
+ * migration's topic list is a point-in-time snapshot of
+ * FRAMEWORK_BASE_LANGUAGE as of the fix — it is intentionally NOT kept in
+ * sync with future edits to the const below. If FRAMEWORK_BASE_LANGUAGE
+ * ever gains a new key, any `packagetool`-scope Technique already synced
+ * under that title needs its own follow-up backfill (same pattern, new
+ * migration) — this in-code reclassification only affects future syncs.
  */
 class SaveReposDataService
 {
@@ -102,7 +118,11 @@ class SaveReposDataService
                 ->map(fn ($language) => $this->find_or_create_technique($language, 'language'))
                 ->concat(
                     collect($repo['topics'] ?? [])->map(function ($topic) use ($requiresRelationId) {
-                        $technique = $this->find_or_create_technique($topic, 'packagetool');
+                        // 是 FRAMEWORK_BASE_LANGUAGE 已知的 framework/library topic
+                        // 就歸類到 framework scope,其餘 topic(package/build tool 等)
+                        // 才落回 packagetool。
+                        $scopeName = array_key_exists($topic, self::FRAMEWORK_BASE_LANGUAGE) ? 'framework' : 'packagetool';
+                        $technique = $this->find_or_create_technique($topic, $scopeName);
                         $this->link_framework_to_base_language($technique, $topic, $requiresRelationId);
 
                         return $technique;
