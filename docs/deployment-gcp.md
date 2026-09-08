@@ -101,9 +101,12 @@ The other 5 (`GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`, `LINE_CLIENT_ID`,
 `LINE_REDIRECT_URI`, `SANCTUM_STATEFUL_DOMAINS`) aren't sensitive — same
 treatment as `DB_DATABASE`/`DB_USERNAME` below, plain `--set-env-vars`
 values, no Secret Manager entry needed. None of this is wired into
-`.github/workflows/deploy-cloud-run.yml` yet — that workflow change (plus
-dropping `--allow-unauthenticated`) is deliberately deferred to the PR that
-actually ships the login UI end-to-end, not this foundation PR.
+`.github/workflows/deploy-cloud-run.yml` yet — that workflow change is
+deliberately deferred to the PR that actually ships the login UI
+end-to-end, not this foundation PR. **`--allow-unauthenticated` itself is
+not part of that deferred change** — see the correction in step 8 below;
+it's an IAM-level public-access switch, orthogonal to the Sanctum
+session auth this login work adds at the application layer.
 
 ## 5. Runtime service account (what Cloud Run runs *as*)
 
@@ -210,10 +213,17 @@ Run" → Run workflow). It will:
    and run `php artisan migrate --force` via `--wait`, so the schema exists
    before the new revision serves traffic. Leave `CLOUD_RUN_MIGRATE_JOB`
    unset to skip this and run migrations yourself instead.
-3. Deploy the Cloud Run service with `--allow-unauthenticated` (this app has
-   no auth in front of it today — restrict with `gcloud run services
-   remove-iam-policy-binding ... --member=allUsers --role=roles/run.invoker`
-   later if that changes).
+3. Deploy the Cloud Run service with `--allow-unauthenticated`. **This stays
+   on even after login ships** (corrected 2026-09-08 — an earlier version of
+   this doc implied it would be dropped once the app had auth "in front of
+   it"). It's an IAM-level switch controlling whether Cloud Run accepts
+   requests at all; the public read-only site (`my-dev-grid-front`) and the
+   login page itself both need unauthenticated requests to reach the
+   service. Removing it would firewall off the whole public site, not just
+   protect write endpoints. Access control for writes is handled at the
+   application layer instead (Sanctum session auth + Policies, `PR #32`) —
+   that's the correct and permanent place for it, not a Cloud Run IAM
+   binding.
 
 After the first successful deploy, get the service URL:
 

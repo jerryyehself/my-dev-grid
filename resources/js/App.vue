@@ -26,6 +26,17 @@
                 {{ page.label }}
             </RouterLink>
         </nav>
+        <div class="col-span-1 flex justify-end text-sm text-stone-700">
+            <RouterLink v-if="!authStore.user" to="/login">登入</RouterLink>
+            <div v-else class="flex items-center gap-3">
+                <span class="truncate max-w-[10rem]">
+                    {{ authStore.user.name || authStore.user.email }}
+                </span>
+                <button type="button" @click="authStore.logout()">
+                    登出
+                </button>
+            </div>
+        </div>
     </header>
     <main class="relative flex-1 min-h-0 box-border overflow-hidden h-full">
         <RouterView />
@@ -35,9 +46,14 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import AppConfirmMessage from "@/components/widgets/AppConfirmMessage.vue";
+import { useAuthStore } from "@/stores/useAuthStore";
+
 const showWarning = ref(true);
+const authStore = useAuthStore();
+onMounted(() => authStore.checkAuth());
+
 const pages = {
     home: {
         to: "/",
