@@ -9,9 +9,11 @@ use App\Http\Controllers\TechniqueController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-// Route::get('/user', function (Request $request) {
-//     return $request->user();
-// })->middleware('auth:sanctum');
+// 前端（SPA）開機時拿這支確認目前的登入狀態——未登入回 401，
+// 已登入回目前的 User。
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum');
 
 Route::get('/graph', [GraphController::class, 'index']);
 
