@@ -13,6 +13,7 @@ class relationCRUDTest extends TestCase
 
     public function test_create_relation()
     {
+        $this->actingAsOwner();
         $this->seed();
 
         $response = $this->postJson('/api/relations', [
@@ -30,6 +31,22 @@ class relationCRUDTest extends TestCase
         $this->assertDatabaseHas('relations', ['name' => 'Test']);
     }
 
+    public function test_create_relation_rejects_unauthenticated_request()
+    {
+        $this->seed();
+
+        $response = $this->postJson('/api/relations', [
+            'subject_id' => '14',
+            'object_id' => '01',
+            'name' => 'Test',
+            'class_number' => '99',
+            'call_number' => '99',
+            'reverse_id' => 1,
+        ]);
+
+        $response->assertUnauthorized();
+    }
+
     public function test_view_relation()
     {
         $this->seed();
@@ -44,6 +61,7 @@ class relationCRUDTest extends TestCase
 
     public function test_update_relation()
     {
+        $this->actingAsOwner();
         $this->seed();
 
         $relation = Relation::inRandomOrder()->first();
@@ -62,8 +80,26 @@ class relationCRUDTest extends TestCase
         $this->assertDatabaseHas('relations', ['id' => $relation->id, 'name' => 'Updated name']);
     }
 
+    public function test_update_relation_rejects_unauthenticated_request()
+    {
+        $this->seed();
+
+        $relation = Relation::inRandomOrder()->first();
+
+        $response = $this->putJson("/api/relations/{$relation->id}", [
+            'subject_id' => '1',
+            'object_id' => '14',
+            'name' => 'Updated name',
+            'class_number' => $relation->class_number,
+            'call_number' => $relation->call_number,
+        ]);
+
+        $response->assertUnauthorized();
+    }
+
     public function test_update_relation_name_unique_check_is_scoped_to_relations_table()
     {
+        $this->actingAsOwner();
         $this->seed();
 
         // A Scope happens to share this name; updating a Relation to the same
@@ -85,6 +121,7 @@ class relationCRUDTest extends TestCase
 
     public function test_delete_relation()
     {
+        $this->actingAsOwner();
         $this->seed();
 
         $relation = Relation::first();
@@ -95,6 +132,17 @@ class relationCRUDTest extends TestCase
             ->assertJsonFragment(['message' => "{$relation->name} was deleted."]);
 
         $this->assertSoftDeleted('relations', ['id' => $relation->id]);
+    }
+
+    public function test_delete_relation_rejects_unauthenticated_request()
+    {
+        $this->seed();
+
+        $relation = Relation::first();
+
+        $response = $this->deleteJson("/api/relations/{$relation->id}");
+
+        $response->assertUnauthorized();
     }
 
     public function test_list_all_relations()
