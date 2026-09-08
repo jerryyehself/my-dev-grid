@@ -101,6 +101,8 @@ class RelationController extends Controller
      */
     public function store(StoreRelationRequest $request)
     {
+        $this->authorize('create', Relation::class);
+
         $validatedData = $request->validated();
 
         if ($validatedData['call_number'] != '00') {
@@ -147,6 +149,8 @@ class RelationController extends Controller
      */
     public function update(UpdateRelationRequest $request, Relation $relation)
     {
+        $this->authorize('update', $relation);
+
         $validatedData = $request->validated();
 
         try {
@@ -172,6 +176,8 @@ class RelationController extends Controller
      */
     public function destroy(Relation $relation)
     {
+        $this->authorize('delete', $relation);
+
         $relationName = $relation->name;
         $relation->delete();
 

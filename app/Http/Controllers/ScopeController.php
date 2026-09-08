@@ -79,6 +79,8 @@ class ScopeController extends Controller
      */
     public function store(StoreScopeRequest $request)
     {
+        $this->authorize('create', Scope::class);
+
         $validatedData = $request->validated();
 
         $validatedData['parent_class'] = $validatedData['class_number'];
@@ -130,6 +132,8 @@ class ScopeController extends Controller
      */
     public function update(UpdateScopeRequest $request, Scope $scope)
     {
+        $this->authorize('update', $scope);
+
         $validatedData = $request->validated();
 
         $isUpdated = $scope->update($validatedData);
@@ -147,6 +151,8 @@ class ScopeController extends Controller
      */
     public function destroy(Scope $scope)
     {
+        $this->authorize('delete', $scope);
+
         $scopeName = $scope->name;
         $scope->delete();
 
