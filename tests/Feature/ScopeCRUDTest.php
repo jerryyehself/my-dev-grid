@@ -13,6 +13,8 @@ class ScopeCRUDTest extends TestCase
 
     public function test_create_scope()
     {
+        $this->actingAsOwner();
+
         $parent = Scope::factory()->create([
             'class_number' => '99',
             'call_number' => '00',
@@ -38,6 +40,8 @@ class ScopeCRUDTest extends TestCase
 
     public function test_create_scope_rejects_unknown_parent()
     {
+        $this->actingAsOwner();
+
         $response = $this->postJson('/api/scopes', [
             'name' => 'Test',
             'class_number' => '99999',
@@ -47,6 +51,18 @@ class ScopeCRUDTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors('class_number');
+    }
+
+    public function test_create_scope_rejects_unauthenticated_request()
+    {
+        $response = $this->postJson('/api/scopes', [
+            'name' => 'Test',
+            'class_number' => '99999',
+            'call_number' => '10',
+            'comment' => 'unit test comment',
+        ]);
+
+        $response->assertUnauthorized();
     }
 
     public function test_view_scope()
@@ -61,6 +77,8 @@ class ScopeCRUDTest extends TestCase
 
     public function test_update_scope()
     {
+        $this->actingAsOwner();
+
         $scope = Scope::factory()->create();
 
         $response = $this->putJson("/api/scopes/{$scope->id}", [
@@ -76,8 +94,24 @@ class ScopeCRUDTest extends TestCase
         $this->assertDatabaseHas('scopes', ['id' => $scope->id, 'name' => 'Updated Name']);
     }
 
+    public function test_update_scope_rejects_unauthenticated_request()
+    {
+        $scope = Scope::factory()->create();
+
+        $response = $this->putJson("/api/scopes/{$scope->id}", [
+            'name' => 'Updated Name',
+            'class_number' => $scope->class_number,
+            'call_number' => $scope->call_number,
+            'comment' => 'Updated comment',
+        ]);
+
+        $response->assertUnauthorized();
+    }
+
     public function test_delete_scope()
     {
+        $this->actingAsOwner();
+
         $scope = Scope::factory()->create();
 
         $response = $this->deleteJson("/api/scopes/{$scope->id}");
@@ -86,6 +120,15 @@ class ScopeCRUDTest extends TestCase
             ->assertJsonFragment(['message' => "{$scope->name} was deleted."]);
 
         $this->assertSoftDeleted('scopes', ['id' => $scope->id]);
+    }
+
+    public function test_delete_scope_rejects_unauthenticated_request()
+    {
+        $scope = Scope::factory()->create();
+
+        $response = $this->deleteJson("/api/scopes/{$scope->id}");
+
+        $response->assertUnauthorized();
     }
 
     public function test_list_all_scopes()

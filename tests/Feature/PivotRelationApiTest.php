@@ -16,6 +16,8 @@ class PivotRelationApiTest extends TestCase
 
     public function test_store_documentation_attaches_techniques_with_relation_id()
     {
+        $this->actingAsOwner();
+
         $scope = Scope::factory()->create();
         $technique = Technique::factory()->create();
         $relation = Relation::factory()->create();
@@ -41,6 +43,8 @@ class PivotRelationApiTest extends TestCase
 
     public function test_store_documentation_rejects_unknown_relation_id()
     {
+        $this->actingAsOwner();
+
         $scope = Scope::factory()->create();
         $technique = Technique::factory()->create();
 
@@ -58,6 +62,8 @@ class PivotRelationApiTest extends TestCase
 
     public function test_update_documentation_syncs_implementations_with_relation_id()
     {
+        $this->actingAsOwner();
+
         $documentation = Documentation::factory()->create();
         $implementation = Implementation::factory()->create();
         $relation = Relation::factory()->create();
@@ -81,6 +87,8 @@ class PivotRelationApiTest extends TestCase
 
     public function test_update_documentation_resyncs_replacing_previous_pivot_set()
     {
+        $this->actingAsOwner();
+
         $documentation = Documentation::factory()->create();
         $techniqueA = Technique::factory()->create();
         $techniqueB = Technique::factory()->create();

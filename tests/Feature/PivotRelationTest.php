@@ -127,6 +127,8 @@ class PivotRelationTest extends TestCase
 
     public function test_update_relation_endpoint_returns_422_when_locked_field_changed()
     {
+        $this->actingAsOwner();
+
         $documentation = Documentation::factory()->create();
         $technique = Technique::factory()->create();
         $relation = Relation::factory()->create();

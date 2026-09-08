@@ -36,6 +36,8 @@ class TechniqueController extends Controller
      */
     public function store(StoreTechniqueRequest $request)
     {
+        $this->authorize('create', Technique::class);
+
         $data = $request->validated();
         $technique = Technique::create(Arr::except($data, ['documentations', 'implementations']));
 
@@ -67,6 +69,8 @@ class TechniqueController extends Controller
      */
     public function update(UpdateTechniqueRequest $request, Technique $technique)
     {
+        $this->authorize('update', $technique);
+
         $data = $request->validated();
         $isUpdated = $technique->update(Arr::except($data, ['documentations', 'implementations']));
 
@@ -90,6 +94,8 @@ class TechniqueController extends Controller
      */
     public function destroy(Technique $technique)
     {
+        $this->authorize('delete', $technique);
+
         $title = $technique->title;
         $technique->delete();
 

@@ -13,6 +13,8 @@ class DocumentationCRUDTest extends TestCase
 
     public function test_create_documentation()
     {
+        $this->actingAsOwner();
+
         $scope = Scope::factory()->create();
 
         $response = $this->postJson('/api/documentations', [
@@ -30,6 +32,8 @@ class DocumentationCRUDTest extends TestCase
 
     public function test_create_documentation_rejects_unknown_scope()
     {
+        $this->actingAsOwner();
+
         $response = $this->postJson('/api/documentations', [
             'type' => 99999,
             'title' => 'Laravel Docs',
@@ -37,6 +41,18 @@ class DocumentationCRUDTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors('type');
+    }
+
+    public function test_create_documentation_rejects_unauthenticated_request()
+    {
+        $scope = Scope::factory()->create();
+
+        $response = $this->postJson('/api/documentations', [
+            'type' => $scope->id,
+            'title' => 'Laravel Docs',
+        ]);
+
+        $response->assertUnauthorized();
     }
 
     public function test_view_documentation()
@@ -51,6 +67,8 @@ class DocumentationCRUDTest extends TestCase
 
     public function test_update_documentation()
     {
+        $this->actingAsOwner();
+
         $documentation = Documentation::factory()->create();
 
         $response = $this->putJson("/api/documentations/{$documentation->id}", [
@@ -64,8 +82,22 @@ class DocumentationCRUDTest extends TestCase
         $this->assertDatabaseHas('documentations', ['id' => $documentation->id, 'title' => 'Updated title']);
     }
 
+    public function test_update_documentation_rejects_unauthenticated_request()
+    {
+        $documentation = Documentation::factory()->create();
+
+        $response = $this->putJson("/api/documentations/{$documentation->id}", [
+            'type' => $documentation->type,
+            'title' => 'Updated title',
+        ]);
+
+        $response->assertUnauthorized();
+    }
+
     public function test_delete_documentation()
     {
+        $this->actingAsOwner();
+
         $documentation = Documentation::factory()->create();
 
         $response = $this->deleteJson("/api/documentations/{$documentation->id}");
@@ -74,6 +106,15 @@ class DocumentationCRUDTest extends TestCase
             ->assertJsonFragment(['message' => "{$documentation->title} was deleted."]);
 
         $this->assertSoftDeleted('documentations', ['id' => $documentation->id]);
+    }
+
+    public function test_delete_documentation_rejects_unauthenticated_request()
+    {
+        $documentation = Documentation::factory()->create();
+
+        $response = $this->deleteJson("/api/documentations/{$documentation->id}");
+
+        $response->assertUnauthorized();
     }
 
     public function test_list_all_documentations()

@@ -15,6 +15,8 @@ class ImplementationCRUDTest extends TestCase
 
     public function test_create_implementation()
     {
+        $this->actingAsOwner();
+
         $scope = Scope::factory()->create();
 
         $response = $this->postJson('/api/implementations', [
@@ -31,6 +33,8 @@ class ImplementationCRUDTest extends TestCase
 
     public function test_create_implementation_rejects_unknown_scope()
     {
+        $this->actingAsOwner();
+
         $response = $this->postJson('/api/implementations', [
             'type' => 99999,
             'title' => 'my-dev-grid',
@@ -38,6 +42,18 @@ class ImplementationCRUDTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors('type');
+    }
+
+    public function test_create_implementation_rejects_unauthenticated_request()
+    {
+        $scope = Scope::factory()->create();
+
+        $response = $this->postJson('/api/implementations', [
+            'type' => $scope->id,
+            'title' => 'my-dev-grid',
+        ]);
+
+        $response->assertUnauthorized();
     }
 
     public function test_view_implementation()
@@ -52,6 +68,8 @@ class ImplementationCRUDTest extends TestCase
 
     public function test_update_implementation()
     {
+        $this->actingAsOwner();
+
         $implementation = Implementation::factory()->create();
 
         $response = $this->putJson("/api/implementations/{$implementation->id}", [
@@ -67,8 +85,23 @@ class ImplementationCRUDTest extends TestCase
         $this->assertDatabaseHas('implementations', ['id' => $implementation->id, 'title' => 'Updated title']);
     }
 
+    public function test_update_implementation_rejects_unauthenticated_request()
+    {
+        $implementation = Implementation::factory()->create();
+
+        $response = $this->putJson("/api/implementations/{$implementation->id}", [
+            'type' => $implementation->type,
+            'title' => 'Updated title',
+            'is_visible' => false,
+        ]);
+
+        $response->assertUnauthorized();
+    }
+
     public function test_delete_implementation()
     {
+        $this->actingAsOwner();
+
         $implementation = Implementation::factory()->create();
 
         $response = $this->deleteJson("/api/implementations/{$implementation->id}");
@@ -77,6 +110,15 @@ class ImplementationCRUDTest extends TestCase
             ->assertJsonFragment(['message' => "{$implementation->title} was deleted."]);
 
         $this->assertSoftDeleted('implementations', ['id' => $implementation->id]);
+    }
+
+    public function test_delete_implementation_rejects_unauthenticated_request()
+    {
+        $implementation = Implementation::factory()->create();
+
+        $response = $this->deleteJson("/api/implementations/{$implementation->id}");
+
+        $response->assertUnauthorized();
     }
 
     public function test_list_all_implementations()

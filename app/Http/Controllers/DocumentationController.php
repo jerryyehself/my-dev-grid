@@ -36,6 +36,8 @@ class DocumentationController extends Controller
      */
     public function store(StoreDocumentationRequest $request)
     {
+        $this->authorize('create', Documentation::class);
+
         $data = $request->validated();
         $documentation = Documentation::create(Arr::except($data, ['techniques', 'implementations']));
 
@@ -67,6 +69,8 @@ class DocumentationController extends Controller
      */
     public function update(UpdateDocumentationRequest $request, Documentation $documentation)
     {
+        $this->authorize('update', $documentation);
+
         $data = $request->validated();
         $isUpdated = $documentation->update(Arr::except($data, ['techniques', 'implementations']));
 
@@ -90,6 +94,8 @@ class DocumentationController extends Controller
      */
     public function destroy(Documentation $documentation)
     {
+        $this->authorize('delete', $documentation);
+
         $title = $documentation->title;
         $documentation->delete();
 

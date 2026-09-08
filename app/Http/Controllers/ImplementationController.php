@@ -43,6 +43,8 @@ class ImplementationController extends Controller
      */
     public function store(StoreImplementationRequest $request)
     {
+        $this->authorize('create', Implementation::class);
+
         $data = $request->validated();
         $implementation = Implementation::create(Arr::except($data, ['documentations', 'techniques']));
 
@@ -74,6 +76,8 @@ class ImplementationController extends Controller
      */
     public function update(UpdateImplementationRequest $request, Implementation $implementation)
     {
+        $this->authorize('update', $implementation);
+
         $data = $request->validated();
         $isUpdated = $implementation->update(Arr::except($data, ['documentations', 'techniques']));
 
@@ -97,6 +101,8 @@ class ImplementationController extends Controller
      */
     public function destroy(Implementation $implementation)
     {
+        $this->authorize('delete', $implementation);
+
         $title = $implementation->title;
         $implementation->delete();
 
