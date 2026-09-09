@@ -5,6 +5,18 @@ name: Tests
 # are caught before merge instead of relying on someone running the suite
 # by hand afterwards.
 #
+# Runs against BOTH SQLite (local dev's default, `DB_CONNECTION=sqlite` in
+# `.env.example`) AND Postgres (production's actual `DB_CONNECTION=pgsql`,
+# per `.env.production.example`/`docs/deployment-gcp.md`) — added
+# 2026-09-09 after a real SQLite-only-green, Postgres-red bug slipped past
+# this workflow (`ScopeSeeder`/`relationCRUDTest.php` had hardcoded scope/
+# relation id literals that only happened to work because SQLite's
+# RefreshDatabase-per-test rowid counter resets on transaction rollback;
+# Postgres sequences don't, so the same code broke there — see the PR that
+# fixed it). Testing only the dev-convenience database and never the one
+# actually deployed to is exactly the gap that let that bug through
+# silently green.
+#
 # Deliberately does NOT run `pint --test` here — there is known pre-existing
 # style debt in the codebase and enabling lint enforcement now would make
 # this workflow red from its first run. Adding a lint job is a separate,
@@ -21,8 +33,27 @@ permissions:
 
 jobs:
   test:
-    name: PHPUnit
+    name: PHPUnit (${{ matrix.db }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [sqlite, pgsql]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: my_dev_grid
+          POSTGRES_USER: my_dev_grid_app
+          POSTGRES_PASSWORD: testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U my_dev_grid_app"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - name: Checkout
@@ -32,7 +63,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: sqlite3, pdo_sqlite, mbstring, bcmath, ctype, fileinfo, tokenizer, xml
+          extensions: sqlite3, pdo_sqlite, pgsql, pdo_pgsql, mbstring, bcmath, ctype, fileinfo, tokenizer, xml
           coverage: none
 
       - name: Cache Composer dependencies
@@ -52,7 +83,20 @@ jobs:
           php artisan key:generate
 
       - name: Prepare SQLite database
+        if: matrix.db == 'sqlite'
         run: touch database/database.sqlite
 
-      - name: Run tests
+      - name: Run tests (SQLite)
+        if: matrix.db == 'sqlite'
         run: composer test
+
+      - name: Run tests (Postgres)
+        if: matrix.db == 'pgsql'
+        run: composer test
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: my_dev_grid
+          DB_USERNAME: my_dev_grid_app
+          DB_PASSWORD: testing
