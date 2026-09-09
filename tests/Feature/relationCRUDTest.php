@@ -16,13 +16,20 @@ class relationCRUDTest extends TestCase
         $this->actingAsOwner();
         $this->seed();
 
+        // 用實際 seed 出來的 id,不是寫死的數字字面值——Postgres 的
+        // sequence 不是交易性的,RefreshDatabase 每個測試回滾交易也不會讓它
+        // 倒退,所以整個測試套件跑下來,scopes/relations 的 id 早就不是從
+        // 1 開始,寫死的 id 在 SQLite 底下矇混得過去,換到 Postgres 就會踩雷。
+        [$subjectId, $objectId] = Scope::orderBy('id')->take(2)->pluck('id');
+        $reverseId = Relation::first()->id;
+
         $response = $this->postJson('/api/relations', [
-            'subject_id' => '14',
-            'object_id' => '01',
+            'subject_id' => $subjectId,
+            'object_id' => $objectId,
             'name' => 'Test',
             'class_number' => '99',
             'call_number' => '99',
-            'reverse_id' => 1,
+            'reverse_id' => $reverseId,
         ]);
         // $response->dump();
         $response->assertCreated()
@@ -35,13 +42,16 @@ class relationCRUDTest extends TestCase
     {
         $this->seed();
 
+        [$subjectId, $objectId] = Scope::orderBy('id')->take(2)->pluck('id');
+        $reverseId = Relation::first()->id;
+
         $response = $this->postJson('/api/relations', [
-            'subject_id' => '14',
-            'object_id' => '01',
+            'subject_id' => $subjectId,
+            'object_id' => $objectId,
             'name' => 'Test',
             'class_number' => '99',
             'call_number' => '99',
-            'reverse_id' => 1,
+            'reverse_id' => $reverseId,
         ]);
 
         $response->assertUnauthorized();
@@ -65,10 +75,11 @@ class relationCRUDTest extends TestCase
         $this->seed();
 
         $relation = Relation::inRandomOrder()->first();
+        [$subjectId, $objectId] = Scope::orderBy('id')->take(2)->pluck('id');
 
         $response = $this->putJson("/api/relations/{$relation->id}", [
-            'subject_id' => '1',
-            'object_id' => '14',
+            'subject_id' => $subjectId,
+            'object_id' => $objectId,
             'name' => 'Updated name',
             'class_number' => $relation->class_number,
             'call_number' => $relation->call_number,
@@ -85,10 +96,11 @@ class relationCRUDTest extends TestCase
         $this->seed();
 
         $relation = Relation::inRandomOrder()->first();
+        [$subjectId, $objectId] = Scope::orderBy('id')->take(2)->pluck('id');
 
         $response = $this->putJson("/api/relations/{$relation->id}", [
-            'subject_id' => '1',
-            'object_id' => '14',
+            'subject_id' => $subjectId,
+            'object_id' => $objectId,
             'name' => 'Updated name',
             'class_number' => $relation->class_number,
             'call_number' => $relation->call_number,
