@@ -343,6 +343,64 @@ class SaveReposDataServiceTest extends TestCase
         ]);
     }
 
+    public function test_save_repos_data_classifies_vue3_topic_as_framework_scope()
+    {
+        $this->seed();
+        $this->fakeGitHub([
+            [
+                'id' => 111,
+                'private' => false,
+                'html_url' => 'https://github.com/acme/demo',
+                'name' => 'demo',
+                'languages_url' => 'https://api.github.com/repos/acme/demo/languages',
+                // 這個 repo 真實用的 topic 是 vue3,不是 vue/vuejs——
+                // FRAMEWORK_BASE_LANGUAGE 三個 key 都要各自涵蓋到。
+                'topics' => ['vue3'],
+                'archived' => false,
+            ],
+        ]);
+
+        (new SaveReposDataService)->save_repos_data();
+
+        $frameworkScopeId = Scope::where('name', 'framework')->value('id');
+        $packagetoolScopeId = Scope::where('name', 'packagetool')->value('id');
+
+        $this->assertDatabaseHas('techniques', ['title' => 'vue3', 'type' => $frameworkScopeId]);
+        $this->assertDatabaseMissing('techniques', ['title' => 'vue3', 'type' => $packagetoolScopeId]);
+    }
+
+    public function test_reclassify_vue3_topic_migration_moves_existing_packagetool_row_in_place()
+    {
+        $this->seed();
+
+        $packagetoolScopeId = Scope::where('name', 'packagetool')->value('id');
+        $frameworkScopeId = Scope::where('name', 'framework')->value('id');
+
+        // 模擬修正前的同步結果:vue3 之前被誤分類進 packagetool。
+        $existing = Technique::create(['type' => $packagetoolScopeId, 'title' => 'vue3']);
+
+        $usesRelationId = Relation::where('name', 'uses')->value('id');
+        $project = Implementation::factory()->create();
+        $project->techniques()->attach($existing->id, ['relation_id' => $usesRelationId]);
+
+        $unrelated = Technique::create(['type' => $packagetoolScopeId, 'title' => 'webpack']);
+
+        $migration = require database_path('migrations/2026_09_09_000000_reclassify_vue3_topic_from_packagetool_to_framework.php');
+        $migration->up();
+
+        $existing->refresh();
+        $unrelated->refresh();
+
+        $this->assertSame($frameworkScopeId, $existing->type);
+        $this->assertSame($packagetoolScopeId, $unrelated->type);
+
+        $this->assertDatabaseHas('technique_implementation', [
+            'implementation_id' => $project->id,
+            'technique_id' => $existing->id,
+            'relation_id' => $usesRelationId,
+        ]);
+    }
+
     public function test_reclassify_framework_topics_migration_moves_existing_packagetool_row_in_place()
     {
         $this->seed();

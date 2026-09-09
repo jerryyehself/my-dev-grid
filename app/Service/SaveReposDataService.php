@@ -60,6 +60,7 @@ class SaveReposDataService
     private const FRAMEWORK_BASE_LANGUAGE = [
         'vue' => 'JavaScript',
         'vuejs' => 'JavaScript',
+        'vue3' => 'JavaScript',
         'react' => 'JavaScript',
         'nextjs' => 'JavaScript',
         'nuxt' => 'JavaScript',
