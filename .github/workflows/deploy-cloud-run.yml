@@ -29,6 +29,12 @@ name: Deploy to Cloud Run
 #                                   roles/cloudsql.client) — deliberately not
 #                                   the deployer SA above, and not the
 #                                   project's default compute SA
+#   SANCTUM_STATEFUL_DOMAINS       the production host serving Triple 後台
+#                                   (Sanctum SPA session cookies)
+#   GOOGLE_CLIENT_ID               Google OAuth app client id
+#   GOOGLE_REDIRECT_URI            Google OAuth app redirect URI
+#   LINE_CLIENT_ID                 LINE Login channel id
+#   LINE_REDIRECT_URI              LINE Login channel redirect URI
 # Optional:
 #   CLOUD_RUN_MIGRATE_JOB          Cloud Run Job name that runs
 #                                   `php artisan migrate --force` against
@@ -36,8 +42,9 @@ name: Deploy to Cloud Run
 #                                   skipped when this isn't set
 #
 # No repository *secrets* are needed — app secrets (APP_KEY, DB_PASSWORD,
-# GITHUB_TOKEN) live in Secret Manager and are wired in via --set-secrets
-# below, never copied through GitHub.
+# GITHUB_TOKEN, GOOGLE_CLIENT_SECRET, LINE_CLIENT_SECRET) live in Secret
+# Manager and are wired in via --set-secrets/secrets below, never copied
+# through GitHub.
 
 on:
   push:
@@ -127,10 +134,17 @@ jobs:
             CACHE_STORE=database
             QUEUE_CONNECTION=database
             MAIL_MAILER=log
+            SANCTUM_STATEFUL_DOMAINS=${{ vars.SANCTUM_STATEFUL_DOMAINS }}
+            GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
+            GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }}
+            LINE_CLIENT_ID=${{ vars.LINE_CLIENT_ID }}
+            LINE_REDIRECT_URI=${{ vars.LINE_REDIRECT_URI }}
           secrets: |
             APP_KEY=APP_KEY:latest
             DB_PASSWORD=DB_PASSWORD:latest
             GITHUB_TOKEN=GITHUB_TOKEN:latest
+            GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest
+            LINE_CLIENT_SECRET=LINE_CLIENT_SECRET:latest
           flags: >-
             --add-cloudsql-instances=${{ vars.CLOUD_SQL_CONNECTION_NAME }}
             --allow-unauthenticated
