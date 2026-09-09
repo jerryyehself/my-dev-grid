@@ -87,10 +87,8 @@ Check `.env.example` if the app grows more required secrets later — anything
 that's currently a blank/sensitive value there (not `AWS_*`, which stays
 unused/blank) should get the same treatment.
 
-**Already grown, not yet wired into the workflow**: the OAuth login
-foundation (Google/LINE Socialite + Sanctum SPA cookies) added 7 new values
-to `.env.production.example`. Two are real secrets and belong here once the
-login PR lands:
+**Login UI has landed (PR #33-#35) — these two are now wired into the
+workflow**, same treatment as `APP_KEY`/`DB_PASSWORD`/`GITHUB_TOKEN` above:
 
 ```bash
 printf '%s' 'GOCSPX-...' | gcloud secrets create GOOGLE_CLIENT_SECRET --data-file=-
@@ -99,14 +97,16 @@ printf '%s' '...'        | gcloud secrets create LINE_CLIENT_SECRET   --data-fil
 
 The other 5 (`GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`, `LINE_CLIENT_ID`,
 `LINE_REDIRECT_URI`, `SANCTUM_STATEFUL_DOMAINS`) aren't sensitive — same
-treatment as `DB_DATABASE`/`DB_USERNAME` below, plain `--set-env-vars`
-values, no Secret Manager entry needed. None of this is wired into
-`.github/workflows/deploy-cloud-run.yml` yet — that workflow change is
-deliberately deferred to the PR that actually ships the login UI
-end-to-end, not this foundation PR. **`--allow-unauthenticated` itself is
-not part of that deferred change** — see the correction in step 8 below;
-it's an IAM-level public-access switch, orthogonal to the Sanctum
-session auth this login work adds at the application layer.
+treatment as `DB_DATABASE`/`DB_USERNAME` below, plain repository
+**variables**, no Secret Manager entry needed. All 7 are now wired into
+`.github/workflows/deploy-cloud-run.yml`'s `env_vars`/`secrets` blocks — the
+workflow just won't do anything with them until the corresponding repo
+variables/secrets actually exist (steps 4/7 below), since real values still
+need a real Google Cloud Console / LINE Developers OAuth app, which is a
+step only you can do. **`--allow-unauthenticated` itself was never part of
+this** — see the correction in step 8 below; it's an IAM-level public-access
+switch, orthogonal to the Sanctum session auth this login work adds at the
+application layer.
 
 ## 5. Runtime service account (what Cloud Run runs *as*)
 
@@ -193,6 +193,11 @@ Manager):
 | `CLOUD_SQL_CONNECTION_NAME` | `PROJECT_ID:asia-east1:my-dev-grid-db` |
 | `DB_DATABASE` | `my_dev_grid` |
 | `DB_USERNAME` | `my_dev_grid_app` |
+| `SANCTUM_STATEFUL_DOMAINS` | the production host serving Triple 後台（例如 `my-dev-grid-api-xxxxx.a.run.app`，或之後接自訂網域就換成那個） |
+| `GOOGLE_CLIENT_ID` | from the Google OAuth app you create in Google Cloud Console |
+| `GOOGLE_REDIRECT_URI` | e.g. `https://your-service-url/auth/google/callback` |
+| `LINE_CLIENT_ID` | from the LINE Login channel you create in LINE Developers |
+| `LINE_REDIRECT_URI` | e.g. `https://your-service-url/auth/line/callback` |
 | `CLOUD_RUN_MIGRATE_JOB` | `my-dev-grid-migrate` (optional but recommended — see below) |
 
 `.github/workflows/deploy-cloud-run.yml` documents these same variables at
