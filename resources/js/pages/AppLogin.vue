@@ -7,12 +7,12 @@
             class="w-2/5 bg-stone-800 text-stone-200 flex flex-col justify-center px-10 py-10 gap-3"
         >
             <span
-                class="text-xs tracking-widest uppercase text-stone-400"
+                class="text-xs tracking-[0.08em] uppercase text-stone-400"
             >
                 my-dev-grid
             </span>
-            <h1 class="text-xl font-bold text-white m-0">Triple 後台</h1>
-            <p class="text-sm leading-relaxed text-stone-400 m-0">
+            <h1 class="text-[22px] font-bold text-white m-0">Triple 後台</h1>
+            <p class="text-[13px] leading-[1.6] text-stone-400 m-0">
                 知識圖譜的內容管理入口。<br />
                 登入後可編輯 Scope、Relation、Blog 與專案資料。
             </p>
