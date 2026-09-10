@@ -1,0 +1,339 @@
+{
+    "captured_at": "2026-09-10T18:23:17+00:00",
+    "repos": [
+        {
+            "id": 1000327573,
+            "name": "my-dev-grid",
+            "html_url": "https://github.com/jerryyehself/my-dev-grid",
+            "description": null,
+            "languages_url": "https://api.github.com/repos/jerryyehself/my-dev-grid/languages",
+            "created_at": "2025-06-11T15:53:35Z",
+            "archived": false,
+            "topics": [
+                "laravel",
+                "tailwind",
+                "vue3"
+            ],
+            "git_repo_id": 1000327573,
+            "title": "my-dev-grid",
+            "languages": [
+                "PHP",
+                "Vue",
+                "JavaScript",
+                "Dockerfile",
+                "Blade",
+                "Shell",
+                "CSS"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 1264304513,
+            "name": "my-dev-grid-front",
+            "html_url": "https://github.com/jerryyehself/my-dev-grid-front",
+            "description": "學習檔案前端",
+            "languages_url": "https://api.github.com/repos/jerryyehself/my-dev-grid-front/languages",
+            "created_at": "2026-06-09T19:00:10Z",
+            "archived": false,
+            "topics": [],
+            "git_repo_id": 1264304513,
+            "title": "my-dev-grid-front",
+            "languages": [
+                "Vue",
+                "TypeScript",
+                "CSS",
+                "HTML",
+                "Shell"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 1348445257,
+            "name": "idea-trigger",
+            "html_url": "https://github.com/jerryyehself/idea-trigger",
+            "description": "專案配對工具",
+            "languages_url": "https://api.github.com/repos/jerryyehself/idea-trigger/languages",
+            "created_at": "2026-08-27T12:09:36Z",
+            "archived": false,
+            "topics": [],
+            "git_repo_id": 1348445257,
+            "title": "idea-trigger",
+            "languages": [],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 1123193041,
+            "name": "isbn-scanner",
+            "html_url": "https://github.com/jerryyehself/isbn-scanner",
+            "description": "A vue ISBN Scanner project (for librarian).",
+            "languages_url": "https://api.github.com/repos/jerryyehself/isbn-scanner/languages",
+            "created_at": "2025-12-26T11:14:57Z",
+            "archived": true,
+            "topics": [
+                "exceljs",
+                "html5-qrcode",
+                "i18n",
+                "isbn3",
+                "nuxt3",
+                "pinia",
+                "vue3",
+                "vuetify",
+                "vueuse-core"
+            ],
+            "git_repo_id": 1123193041,
+            "title": "isbn-scanner",
+            "languages": [
+                "JavaScript",
+                "Vue",
+                "TypeScript",
+                "CSS"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 482983169,
+            "name": "Laravel-LearningLibrary",
+            "html_url": "https://github.com/jerryyehself/Laravel-LearningLibrary",
+            "description": "A Library about resource used in projects.",
+            "languages_url": "https://api.github.com/repos/jerryyehself/Laravel-LearningLibrary/languages",
+            "created_at": "2022-04-18T20:11:43Z",
+            "archived": false,
+            "topics": [
+                "bootstrap5",
+                "chartjs",
+                "laravel",
+                "php"
+            ],
+            "git_repo_id": 482983169,
+            "title": "Laravel-LearningLibrary",
+            "languages": [
+                "PHP",
+                "Blade",
+                "Hack",
+                "Procfile"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 815571749,
+            "name": "bulletin-api",
+            "html_url": "https://github.com/jerryyehself/bulletin-api",
+            "description": null,
+            "languages_url": "https://api.github.com/repos/jerryyehself/bulletin-api/languages",
+            "created_at": "2024-06-15T14:00:58Z",
+            "archived": false,
+            "topics": [
+                "laravel",
+                "php"
+            ],
+            "git_repo_id": 815571749,
+            "title": "bulletin-api",
+            "languages": [
+                "JavaScript",
+                "PHP",
+                "Blade",
+                "CSS"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 939945904,
+            "name": "business-card-generator",
+            "html_url": "https://github.com/jerryyehself/business-card-generator",
+            "description": "A Vue3 Business Card generator",
+            "languages_url": "https://api.github.com/repos/jerryyehself/business-card-generator/languages",
+            "created_at": "2025-02-27T11:15:14Z",
+            "archived": false,
+            "topics": [
+                "tailwind",
+                "vue3"
+            ],
+            "git_repo_id": 939945904,
+            "title": "business-card-generator",
+            "languages": [
+                "Vue",
+                "JavaScript",
+                "TypeScript",
+                "CSS"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 886917793,
+            "name": "gym-people-count-parser",
+            "html_url": "https://github.com/jerryyehself/gym-people-count-parser",
+            "description": null,
+            "languages_url": "https://api.github.com/repos/jerryyehself/gym-people-count-parser/languages",
+            "created_at": "2024-11-11T20:59:24Z",
+            "archived": false,
+            "topics": [
+                "appscript",
+                "cheerio",
+                "linebot"
+            ],
+            "git_repo_id": 886917793,
+            "title": "gym-people-count-parser",
+            "languages": [
+                "JavaScript"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 444067197,
+            "name": "vue-exercise",
+            "html_url": "https://github.com/jerryyehself/vue-exercise",
+            "description": null,
+            "languages_url": "https://api.github.com/repos/jerryyehself/vue-exercise/languages",
+            "created_at": "2022-01-03T13:16:57Z",
+            "archived": false,
+            "topics": [
+                "vue"
+            ],
+            "git_repo_id": 444067197,
+            "title": "vue-exercise",
+            "languages": [
+                "HTML",
+                "Vue"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 929886110,
+            "name": "my-profile",
+            "html_url": "https://github.com/jerryyehself/my-profile",
+            "description": null,
+            "languages_url": "https://api.github.com/repos/jerryyehself/my-profile/languages",
+            "created_at": "2025-02-09T16:24:54Z",
+            "archived": false,
+            "topics": [],
+            "git_repo_id": 929886110,
+            "title": "my-profile",
+            "languages": [
+                "TypeScript",
+                "JavaScript",
+                "Dockerfile",
+                "CSS"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 495950458,
+            "name": "api-demo",
+            "html_url": "https://github.com/jerryyehself/api-demo",
+            "description": "first pure API demo project",
+            "languages_url": "https://api.github.com/repos/jerryyehself/api-demo/languages",
+            "created_at": "2022-05-24T18:53:07Z",
+            "archived": false,
+            "topics": [
+                "laravel",
+                "php"
+            ],
+            "git_repo_id": 495950458,
+            "title": "api-demo",
+            "languages": [],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 489263384,
+            "name": "laravel-demo",
+            "html_url": "https://github.com/jerryyehself/laravel-demo",
+            "description": null,
+            "languages_url": "https://api.github.com/repos/jerryyehself/laravel-demo/languages",
+            "created_at": "2022-05-06T07:44:56Z",
+            "archived": false,
+            "topics": [
+                "laravel",
+                "php"
+            ],
+            "git_repo_id": 489263384,
+            "title": "laravel-demo",
+            "languages": [],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 449347319,
+            "name": "marqee-maker",
+            "html_url": "https://github.com/jerryyehself/marqee-maker",
+            "description": null,
+            "languages_url": "https://api.github.com/repos/jerryyehself/marqee-maker/languages",
+            "created_at": "2022-01-18T15:48:08Z",
+            "archived": false,
+            "topics": [
+                "laravel",
+                "vue"
+            ],
+            "git_repo_id": 449347319,
+            "title": "marqee-maker",
+            "languages": [
+                "PHP",
+                "Blade",
+                "Vue",
+                "Shell"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 435626926,
+            "name": "shorturl",
+            "html_url": "https://github.com/jerryyehself/shorturl",
+            "description": null,
+            "languages_url": "https://api.github.com/repos/jerryyehself/shorturl/languages",
+            "created_at": "2021-12-06T19:48:19Z",
+            "archived": false,
+            "topics": [
+                "laravel",
+                "php"
+            ],
+            "git_repo_id": 435626926,
+            "title": "shorturl",
+            "languages": [
+                "PHP",
+                "Vue",
+                "Blade",
+                "Shell",
+                "HTML"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 832530394,
+            "name": "leetcode-practice",
+            "html_url": "https://github.com/jerryyehself/leetcode-practice",
+            "description": "練習紀錄",
+            "languages_url": "https://api.github.com/repos/jerryyehself/leetcode-practice/languages",
+            "created_at": "2024-07-23T07:59:04Z",
+            "archived": false,
+            "topics": [
+                "leetcode",
+                "php"
+            ],
+            "git_repo_id": 832530394,
+            "title": "leetcode-practice",
+            "languages": [
+                "PHP"
+            ],
+            "owner": "jerryyehself"
+        },
+        {
+            "id": 435628368,
+            "name": "thesis",
+            "html_url": "https://github.com/jerryyehself/thesis",
+            "description": null,
+            "languages_url": "https://api.github.com/repos/jerryyehself/thesis/languages",
+            "created_at": "2021-12-06T19:53:25Z",
+            "archived": false,
+            "topics": [
+                "graphviz",
+                "json",
+                "python",
+                "rdflib"
+            ],
+            "git_repo_id": 435628368,
+            "title": "thesis",
+            "languages": [
+                "Jupyter Notebook"
+            ],
+            "owner": "jerryyehself"
+        }
+    ]
+}
