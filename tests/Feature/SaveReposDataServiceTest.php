@@ -470,4 +470,35 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertSame(1, Documentation::where('url', 'https://laravel.com/docs')->count());
         $this->assertSame(1, Documentation::where('url', 'https://www.php.net/docs.php')->count());
     }
+
+    public function test_save_repos_data_accepts_pre_fetched_repos_without_calling_github()
+    {
+        $this->seed();
+
+        // Deliberately no Http::fake() at all — an injected collection must
+        // skip GitService/the network entirely (this is what lets
+        // GitHubReposSnapshotSeeder replay a JSON snapshot in environments
+        // that can't reach GitHub's API).
+        $repos = collect([
+            [
+                'id' => 111,
+                'git_repo_id' => 111,
+                'title' => 'demo',
+                'html_url' => 'https://github.com/acme/demo',
+                'description' => 'A demo repo',
+                'topics' => ['laravel'],
+                'languages' => ['PHP'],
+                'created_at' => '2026-06-15T00:00:00Z',
+                'archived' => false,
+                'owner' => 'acme',
+            ],
+        ]);
+
+        (new SaveReposDataService($repos))->save_repos_data();
+
+        $this->assertDatabaseHas('implementations', [
+            'git_repo_id' => 111,
+            'title' => 'demo',
+        ]);
+    }
 }
