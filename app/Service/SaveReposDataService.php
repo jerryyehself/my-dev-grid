@@ -8,6 +8,7 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
+use Illuminate\Support\Collection;
 use RuntimeException;
 
 /**
@@ -100,10 +101,15 @@ class SaveReposDataService
         'Java' => 'https://docs.oracle.com/en/java/',
     ];
 
-    public function __construct()
+    /**
+     * @param  Collection|null  $repos  Pre-fetched, already `GitService::clean_repo_info()`-shaped
+     *                                  repo data (e.g. a JSON snapshot loaded by
+     *                                  `GitHubReposSnapshotSeeder`). Defaults to a live
+     *                                  `GitService::get_repos()` call.
+     */
+    public function __construct(?Collection $repos = null)
     {
-        $gitService = new GitService;
-        $this->gitService = $gitService->get_repos();
+        $this->gitService = $repos ?? (new GitService)->get_repos();
     }
 
     public function save_repos_data(): void
