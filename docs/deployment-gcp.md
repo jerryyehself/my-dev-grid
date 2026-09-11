@@ -19,6 +19,23 @@ done automatically. Steps assume the `gcloud` CLI, logged in
 (`gcloud auth login`) with an active billing account. Replace
 `PROJECT_ID` with whatever project ID you choose throughout.
 
+**Shortcut**: `scripts/gcp-setup.sh` runs steps 1-6 below in one shot (it's a
+literal wrapper around the same `gcloud` commands, not a different tool) and,
+if the `gh` CLI is installed and authenticated, pushes the resulting values
+straight into this repo's GitHub Actions Variables too:
+
+```bash
+PROJECT_ID=your-project-id BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX \
+  ./scripts/gcp-setup.sh
+```
+
+It's a run-once script, not idempotent infrastructure-as-code — re-running it
+against the same `PROJECT_ID` fails on "already exists" for whatever it
+already created. Steps 7 (the four values only a human decision or a real
+OAuth app can supply) and 8 (the first deploy itself) still need doing by
+hand either way; read on for what those are and why each one can't be
+scripted.
+
 ## 1. Create the project and enable APIs
 
 ```bash
