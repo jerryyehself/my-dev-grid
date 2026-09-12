@@ -59,26 +59,32 @@ class RelationSeeder extends Seeder
             Relation::where('name', $subject)->update(['reverse_id' => $reverseId]);
         }
 
-        // 「assisted-by」/「assists」跟「used」/「uses」同一組 class_number,
-        // 差別在 AI 只提供建議(assisted-by/assists)還是直接產出/執行成品(uses/used)
+        // 「assisted-by」/「assists」跟「used」/「uses」同一組 class_number，
+        // 差別在 AI 只提供建議(assisted-by/assists)還是直接產出/執行成品(uses/used)。
+        //
+        // 2026-09-12 修正：這兩組原本用 parent_class 把 assists/assisted-by
+        // 掛成 uses/used 的子關係，是誤用——assists 的定義明講「非直接產出/
+        // 執行成品」，明確排除了 uses 的情況，依 RDFS rdfs7（子屬性的每一筆
+        // 事實都蘊含父屬性成立），assists ⊑ uses 會導出自相矛盾的蘊含。兩者
+        // 該是平輩（互斥），不是父子——比照 SPDX 3.0.1 RelationshipType 把
+        // usesTool／dependsOn 並列為平輩的先例（class_number 相同、call_number
+        // 不同就足夠表達「同一組裡的另一個關係」，不需要再疊加 parent_class）。
         $childSeeds = [
-            ['20', '10', 'assisted-by', 'used'],
-            ['10', '20', 'assists', 'uses'],
+            ['20', '10', 'assisted-by'],
+            ['10', '20', 'assists'],
         ];
 
-        foreach ($childSeeds as [$from, $to, $name, $parentRelationName]) {
+        foreach ($childSeeds as [$from, $to, $name]) {
             $subject = $leadScopes->firstWhere('class_number', $from);
             $object = $leadScopes->firstWhere('class_number', $to);
-            $parentId = Relation::where('name', $parentRelationName)->value('id');
 
             Relation::create([
                 'subject_id' => $subject->id,
                 'object_id' => $object->id,
-                'parent_class' => $parentId,
                 'class_number' => $subject->class_number[0].$object->class_number[0],
                 'call_number' => '10',
                 'name' => $name,
-                'note' => 'AI 輔助但非直接產出/執行成品',
+                'note' => 'AI 輔助但非直接產出/執行成品；與 uses/used 平輩，不是子關係（比照 SPDX usesTool/dependsOn 的平輩先例）。',
             ]);
         }
 
@@ -109,18 +115,95 @@ class RelationSeeder extends Seeder
             'note' => 'dcterms:requires — same-type dependency (e.g. a Technique that requires another Technique).',
         ]);
 
+        // isRequiredBy 是 requires 的反向關係，反向關係用 reverse_id 表達
+        // （見下一行），不疊加 parent_class——DCMI Metadata Terms 的
+        // dcterms:requires／dcterms:isRequiredBy 皆為 dcterms:relation 的
+        // 子屬性、彼此平輩，沒有互為父子，這裡比照同一個先例。
         $isRequiredBy = Relation::create([
             'subject_id' => $technique->id,
             'object_id' => $technique->id,
             'class_number' => '11',
             'call_number' => '10',
-            'parent_class' => $requires->id,
             'name' => 'isRequiredBy',
             'note' => 'dcterms:isRequiredBy — reverse of requires.',
         ]);
 
         $requires->update(['reverse_id' => $isRequiredBy->id]);
         $isRequiredBy->update(['reverse_id' => $requires->id]);
+
+        // Implementation×Implementation 同型別關聯（class_number '22'，跟上面
+        // requires/isRequiredBy 用 Technique×Technique '11' 同一個「一組
+        // 通用 subject/object 代表這個 entity_type 的所有列」手法——
+        // EntityRelation::assertValidEntityReferences 不會拿 Relation 自己的
+        // subject_id/object_id 去比對實際連結的 entity id，只檢查 entity_type
+        // 本身，所以這裡同樣只需要一組代表性的 Scope）。
+        $implementation = $leadScopes->firstWhere('class_number', '20');
+
+        // 2026-09-11 使用者確認：GitHub repo 之間「這個是從那個衍生出來的」
+        // 這種真實已知關係（含 fork——fork 本質上就是這個關係的特例，不另立
+        // predicate）。SPDX 2.3 relationships 定義的 DESCENDANT_OF／
+        // ANCESTOR_OF：「same lineage but post-dates／pre-dates」。
+        // https://spdx.github.io/spdx-spec/v3.0.1/model/Core/Vocabularies/RelationshipType/
+        $descendantOf = Relation::create([
+            'subject_id' => $implementation->id,
+            'object_id' => $implementation->id,
+            'class_number' => '22',
+            'call_number' => '00',
+            'name' => 'descendantOf',
+            'note' => 'SPDX relationship type DESCENDANT_OF — "same lineage but post-dates". 涵蓋 GitHub repo 的「衍生自」與「fork 自」，fork 是這個關係的特例，不另立 predicate。',
+        ]);
+
+        $ancestorOf = Relation::create([
+            'subject_id' => $implementation->id,
+            'object_id' => $implementation->id,
+            'class_number' => '22',
+            'call_number' => '10',
+            'name' => 'ancestorOf',
+            'note' => 'SPDX relationship type ANCESTOR_OF — reverse of descendantOf.',
+        ]);
+
+        $descendantOf->update(['reverse_id' => $ancestorOf->id]);
+        $ancestorOf->update(['reverse_id' => $descendantOf->id]);
+
+        // 2026-09-11 使用者確認：兩個 repo 共同組成同一個產品（例如前後端
+        // 拆分），彼此獨立但相伴而生，不是誰包含誰的 whole-part。取自 Tillett
+        // (1987) 書目關係分類法的 Accompanying 類別命名——老實記錄：這不是
+        // DCMI/SPDX 那種有固定 predicate URI 的機器可讀詞彙，是分類法的類別
+        // 名稱，沒有更貼切的正式詞彙可用。對稱關係，reverse_id 指向自己。
+        $accompanies = Relation::create([
+            'subject_id' => $implementation->id,
+            'object_id' => $implementation->id,
+            'class_number' => '22',
+            'call_number' => '20',
+            'name' => 'accompanies',
+            'note' => 'Tillett (1987) bibliographic-relationships taxonomy 的 Accompanying 類別命名（非 DCMI/SPDX 正式詞彙）。對稱關係：兩個獨立但相伴而生、共同組成同一個產品的 repo（例如前後端拆分）。',
+        ]);
+        $accompanies->update(['reverse_id' => $accompanies->id]);
+
+        // 2026-09-11 使用者確認：同性質的練習專案，依建立時間前後相接
+        // （啟發式：同樣的技術主題 + 建立時間連續，中間沒有夾著其他主題的
+        // 專案，且間隔在 1 年以內）。同樣取自 Tillett (1987) 的 Sequential
+        // 類別命名，非正式機器可讀詞彙——老實記錄。
+        $precedes = Relation::create([
+            'subject_id' => $implementation->id,
+            'object_id' => $implementation->id,
+            'class_number' => '22',
+            'call_number' => '30',
+            'name' => 'precedes',
+            'note' => 'Tillett (1987) bibliographic-relationships taxonomy 的 Sequential 類別命名（非 DCMI/SPDX 正式詞彙）。依建立時間前後相接的同性質練習專案。',
+        ]);
+
+        $succeeds = Relation::create([
+            'subject_id' => $implementation->id,
+            'object_id' => $implementation->id,
+            'class_number' => '22',
+            'call_number' => '40',
+            'name' => 'succeeds',
+            'note' => 'Reverse of precedes.',
+        ]);
+
+        $precedes->update(['reverse_id' => $succeeds->id]);
+        $succeeds->update(['reverse_id' => $precedes->id]);
 
         // $this->createRandomRelation($nonLeadScopes);
     }

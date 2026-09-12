@@ -35,6 +35,16 @@ class Relation extends Model
      * locked read-only — only note may still change. Semantics only evolve
      * forward (new child relations) or disappear (soft delete), never
      * mutate in place.
+     *
+     * `parent_class` 的語意鎖死為「且僅為 rdfs:subPropertyOf」（真正的子謂詞：
+     * 這個關係的每一筆事實都必然蘊含父關係成立）。明確排除兩種常見誤用：
+     * - 反向關係（A 的 reverse 是 B）——用 reverse_id 表達，不是 parent_class。
+     * - 同組代表／群組聚合——用 class_number（+ call_number 當純流水號）表達，
+     *   不是 parent_class。
+     * 只有在「同一個既有謂詞真的出現 2 個以上子變體，且每個子變體的每一筆
+     * 事實都確實蘊含父謂詞，且確實有查詢需要一次撈出父謂詞下所有子變體」
+     * 三個條件同時成立時，才用 parent_class 建立真正的子謂詞；否則優先維持
+     * 平輩，在 note 裡用散文交叉引用（比照 SPDX RelationshipType 的做法）。
      */
     public const LOCKED_FIELDS = ['subject_id', 'object_id', 'name', 'class_number', 'call_number', 'parent_class'];
 

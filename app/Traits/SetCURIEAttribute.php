@@ -57,6 +57,15 @@ trait SetCURIEAttribute
         return is_null($this->parent) ? collect() : $this->parent->objectOf;
     }
 
+    /**
+     * 這裡的「child」是 call_number 序列裡的下一號，跟 parent_class 是不是有
+     * 設值無關——call_number 純粹是同一個 class_number 分組內的流水號（'00'
+     * 是先建的那筆，之後遞增），不代表也不要求 parent_class 指向 '00' 那筆。
+     * 兩者是正交的兩件事：class_number/call_number 負責分組跟排序，parent_class
+     * 才是唯一表達「真正的子謂詞」語意的欄位（見 Relation::LOCKED_FIELDS 的
+     * 說明）。例如 ancestorOf（call_number '10'）就沒有設 parent_class，
+     * 這是刻意的，不是遺漏。
+     */
     public function getNewChildCallNumberAttribute()
     {
         if ($this->call_number !== '00') {
