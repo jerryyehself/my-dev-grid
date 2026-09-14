@@ -160,4 +160,125 @@ class GraphApiTest extends TestCase
             'created_at' => '2025-06-11',
         ]);
     }
+
+    public function test_path_requires_start_and_end_query_params()
+    {
+        $response = $this->getJson('/api/graph/path');
+
+        $response->assertStatus(422);
+    }
+
+    public function test_path_is_trivially_found_when_start_equals_end()
+    {
+        $documentation = Documentation::factory()->create();
+
+        $response = $this->getJson("/api/graph/path?start=documentation-{$documentation->id}&end=documentation-{$documentation->id}");
+
+        $response->assertOk()->assertExactJson([
+            'found' => true,
+            'nodes' => [[
+                'id' => "documentation-{$documentation->id}",
+                'type' => 'documentation',
+                'label' => $documentation->title,
+            ]],
+            'edges' => [],
+        ]);
+    }
+
+    public function test_path_finds_direct_edge_between_two_nodes()
+    {
+        $documentation = Documentation::factory()->create();
+        $technique = Technique::factory()->create();
+        $relation = Relation::factory()->create(['name' => 'specs']);
+        $documentation->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
+
+        $response = $this->getJson("/api/graph/path?start=documentation-{$documentation->id}&end=technique-{$technique->id}");
+
+        $response->assertOk();
+        $response->assertJsonPath('found', true);
+        $response->assertJsonPath('nodes.0.id', "documentation-{$documentation->id}");
+        $response->assertJsonPath('nodes.1.id', "technique-{$technique->id}");
+        $response->assertJsonFragment([
+            'source' => "documentation-{$documentation->id}",
+            'target' => "technique-{$technique->id}",
+            'predicate' => 'specs',
+            'storedDirection' => 'forward',
+            'hasDefinedReverse' => true,
+        ]);
+    }
+
+    public function test_path_reports_reverse_relation_name_when_travelling_backward()
+    {
+        $documentation = Documentation::factory()->create();
+        $technique = Technique::factory()->create();
+        $reverse = Relation::factory()->create(['name' => 'specifiedBy']);
+        $forward = Relation::factory()->create(['name' => 'specs', 'reverse_id' => $reverse->id]);
+        $documentation->techniques()->attach($technique->id, ['relation_id' => $forward->id]);
+
+        // 反過來查（從 technique 走到 documentation），邊在資料庫裡存的方向是
+        // documentation -> technique，這裡是逆向走那條邊。
+        $response = $this->getJson("/api/graph/path?start=technique-{$technique->id}&end=documentation-{$documentation->id}");
+
+        $response->assertOk();
+        $response->assertJsonFragment([
+            'source' => "technique-{$technique->id}",
+            'target' => "documentation-{$documentation->id}",
+            'predicate' => 'specifiedBy',
+            'storedDirection' => 'reverse',
+            'hasDefinedReverse' => true,
+        ]);
+    }
+
+    public function test_path_falls_back_to_original_name_when_reverse_relation_undefined()
+    {
+        $documentation = Documentation::factory()->create();
+        $technique = Technique::factory()->create();
+        $relation = Relation::factory()->create(['name' => 'specs', 'reverse_id' => null]);
+        $documentation->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
+
+        $response = $this->getJson("/api/graph/path?start=technique-{$technique->id}&end=documentation-{$documentation->id}");
+
+        $response->assertOk();
+        $response->assertJsonFragment([
+            'source' => "technique-{$technique->id}",
+            'target' => "documentation-{$documentation->id}",
+            'predicate' => 'specs',
+            'storedDirection' => 'reverse',
+            'hasDefinedReverse' => false,
+        ]);
+    }
+
+    public function test_path_finds_multi_hop_shortest_path_across_different_relations()
+    {
+        $documentation = Documentation::factory()->create();
+        $technique = Technique::factory()->create();
+        $implementation = Implementation::factory()->create();
+        $specs = Relation::factory()->create(['name' => 'specs']);
+        $uses = Relation::factory()->create(['name' => 'uses']);
+        $documentation->techniques()->attach($technique->id, ['relation_id' => $specs->id]);
+        $technique->implementations()->attach($implementation->id, ['relation_id' => $uses->id]);
+
+        $response = $this->getJson("/api/graph/path?start=documentation-{$documentation->id}&end=implementation-{$implementation->id}");
+
+        $response->assertOk();
+        $response->assertJsonPath('found', true);
+        $response->assertJsonPath('nodes.0.id', "documentation-{$documentation->id}");
+        $response->assertJsonPath('nodes.1.id', "technique-{$technique->id}");
+        $response->assertJsonPath('nodes.2.id', "implementation-{$implementation->id}");
+        $response->assertJsonCount(2, 'edges');
+    }
+
+    public function test_path_reports_not_found_when_nodes_are_disconnected()
+    {
+        $documentationA = Documentation::factory()->create();
+        $documentationB = Documentation::factory()->create();
+
+        $response = $this->getJson("/api/graph/path?start=documentation-{$documentationA->id}&end=documentation-{$documentationB->id}");
+
+        $response->assertOk()->assertExactJson([
+            'found' => false,
+            'nodes' => [],
+            'edges' => [],
+        ]);
+    }
 }

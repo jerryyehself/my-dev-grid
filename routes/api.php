@@ -17,6 +17,8 @@ Route::get('/user', function (Request $request) {
 
 // 知識圖譜資料，維持完全公開，這個 PR 不動它。
 Route::get('/graph', [GraphController::class, 'index']);
+// 起訖點之間的最短路徑查詢，跟 /graph 同一份公開資料、同一種公開等級。
+Route::get('/graph/path', [GraphController::class, 'path']);
 
 // 讀（index/show）維持完全公開——my-dev-grid-front 跟 Triple 後台都要
 // 在不登入的情況下讀得到這些資料。
