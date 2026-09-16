@@ -2,16 +2,22 @@
 
 use App\Http\Controllers\Auth\SessionAuthController;
 use App\Http\Controllers\Auth\SocialAuthController;
-use App\Http\Controllers\RelationController;
-use App\Http\Controllers\ScopeController;
-use App\Http\Controllers\TechniqueController;
 use Illuminate\Support\Facades\Route;
 
-Route::resources([
-    'scopes' => ScopeController::class,
-    'relations' => RelationController::class,
-    'projects' => TechniqueController::class,
-]);
+// 這裡刻意不註冊任何資源路由。所有 CRUD 都只走 `routes/api.php`，
+// 它把 store/update/destroy 收在 `auth:sanctum` 底下。
+//
+// 2026-09-16 移除了原本的 `Route::resources(['scopes', 'relations', 'projects'])`：
+// 那三組是死碼，沒有任何消費者——Triple 後台（resources/js）全部打 `/api/*`
+// （11 處呼叫點，例如 useDataStore.js、AppTripleEdit.vue），tests/ 裡也沒有
+// 任何測試打這些路徑，且整個專案沒有用過 route() 具名解析。它們回傳的 JSON
+// 跟 api.php 完全相同（controller 一律 response()->json()），差別只在**少了
+// auth:sanctum**——寫入之所以沒被打穿，純粹是因為每個 controller 方法內部
+// 有 $this->authorize()，等於安全靠「controller 剛好有寫」而不是路由層。
+//
+// 順帶消掉一顆地雷：`projects` 是以完整 resource 註冊的，會生出
+// `projects.create` 與 `projects.edit`，但 TechniqueController 根本沒有
+// create()/edit() 方法，所以 GET /projects/create 一被打到就是 500。
 
 // 登入/登出（Google/LINE OAuth + email+password 備援，見 decision-register.md
 // D-34）。一定要放在下面的萬用 catch-all 之前——排在它後面的路由都是死碼。
