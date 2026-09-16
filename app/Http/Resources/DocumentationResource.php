@@ -20,6 +20,7 @@ class DocumentationResource extends JsonResource
             'title' => $this->title,
             'url' => $this->url,
             'uri' => $this->uri,
+            'body' => $this->body,
             'note' => $this->note,
             'status' => $this->status,
             'creation_date' => $this->creation_date,
