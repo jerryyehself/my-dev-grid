@@ -17,6 +17,7 @@ class Documentation extends Model
         'title',
         'url',
         'uri',
+        'body',
         'note',
         'status',
         'creation_date',
