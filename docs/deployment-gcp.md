@@ -31,10 +31,13 @@ PROJECT_ID=your-project-id BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX \
 
 It's a run-once script, not idempotent infrastructure-as-code — re-running it
 against the same `PROJECT_ID` fails on "already exists" for whatever it
-already created. Steps 7 (the four values only a human decision or a real
-OAuth app can supply) and 8 (the first deploy itself) still need doing by
-hand either way; read on for what those are and why each one can't be
-scripted.
+already created. It fills in **9 of the 16 variables** in step 7's table; the
+other **7** (`CLOUD_RUN_SERVICE`, `CLOUD_RUN_MIGRATE_JOB`,
+`SANCTUM_STATEFUL_DOMAINS`, `GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`,
+`LINE_CLIENT_ID`, `LINE_REDIRECT_URI`) each need either a name you pick, a
+URL that only exists after step 8's first deploy, or a real external OAuth
+app — none of them can be scripted. Step 8 (the first deploy itself) is
+still by hand either way; read on for what those are and why.
 
 ## 1. Create the project and enable APIs
 

@@ -143,6 +143,11 @@ echo "CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME}"
 echo "DB_DATABASE=my_dev_grid"
 echo "DB_USERNAME=my_dev_grid_app"
 
+# The counts in the two echoes below (9 pushed, 16 total) are hand-maintained:
+# 9 is the number of `gh variable set` calls here, 16 is how many distinct
+# `vars.*` references deploy-cloud-run.yml has. If that workflow gains or loses
+# a variable, update both this block and the "still needs a human" list at the
+# end — they were already wrong once (said "8 of the 12") before 2026-09-16.
 if [ -n "$GITHUB_REPO" ] && command -v gh >/dev/null 2>&1; then
   echo
   echo "==> gh CLI found — pushing these into ${GITHUB_REPO}'s Actions Variables"
@@ -155,10 +160,10 @@ if [ -n "$GITHUB_REPO" ] && command -v gh >/dev/null 2>&1; then
   gh variable set CLOUD_SQL_CONNECTION_NAME --repo "$GITHUB_REPO" --body "$CLOUD_SQL_CONNECTION_NAME"
   gh variable set DB_DATABASE --repo "$GITHUB_REPO" --body "my_dev_grid"
   gh variable set DB_USERNAME --repo "$GITHUB_REPO" --body "my_dev_grid_app"
-  echo "Pushed 8 of the 12 repo variables automatically."
+  echo "Pushed 9 of the 16 repository variables deploy-cloud-run.yml reads."
 else
   echo
-  echo "==> gh CLI not found/authenticated (or GITHUB_REPO unset) — copy the 8 values"
+  echo "==> gh CLI not found/authenticated (or GITHUB_REPO unset) — copy the 9 values"
   echo "    above into GitHub Settings > Secrets and variables > Actions > Variables by hand."
 fi
 
