@@ -86,7 +86,6 @@ class Relation extends Model
      * 尚未定案是否要做；若要做，先從資料共現檢查起步（唯一目前有材料可用的
      * 方法），明確標註其證據力弱、僅供參考，不當作確定結論。
      */
-
     protected static function booted()
     {
         static::updating(function (Relation $relation) {
@@ -100,6 +99,47 @@ class Relation extends Model
                 throw new RelationLockedException($lockedChanges);
             }
         });
+
+        // reverse_id 一定要雙向。見下方 syncReverse() 的註解。
+        static::saved(function (Relation $relation) {
+            $relation->syncReverse();
+        });
+    }
+
+    /**
+     * 把 reverse_id 的配對補成雙向。
+     *
+     * 這張表的不變量是：**reverse_id 要嘛是 null，要嘛指向一條回指自己的關係**，
+     * 不存在「A 指向 B、但 B 指向別人（或誰都不指）」這種單向狀態。圖譜的每一條邊
+     * 都必須帶述詞（三張 pivot 表與 entity_relations 都有 relation_id），述詞的反向
+     * 壞掉，圖就會變成單向的。
+     *
+     * 在此之前，這個不變量**沒有任何東西在維護**——15 條之所以全部成對，純粹是因為
+     * RelationSeeder 剛好寫對了。StoreRelationRequest 的 reverse_id 只有
+     * `nullable|exists:relations,id`，可以建出單向指過去的關係；booted() 原本只在
+     * updating 時擋 LOCKED_FIELDS，跟配對無關。開放 CRUD 介面讓人手動建 relation 之後，
+     * 這個洞就會被踩到，所以在介面上線之前補（2026-09-16）。
+     *
+     * 對稱關係（reverse_id 指向自己）是合法的、而且實際存在：`accompanies`
+     * （id 13，Impl→Impl，class 22 call 20）的 reverse_id 就是它自己——
+     * A accompanies B 等價於 B accompanies A，不需要第二條。這種情況直接跳過，
+     * 因為它本來就已經滿足不變量。
+     *
+     * 用 saveQuietly() 寫回去，避免再觸發一次 saved 造成無限遞迴；reverse_id 不在
+     * LOCKED_FIELDS 裡，所以即使對方已被引用（isReferenced）也允許補上配對。
+     */
+    public function syncReverse(): void
+    {
+        if (is_null($this->reverse_id) || $this->reverse_id === $this->id) {
+            return;
+        }
+
+        $reverse = static::find($this->reverse_id);
+
+        if ($reverse && $reverse->reverse_id !== $this->id) {
+            $reverse->reverse_id = $this->id;
+            $reverse->saveQuietly();
+        }
     }
 
     public function subject()
