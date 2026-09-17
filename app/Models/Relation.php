@@ -8,6 +8,7 @@ use Database\Factories\RelationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Relation extends Model
 {
@@ -46,6 +47,14 @@ class Relation extends Model
      * 三個條件同時成立時，才用 parent_class 建立真正的子謂詞；否則優先維持
      * 平輩，在 note 裡用散文交叉引用（比照 SPDX RelationshipType 的做法）。
      */
+    /** isReferenced() 要查的四張連結表,同時也是 scopeWithReferenceCounts() 預載的對象。 */
+    public const LINK_RELATIONS = [
+        'documentationImplementationLinks',
+        'documentationTechniqueLinks',
+        'techniqueImplementationLinks',
+        'entityRelations',
+    ];
+
     public const LOCKED_FIELDS = ['subject_id', 'object_id', 'name', 'class_number', 'call_number', 'parent_class'];
 
     /**
@@ -204,11 +213,97 @@ class Relation extends Model
         return $this->hasMany(EntityRelation::class);
     }
 
+    /**
+     * 這條關係是否已經被真實的邊引用——**包含反向那條的引用**。
+     *
+     * 邊只存單向，反向是靠 reverse_id 推出來的：`GraphController` 在路徑反著走的時候，
+     * 回傳的 `predicate` 是**反向關係的名字**（見該檔 291-296 行）。實際驗證過，
+     * `/api/graph/path?start=technique-1&end=documentation-1` 回的是
+     * `{"predicate":"specifiedBy","relation_id":3,"storedDirection":"reverse"}`。
+     *
+     * 所以在 2026-09-17 之前這個方法是**單向的、因此是錯的**：只看自己那四張連結表，
+     * 於是每一對關係都剛好一半鎖定、一半可改——`specs` 有 5 筆邊所以鎖定，而它的反向
+     * `specifiedBy` 是 0 筆所以完全可改，儘管那 5 筆邊反著讀顯示的正是 `specifiedBy`。
+     * 最誇張的是 `uses`(84 筆) 與 `used`(0 筆)：`used` 的名字正在被 84 筆邊使用，卻
+     * 可以隨意改名、改主詞受詞、改分類號，追溯改變那些邊在使用者眼中的意義——正是
+     * LOCKED_FIELDS 存在要防的事，只是從另一個方向進來。
+     *
+     * 修正後鎖定數從 6 條變成 11 條（共 15）；剩下可改的 4 條是 documents、
+     * documentedBy、assists、assisted-by，那兩對確實兩邊都沒有任何邊。
+     *
+     * 只往下追一層就夠：反向的反向就是自己（不變量由 syncReverse() 與
+     * ReverseIsSwapped 維護），再往下會繞回原點。
+     */
     public function isReferenced(): bool
     {
-        return $this->documentationImplementationLinks()->exists()
-            || $this->documentationTechniqueLinks()->exists()
-            || $this->techniqueImplementationLinks()->exists()
-            || $this->entityRelations()->exists();
+        // RelationResource 一列會問三次(is_referenced / referenced_via /
+        // locked_fields),沒有記憶化就是三倍的查詢。
+        if (! is_null($this->isReferencedMemo)) {
+            return $this->isReferencedMemo;
+        }
+
+        return $this->isReferencedMemo = $this->resolveIsReferenced();
+    }
+
+    protected ?bool $isReferencedMemo = null;
+
+    protected function resolveIsReferenced(): bool
+    {
+        if ($this->hasOwnReferences()) {
+            return true;
+        }
+
+        // 對稱關係（自己就是自己的反向）上面那一步已經涵蓋，不用再查一次。
+        if (is_null($this->reverse_id) || $this->reverse_id === $this->id) {
+            return false;
+        }
+
+        // relationLoaded() 時直接用預載的那筆,沒預載才退回查一次。
+        $reverse = $this->relationLoaded('reverse') ? $this->reverse : static::find($this->reverse_id);
+
+        return (bool) $reverse?->hasOwnReferences();
+    }
+
+    /**
+     * 只看這一筆自己的四張連結表，不看反向。
+     *
+     * 公開而非 protected，是因為前端需要分辨「被自己的邊鎖住」與「被反向的邊鎖住」
+     * ——鎖定欄位的畫面要能說明理由（規格的 G5），而「這條的反向 `uses` 有 84 筆邊」
+     * 跟「這條自己有 84 筆邊」對使用者是兩件不同的事。
+     */
+    public function hasOwnReferences(): bool
+    {
+        foreach (self::LINK_RELATIONS as $relation) {
+            $countKey = Str::snake($relation).'_count';
+
+            // 已經用 withReferenceCounts() 預載過就直接讀,不要再打一次資料庫。
+            // 沒有這一步的話 /api/relations 從 11 次查詢暴增到 344 次(實測)。
+            if (array_key_exists($countKey, $this->attributes)) {
+                if ($this->attributes[$countKey] > 0) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ($this->{$relation}()->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 把 isReferenced() 需要的計數一次載齊——自己的四張連結表,加上反向那條的四張。
+     *
+     * 清單頁一定要用這個,否則每一列都會各自去查 8 次。實測 /api/relations:
+     * 不預載 344 次查詢,預載後 20 次。
+     */
+    public function scopeWithReferenceCounts($query)
+    {
+        return $query
+            ->withCount(self::LINK_RELATIONS)
+            ->with(['reverse' => fn ($q) => $q->withCount(self::LINK_RELATIONS)]);
     }
 }
