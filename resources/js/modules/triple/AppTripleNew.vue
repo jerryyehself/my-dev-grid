@@ -102,7 +102,7 @@ const submitButton = {
     action: () => {},
 };
 
-// Scope 專用:選了上層分類之後,向後端要那個父層底下的下一個可用子類號。
+// Scope 專用:選了父類之後,向後端要那個父層底下的下一個可用子類號。
 // 傳進 fetchCallNumberByClass 的一直都是 Scope 的 id,2026-09-17 之前這個欄位
 // 叫 class_number(名字是錯的,值是 id),現在跟後端一起正名成 parent_class。
 watch(
