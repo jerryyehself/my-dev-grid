@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Rules\ReverseIsAvailable;
+use App\Rules\ReverseIsSwapped;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -35,7 +36,7 @@ class StoreRelationRequest extends FormRequest
             // reverse_id 必須雙向,而且只能指向還沒配對的關係——見 App\Rules\ReverseIsAvailable
             // 與 Relation::syncReverse() 的註解。建立一對的做法是:先建 A(reverse 留空),
             // 再建 B 並把 reverse_id 指向 A,雙向會自動補齊。
-            'reverse_id' => ['nullable', 'exists:relations,id', new ReverseIsAvailable],
+            'reverse_id' => ['nullable', 'exists:relations,id', new ReverseIsAvailable, new ReverseIsSwapped],
         ];
     }
 

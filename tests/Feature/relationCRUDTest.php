@@ -87,8 +87,44 @@ class relationCRUDTest extends TestCase
     /**
      * 對稱關係——reverse_id 指向自己——是合法的,而且實際存在:seeder 種的
      * `accompanies` 就是這樣(A accompanies B 等價於 B accompanies A,不需要第二條)。
+     *
+     * 但這只有在**主詞與受詞是同一個 Scope** 時才說得通,所以這裡用同一個 scope 兩次。
+     * 2026-09-17 之前這支測試用的是兩個不同的 scope,ReverseIsSwapped 加上去之後才
+     * 暴露出來——那個組合語意上本來就不成立。
      */
     public function test_a_relation_may_be_its_own_reverse()
+    {
+        $this->actingAsOwner();
+        $this->seed();
+
+        $scopeId = Scope::orderBy('id')->value('id');
+
+        $this->postJson('/api/relations', [
+            'subject_id' => $scopeId,
+            'object_id' => $scopeId,
+            'name' => 'Symmetric',
+            'class_number' => '97',
+            'call_number' => '00',
+        ])->assertCreated();
+
+        $symmetric = Relation::where('name', 'Symmetric')->firstOrFail();
+
+        $this->putJson("/api/relations/{$symmetric->id}", [
+            'subject_id' => $scopeId,
+            'object_id' => $scopeId,
+            'name' => 'Symmetric',
+            'class_number' => '97',
+            'call_number' => '00',
+            'reverse_id' => $symmetric->id,
+        ])->assertOk();
+
+        $this->assertSame($symmetric->id, $symmetric->fresh()->reverse_id);
+    }
+
+    /**
+     * 反過來:主詞受詞不同的關係不能把自己當反向。
+     */
+    public function test_a_relation_with_differing_ends_cannot_be_its_own_reverse()
     {
         $this->actingAsOwner();
         $this->seed();
@@ -98,23 +134,21 @@ class relationCRUDTest extends TestCase
         $this->postJson('/api/relations', [
             'subject_id' => $subjectId,
             'object_id' => $objectId,
-            'name' => 'Symmetric',
-            'class_number' => '97',
+            'name' => 'NotSymmetric',
+            'class_number' => '96',
             'call_number' => '00',
         ])->assertCreated();
 
-        $symmetric = Relation::where('name', 'Symmetric')->firstOrFail();
+        $r = Relation::where('name', 'NotSymmetric')->firstOrFail();
 
-        $this->putJson("/api/relations/{$symmetric->id}", [
+        $this->putJson("/api/relations/{$r->id}", [
             'subject_id' => $subjectId,
             'object_id' => $objectId,
-            'name' => 'Symmetric',
-            'class_number' => '97',
+            'name' => 'NotSymmetric',
+            'class_number' => '96',
             'call_number' => '00',
-            'reverse_id' => $symmetric->id,
-        ])->assertOk();
-
-        $this->assertSame($symmetric->id, $symmetric->fresh()->reverse_id);
+            'reverse_id' => $r->id,
+        ])->assertStatus(422)->assertJsonValidationErrors('reverse_id');
     }
 
     /**
@@ -150,6 +184,127 @@ class relationCRUDTest extends TestCase
     }
 
     /**
+     * 解除配對也必須是雙向的。
+     *
+     * 編輯介面上「有沒有反向關係」是一個 checkbox,勾掉就是把 reverse_id 設回 null,
+     * 所以這是日常操作而不是邊角案例。2026-09-17 之前 syncReverse() 遇到 null 直接
+     * return,結果清掉 A 的反向之後 B 還指著 A——正是這個機制存在要消滅的單向狀態。
+     */
+    public function test_clearing_one_side_of_a_pair_clears_the_other()
+    {
+        $this->actingAsOwner();
+        $this->seed();
+
+        $a = Relation::whereNotNull('reverse_id')
+            ->whereColumn('reverse_id', '!=', 'id')
+            ->firstOrFail();
+        $b = Relation::findOrFail($a->reverse_id);
+
+        $this->putJson("/api/relations/{$a->id}", [
+            'subject_id' => $a->subject_id,
+            'object_id' => $a->object_id,
+            'name' => $a->name,
+            'class_number' => $a->class_number,
+            'call_number' => $a->call_number,
+            'reverse_id' => null,
+        ])->assertOk();
+
+        $this->assertNull($a->fresh()->reverse_id);
+        $this->assertNull(
+            $b->fresh()->reverse_id,
+            '另一邊也要被清掉,否則會留下單向的殘骸。'
+        );
+    }
+
+    /**
+     * 反向關係的主詞受詞必須跟自己對調,不能隨便指一條不相干的關係。
+     */
+    public function test_reverse_must_have_swapped_ends()
+    {
+        $this->actingAsOwner();
+        $this->seed();
+
+        $scopes = Scope::orderBy('id')->take(4)->pluck('id');
+
+        $this->postJson('/api/relations', [
+            'subject_id' => $scopes[0],
+            'object_id' => $scopes[1],
+            'name' => 'Forward',
+            'class_number' => '95',
+            'call_number' => '00',
+        ])->assertCreated();
+
+        $forward = Relation::where('name', 'Forward')->firstOrFail();
+
+        // 主詞受詞跟 Forward 毫不相干,不是對調。
+        $this->postJson('/api/relations', [
+            'subject_id' => $scopes[2],
+            'object_id' => $scopes[3],
+            'name' => 'Unrelated',
+            'class_number' => '94',
+            'call_number' => '00',
+            'reverse_id' => $forward->id,
+        ])->assertStatus(422)->assertJsonValidationErrors('reverse_id');
+
+        $this->assertDatabaseMissing('relations', ['name' => 'Unrelated']);
+        $this->assertNull($forward->fresh()->reverse_id);
+    }
+
+    /**
+     * Scope 的連鎖刪除不會留下懸空的 reverse_id。
+     *
+     * Scope::booted() 在軟刪除時會一併刪掉 subjectOf/objectOf 的關係。一對關係若主詞
+     * 受詞對調,就必然共用同一組 Scope,因此一定整對被刪。實測軟刪除 `Technique`
+     * 會讓 15 條剩 7 條、懸空 0 條。
+     *
+     * **這支測試守不住那個依賴,只是記錄它。** 誠實標註:停用 ReverseIsSwapped 之後這支
+     * 仍然會過——因為 seeder 的資料本來就滿足對調,這裡等於在既有資料上恆真。真正擋住
+     * 壞配對的是 test_reverse_must_have_swapped_ends;這一支的價值在於把「連鎖刪除的
+     * 正確性建立在對調規則上」這件事寫在會被執行的地方,而不是只寫在註解裡。
+     */
+    public function test_soft_deleting_a_scope_leaves_no_dangling_reverse()
+    {
+        $this->seed();
+
+        $scope = Scope::whereHas('subjectOf')->firstOrFail();
+        $scope->delete();
+
+        $alive = Relation::all();
+        $this->assertGreaterThan(0, $alive->count(), '不該把所有關係都刪光,否則這支測試沒在測東西。');
+
+        foreach ($alive as $relation) {
+            if (is_null($relation->reverse_id)) {
+                continue;
+            }
+
+            $this->assertTrue(
+                Relation::whereKey($relation->reverse_id)->exists(),
+                "關係「{$relation->name}」的 reverse_id 指向一筆已被連鎖刪除的資料。"
+            );
+        }
+    }
+
+    /**
+     * reverse() 這個 belongsTo 會套用 Relation 自己的 SoftDeletes,
+     * 所以指向已軟刪除的關係時解析成 null,不會吐出前端看不到的資料。
+     */
+    public function test_reverse_relation_resolves_to_null_when_soft_deleted()
+    {
+        $this->seed();
+
+        $a = Relation::whereNotNull('reverse_id')
+            ->whereColumn('reverse_id', '!=', 'id')
+            ->firstOrFail();
+        $b = Relation::findOrFail($a->reverse_id);
+
+        $this->assertInstanceOf(Relation::class, $a->reverse);
+
+        $b->deleteQuietly();
+
+        $this->assertNull($a->fresh()->reverse, '已軟刪除的反向不該被解析出來。');
+    }
+
+    /**
      * 全表不變量:每一條關係的 reverse_id 要嘛是 null,要嘛指向一條回指自己的關係。
      *
      * 在此之前只有 `requires`/`isRequiredBy` 這一對被斷言過(見檔尾那支),
@@ -177,6 +332,14 @@ class relationCRUDTest extends TestCase
                 $reverse->reverse_id,
                 "關係「{$relation->name}」指向「{$reverse->name}」,但對方沒有回指——單向的配對。"
             );
+            // 2026-09-17 補:配對不只要互指,主詞受詞還必須對調——Scope 的連鎖刪除
+            // 依賴這一點(見 test_soft_deleting_a_scope_leaves_no_dangling_reverse)。
+            $this->assertSame(
+                $relation->object_id,
+                $reverse->subject_id,
+                "關係「{$relation->name}」與「{$reverse->name}」的主詞受詞不是對調的。"
+            );
+            $this->assertSame($relation->subject_id, $reverse->object_id);
         }
 
         // 自指(對稱關係)確實存在,不是理論上的可能性而已。

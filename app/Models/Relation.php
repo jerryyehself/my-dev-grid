@@ -127,9 +127,25 @@ class Relation extends Model
      *
      * 用 saveQuietly() 寫回去，避免再觸發一次 saved 造成無限遞迴；reverse_id 不在
      * LOCKED_FIELDS 裡，所以即使對方已被引用（isReferenced）也允許補上配對。
+     *
+     * **解除配對也必須是雙向的**（2026-09-17 補）。原本這個方法遇到 reverse_id 為 null
+     * 就直接 return，結果是把 A 的反向清空之後，B 還指著 A——正是這個方法存在要消滅的
+     * 單向狀態。編輯介面上「有沒有反向關係」是一個 checkbox，勾掉就是把 reverse_id 設回
+     * null，所以這條路徑是日常操作，不是邊角案例。
      */
     public function syncReverse(): void
     {
+        // 先解除舊伴侶：任何「指著我、但我已經不指它」的關係都要斷開，
+        // 否則清空或改指別人之後會留下單向的殘骸。
+        static::where('reverse_id', $this->id)
+            ->where('id', '!=', $this->id)
+            ->when($this->reverse_id, fn ($q) => $q->where('id', '!=', $this->reverse_id))
+            ->get()
+            ->each(function (self $orphan) {
+                $orphan->reverse_id = null;
+                $orphan->saveQuietly();
+            });
+
         if (is_null($this->reverse_id) || $this->reverse_id === $this->id) {
             return;
         }
@@ -140,6 +156,22 @@ class Relation extends Model
             $reverse->reverse_id = $this->id;
             $reverse->saveQuietly();
         }
+    }
+
+    /**
+     * 反向關係本身。
+     *
+     * 在此之前只有裸的 reverse_id 欄位，於是 syncReverse()、ReverseIsAvailable
+     * 各自手動 find() 一次，而 RelationResource 也只吐得出 id——前端要顯示
+     * 「這條的反向是 specifiedBy」就得自己再查一次。清單頁 ->with('reverse')
+     * 也能一併避開 N+1。
+     *
+     * belongsTo 會套用 Relation 自己的 SoftDeletes，所以指向一筆已軟刪除的關係時
+     * 這裡解析成 null，而不是回傳一筆前端看不到的資料。
+     */
+    public function reverse()
+    {
+        return $this->belongsTo(self::class, 'reverse_id');
     }
 
     public function subject()

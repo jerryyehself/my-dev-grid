@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Rules\ReverseIsAvailable;
+use App\Rules\ReverseIsSwapped;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -36,7 +37,7 @@ class UpdateRelationRequest extends FormRequest
             'note' => 'max:255',
             // 同 StoreRelationRequest。這裡多傳 $this->relation 進去,因為「目標已經指向
             // 正在編輯的這一筆」跟「目標就是自己(對稱關係)」都是合法的,要認得出來。
-            'reverse_id' => ['nullable', 'exists:relations,id', new ReverseIsAvailable($this->relation)],
+            'reverse_id' => ['nullable', 'exists:relations,id', new ReverseIsAvailable($this->relation), new ReverseIsSwapped($this->relation)],
         ];
     }
 }
