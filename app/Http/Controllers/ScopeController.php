@@ -53,7 +53,10 @@ class ScopeController extends Controller
                 'type' => 'text',
             ],
             'parent_class' => [
-                'label' => '上層分類',
+                // 「父類」是這個專案自己的用詞——scopes 資料表 parent_class 欄位的
+                // comment 就是它,而這支 create() 的每個 label 都對應欄位註解
+                // (類號/子類號/範圍說明/註釋)。不要另外發明一個同義詞。
+                'label' => '父類',
                 'required' => true,
                 'type' => 'select',
                 'options' => $parentOptions,

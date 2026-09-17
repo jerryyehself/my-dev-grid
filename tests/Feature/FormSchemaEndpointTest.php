@@ -46,7 +46,11 @@ class FormSchemaEndpointTest extends TestCase
 
         // 選項只能是頂層 Scope（parent_class 為 null 的那幾筆）。
         $options = $response->json('parent_class.options');
-        $this->assertNotEmpty($options, '應該要有可選的上層分類。');
+        $this->assertNotEmpty($options, '應該要有可選的父類。');
+
+        // label 沿用資料表欄位註解的用詞,不要另外發明同義詞——這支 create() 的
+        // 其他 label（類號/子類號/範圍說明/註釋）全部都是這樣對應的。
+        $this->assertSame('父類', $response->json('parent_class.label'));
     }
 
     public function test_relation_form_schema_endpoint_is_reachable()
