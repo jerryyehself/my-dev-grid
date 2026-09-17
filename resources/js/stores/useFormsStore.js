@@ -9,8 +9,8 @@ export const useFormsStore = defineStore("useForms", () => {
 
     async function fetchForms() {
         const [scopes, relations] = await Promise.all([
-            fetchAPI("/scopes/create"),
-            fetchAPI("/relations/create"),
+            fetchAPI("/api/scopes/create"),
+            fetchAPI("/api/relations/create"),
         ]);
         scopesForm.value = scopes;
         relationsForm.value = relations;

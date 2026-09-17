@@ -19,6 +19,9 @@ class ScopeResource extends JsonResource
             'name' => $this->name,
             'class_number' => $this->class_number,
             'call_number' => $this->call_number,
+            // 父 Scope 的 id。store/update 收的就是這個欄位,不曝光的話呼叫端
+            // 要改一筆 scope 時根本拿不到現值(巢狀的 parent 只有 whenLoaded 時才有)。
+            'parent_class' => $this->parent_class,
             'full_call_number' => $this->FullCallNumber,
             'comment' => $this->comment,
             'note' => $this->note,
