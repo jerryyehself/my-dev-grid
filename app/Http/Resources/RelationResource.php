@@ -22,6 +22,10 @@ class RelationResource extends JsonResource
             'full_call_number' => $this->FullCallNumber,
             'note' => $this->note,
             'reverse_id' => $this->reverse_id,
+            // 反向關係本身。前端的「有沒有反向關係」checkbox 要顯示的是名字,
+            // 只給 id 的話它得再查一次。已軟刪除的反向會解析成 null,不會吐出
+            // 一筆前端看不到的資料。
+            'reverse' => new RelationResource($this->whenLoaded('reverse')),
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
             'ReferenceCode' => $this->ReferenceCode,

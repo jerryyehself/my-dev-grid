@@ -117,7 +117,7 @@ class RelationController extends Controller
         );
 
         return response()->json([
-            'data' => new RelationResource($relation->load('parent', 'children')),
+            'data' => new RelationResource($relation->load('parent', 'children', 'reverse')),
             'message' => $relation->wasRecentlyCreated
                 ? 'Relation created.'
                 : 'Relation already exists.',
