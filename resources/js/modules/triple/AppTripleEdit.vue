@@ -71,7 +71,8 @@ const originalName = ref(selected.value?.item?.name ?? "");
 const formScopeData = reactive({
     id: "",
     name: "",
-    class_number: "",
+    // 送出的是父 Scope 的 id,跟新增表單一致；class_number 由後端從父層推導。
+    parent_class: "",
     call_number: "",
     comment: "",
     note: "",
@@ -95,20 +96,14 @@ const preload = useFormsStore();
 const scopesData = useDataStore().scopesData?.data ?? [];
 const relationData = useDataStore().relationsData?.data ?? [];
 
-// Update 端點（UpdateScopeRequest）預期的 class_number 就是實際存好的數值，
-// 不像「新增」表單的 class_number 欄位其實是「挑一個既有頂層 Scope，代入它
-// 的 class_number」這種間接選擇（那個轉換只有 ScopeController@store 在做，
-// update() 沒有）。所以編輯表單沿用「新增」表單同一份欄位設定/驗證顯示，
-// 只把 scope 的 class_number 欄位型別由 select 換成 number，直接編輯真正
-// 要送出的數值。
-const formFields = computed(() => {
-    const base = preload[`${editingType}Form`] || {};
-    if (editingType !== "scopes" || !base.class_number) return base;
-    return {
-        ...base,
-        class_number: { ...base.class_number, type: "number", options: undefined },
-    };
-});
+// 新增與修改兩個端點現在收的是同一個欄位 parent_class（父 Scope 的 id），
+// class_number 一律由後端從父層推導。所以編輯表單可以直接沿用「新增」表單那份
+// 欄位設定，不需要再做任何型別替換。
+//
+// 2026-09-17 之前這裡有一段 workaround：把 scope 的 class_number 欄位從 select
+// 換成 number，因為當時 store 收的是父層 id、update 收的是字面分類號——同一個
+// 欄位名、兩種語意。那個不一致已在後端修掉，workaround 跟著移除。
+const formFields = computed(() => preload[`${editingType}Form`] || {});
 
 const isLoading = ref(true);
 const loadError = ref(false);
@@ -135,7 +130,7 @@ onMounted(async () => {
         if (editingType === "scopes") {
             formScopeData.id = detail.id;
             formScopeData.name = detail.name ?? "";
-            formScopeData.class_number = detail.class_number ?? "";
+            formScopeData.parent_class = detail.parent_class ?? "";
             formScopeData.call_number = detail.call_number ?? "";
             formScopeData.comment = detail.comment ?? "";
             formScopeData.note = detail.note ?? "";

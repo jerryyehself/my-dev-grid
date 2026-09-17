@@ -26,7 +26,15 @@ class StoreScopeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'class_number' => [
+            // 這個欄位收的是**父 Scope 的 id**,不是分類號本身——所以欄位名就叫
+            // parent_class,跟資料表欄位一致。class_number 由 controller 從父層推導,
+            // 不接受呼叫端傳入。
+            //
+            // 2026-09-17 之前這裡叫 class_number,但收的是 id,而 UpdateScopeRequest
+            // 的同名欄位收的是字面分類號——同一個欄位名、兩種語意,表單不能共用 payload。
+            // Triple 當初是用繞的:新增表單用 select 挑父層、編輯表單把同一個欄位換成
+            // number 直接編(見 AppTripleEdit.vue 的註解),等於把 API 的不一致往前端推。
+            'parent_class' => [
                 'required',
                 Rule::exists('scopes', 'id')->whereNull('parent_class'),
             ],

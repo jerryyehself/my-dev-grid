@@ -64,7 +64,8 @@ import { useTripleSelectionStore } from "../../stores/useTripleSelectionStore";
 
 const formScopeData = reactive({
     name: "",
-    class_number: "",
+    // 送出的是父 Scope 的 id。後端的 class_number 由它推導,不由表單指定。
+    parent_class: "",
     call_number: "",
     comment: "",
     note: "",
@@ -101,11 +102,14 @@ const submitButton = {
     action: () => {},
 };
 
+// Scope 專用:選了上層分類之後,向後端要那個父層底下的下一個可用子類號。
+// 傳進 fetchCallNumberByClass 的一直都是 Scope 的 id,2026-09-17 之前這個欄位
+// 叫 class_number(名字是錯的,值是 id),現在跟後端一起正名成 parent_class。
 watch(
-    () => formData.value.class_number,
-    async (newClass) => {
+    () => formData.value.parent_class,
+    async (newParentId) => {
         if (tripleSelected.value !== "scope") return;
-        formData.value.call_number = await fetchCallNumberByClass(newClass);
+        formData.value.call_number = await fetchCallNumberByClass(newParentId);
     },
     { deep: true },
 );

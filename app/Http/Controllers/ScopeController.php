@@ -35,7 +35,9 @@ class ScopeController extends Controller
      */
     public function create()
     {
-        $classNumberOptions = Scope::select('id', 'class_number', 'name')
+        // 選項是「可以當父層的頂層 Scope」,送出的值是它們的 id——所以欄位名叫
+        // parent_class,跟 StoreScopeRequest/UpdateScopeRequest 收的欄位一致。
+        $parentOptions = Scope::select('id', 'class_number', 'name')
             ->where('parent_class', null)
             ->orderBy('class_number')
             ->distinct()->get();
@@ -50,11 +52,11 @@ class ScopeController extends Controller
                 'required' => true,
                 'type' => 'text',
             ],
-            'class_number' => [
-                'label' => '類號',
+            'parent_class' => [
+                'label' => '上層分類',
                 'required' => true,
                 'type' => 'select',
-                'options' => $classNumberOptions,
+                'options' => $parentOptions,
             ],
             'call_number' => [
                 'label' => '子類號',
@@ -83,8 +85,9 @@ class ScopeController extends Controller
 
         $validatedData = $request->validated();
 
-        $validatedData['parent_class'] = $validatedData['class_number'];
-        $validatedData['class_number'] = Scope::find($validatedData['parent_class'])->class_number;
+        // class_number 一律由父層推導,不接受呼叫端傳入——實測 16 筆 scope 的
+        // class_number 全部等於其父層的 class_number,0 筆不一致,所以它是衍生值。
+        $validatedData['class_number'] = Scope::findOrFail($validatedData['parent_class'])->class_number;
 
         $scope = Scope::firstOrCreate(
             ['name' => $validatedData['name']],
@@ -135,6 +138,10 @@ class ScopeController extends Controller
         $this->authorize('update', $scope);
 
         $validatedData = $request->validated();
+
+        // 跟 store 一樣:class_number 從 parent_class 推導,不讓呼叫端直接指定,
+        // 否則可以把 class_number 改成跟父層對不上的值。
+        $validatedData['class_number'] = Scope::findOrFail($validatedData['parent_class'])->class_number;
 
         $isUpdated = $scope->update($validatedData);
 
