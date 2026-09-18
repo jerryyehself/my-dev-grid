@@ -16,6 +16,7 @@ class ScopeController extends Controller
     public function index()
     {
         $scopeList = Scope::with('parent')
+            ->withDetailCounts()
             ->orderBy('class_number')
             ->orderBy('call_number')
             ->get();
@@ -120,8 +121,25 @@ class ScopeController extends Controller
             'siblings',
         ]);
 
+        // 詳情頁那一排計數。跟上面的 load() 是兩件事：load() 撈的是要列出來的
+        // 清單（子類、兄弟、述詞定義），loadCount() 補的是「屬於這個 scope 的
+        // 實體有幾筆」——那組實體**不會**在這支端點列出來（可能上百筆，要分頁），
+        // 只給數字。
+        $scope->loadCount([
+            'children',
+            'siblings',
+            'subjectOf',
+            'objectOf',
+            'documentations',
+            'techniques',
+            'implementations',
+        ]);
+
+        // withFormHints()：只有這支端點會把 new_child_call_number 算出來。
+        // Triple 的 fetchCallNumberByClass() 打的就是這裡,拿它預填新增表單的子類號。
+        // 清單頁跟巢狀資源不開,那是 N+1 的來源(見 ScopeResource 的註解)。
         return response()->json(
-            new ScopeResource($scope)
+            (new ScopeResource($scope))->withFormHints()
         );
     }
 

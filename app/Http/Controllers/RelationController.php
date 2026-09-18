@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateRelationRequest;
 use App\Http\Resources\RelationResource;
 use App\Models\Relation;
 use App\Models\Scope;
+use App\Service\RelationEdgeQuery;
 use Illuminate\Support\Str;
 
 class RelationController extends Controller
@@ -134,9 +135,34 @@ class RelationController extends Controller
     {
         $relation->load(['parent', 'children']);
 
+        // own_edges_count / reverse_edges_count / is_referenced 都靠這組計數。
+        // 不預載的話它們會各自去查連結表,而且反向那條還要再查一輪。
+        $relation->loadCount(Relation::LINK_RELATIONS)
+            ->load(['reverse' => fn ($query) => $query->withCount(Relation::LINK_RELATIONS)]);
+
+        // withFormHints()：只有這支端點算 new_child_call_number。Triple 的
+        // fetchCallNumberByClass() 打的就是這裡。清單頁不開，那是 N+1 的來源
+        // （見 RelationResource 的註解）。
         return response()->json(
-            new RelationResource($relation)
+            (new RelationResource($relation))->withFormHints()
         );
+    }
+
+    /**
+     * 使用這個述詞的邊,分頁(規格 B5)。
+     *
+     * 為什麼是獨立端點而不是塞進 show:`uses` 一條就有 84 筆邊,而詳情頁要的是可以
+     * 翻頁的清單。塞進 show 等於每次開詳情頁都把全部邊撈出來,也讓 show 的回應
+     * 大小隨資料成長。正規化與 UNION 的細節見 RelationEdgeQuery。
+     *
+     * 跟 index/show 同一種公開等級——圖譜資料本來就是公開唯讀的。
+     */
+    public function edges(Relation $relation)
+    {
+        $edges = (new RelationEdgeQuery($relation))
+            ->paginate(request()->integer('per_page') ?: null);
+
+        return response()->json($edges);
     }
 
     /**
