@@ -32,6 +32,10 @@ Route::get('/graph/path', [GraphController::class, 'path']);
 Route::get('scopes/create', [ScopeController::class, 'create']);
 Route::get('relations/create', [RelationController::class, 'create']);
 
+// 使用某條述詞的邊（分頁）。跟 /graph 同一種公開等級——圖譜資料本來就公開唯讀。
+// 多一段 /edges，所以不會跟下面 apiResources 的 /api/relations/{relation} 打架。
+Route::get('relations/{relation}/edges', [RelationController::class, 'edges']);
+
 // 讀（index/show）維持完全公開——my-dev-grid-front 跟 Triple 後台都要
 // 在不登入的情況下讀得到這些資料。
 Route::apiResources([

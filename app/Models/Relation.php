@@ -295,6 +295,43 @@ class Relation extends Model
     }
 
     /**
+     * 這條述詞自己有幾筆邊——四張連結表的總和，**不含反向那條的**。
+     *
+     * 跟 isReferenced() 的差別要講清楚，因為兩者故意不一樣：isReferenced() 把反向的
+     * 引用也算進來（鎖不鎖定看的是「這個名字有沒有正在被邊使用」，而邊只存單向），
+     * 這裡要的是**這條述詞自己的邊有幾筆**，也就是詳情頁那份清單的長度。
+     * `uses` 是 84、它的反向 `used` 是 0——兩者都 is_referenced=true，但清單長度不同。
+     *
+     * 跟 hasOwnReferences() 一樣，預載過（withReferenceCounts）就直接讀，沒預載才
+     * 退回查一次；清單頁一定要預載，否則每一列各查四次。
+     */
+    public function ownEdgesCount(): int
+    {
+        return collect(self::LINK_RELATIONS)->sum(function (string $relation) {
+            $countKey = Str::snake($relation).'_count';
+
+            return array_key_exists($countKey, $this->attributes)
+                ? (int) $this->attributes[$countKey]
+                : $this->{$relation}()->count();
+        });
+    }
+
+    /**
+     * 反向那條自己有幾筆邊。沒有反向（或反向是自己）就是 0——對稱關係的邊
+     * 已經算在 ownEdgesCount() 裡，再加一次會變兩倍。
+     */
+    public function reverseEdgesCount(): int
+    {
+        if (is_null($this->reverse_id) || $this->reverse_id === $this->id) {
+            return 0;
+        }
+
+        $reverse = $this->relationLoaded('reverse') ? $this->reverse : static::find($this->reverse_id);
+
+        return $reverse ? $reverse->ownEdgesCount() : 0;
+    }
+
+    /**
      * 把 isReferenced() 需要的計數一次載齊——自己的四張連結表,加上反向那條的四張。
      *
      * 清單頁一定要用這個,否則每一列都會各自去查 8 次。實測 /api/relations:
