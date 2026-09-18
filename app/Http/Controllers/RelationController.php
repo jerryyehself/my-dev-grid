@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Exceptions\RelationLockedException;
 use App\Http\Requests\StoreRelationRequest;
 use App\Http\Requests\UpdateRelationRequest;
 use App\Http\Resources\RelationResource;
@@ -157,15 +156,11 @@ class RelationController extends Controller
 
         $validatedData = $request->validated();
 
-        try {
-            $isUpdated = $relation->update($validatedData);
-        } catch (RelationLockedException $e) {
-            return response()->json([
-                'errors' => [
-                    'locked' => [$e->getMessage()],
-                ],
-            ], 422);
-        }
+        // RelationLockedException 不在這裡攔。它自己有 render()，會回一個
+        // 以「被鎖住的欄位名」為 key 的 422——原本這裡攔下來組的 `errors.locked`
+        // 對不上 Triple 任何一個輸入欄位的 key，訊息因此渲染不到畫面上。
+        // 詳見 App\Exceptions\RelationLockedException 的註解。
+        $isUpdated = $relation->update($validatedData);
 
         return response()->json([
             'data' => new RelationResource($relation),
