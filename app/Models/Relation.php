@@ -23,6 +23,8 @@ class Relation extends Model
         'call_number',
         'name',
         'note',
+        'source_vocabulary',
+        'source_term',
         'reverse_id',
     ];
 

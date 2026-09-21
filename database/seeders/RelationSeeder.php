@@ -15,13 +15,19 @@ class RelationSeeder extends Seeder
     public function run(): void
     {
 
+        // 第五、六個元素是 source_vocabulary／source_term(分類帳「述詞的外部詞彙
+        // 出處」那一列,2026-09-21 結構化)。null 代表自創,理由跟每筆詞條的挑選
+        // 邏輯記在回填 migration
+        // (backfill_relation_source_vocabulary_from_notes.php)的 docblock,
+        // 這裡不重複貼一次——那支 migration 的 SOURCES 表是這裡的權威副本,
+        // 兩邊要保持一致(有測試守著)。
         $seeds = [
-            ['00', '10', 'specs', 'No clean external-vocabulary mapping; closest is Dublin Core dcterms:conformsTo, but direction/semantics don\'t fully align — kept as a project-specific predicate (Documentation specs a Technique).'],
-            ['00', '20', 'documents', 'SPDX DOCUMENTATION_OF — Documentation documents an Implementation (SPDX 2.3 relationships spec).'],
-            ['10', '00', 'specifiedBy', 'Reverse of specs.'],
-            ['10', '20', 'uses', 'Close in spirit to SPDX DEPENDS_ON/DEPENDENCY_OF and PROV-O prov:used (Activity used Entity); this project\'s subject direction (Technique as subject) is a project convention, not a literal PROV-O mapping — kept as-is since data already exists.'],
-            ['20', '00', 'documentedBy', 'Reverse of documents.'],
-            ['20', '10', 'used', 'Reverse of uses.'],
+            ['00', '10', 'specs', 'No clean external-vocabulary mapping; closest is Dublin Core dcterms:conformsTo, but direction/semantics don\'t fully align — kept as a project-specific predicate (Documentation specs a Technique).', null, null],
+            ['00', '20', 'documents', 'SPDX DOCUMENTATION_OF — Documentation documents an Implementation (SPDX 2.3 relationships spec).', 'spdx', 'DOCUMENTATION_OF'],
+            ['10', '00', 'specifiedBy', 'Reverse of specs.', null, null],
+            ['10', '20', 'uses', 'Close in spirit to SPDX DEPENDS_ON/DEPENDENCY_OF and PROV-O prov:used (Activity used Entity); this project\'s subject direction (Technique as subject) is a project convention, not a literal PROV-O mapping — kept as-is since data already exists.', 'spdx', 'DEPENDS_ON'],
+            ['20', '00', 'documentedBy', 'Reverse of documents.', 'spdx', 'DOCUMENTATION_OF'],
+            ['20', '10', 'used', 'Reverse of uses.', 'spdx', 'DEPENDENCY_OF'],
         ];
 
         $reverseSeed = [
@@ -40,7 +46,7 @@ class RelationSeeder extends Seeder
         // $nonLeadScopes = $scopes->whereNotNull('parent_class');
 
         // 建立固定關聯資料
-        foreach ($seeds as [$from, $to, $name, $note]) {
+        foreach ($seeds as [$from, $to, $name, $note, $sourceVocabulary, $sourceTerm]) {
 
             $subject = $leadScopes->firstWhere('class_number', $from);
             $object = $leadScopes->firstWhere('class_number', $to);
@@ -51,6 +57,8 @@ class RelationSeeder extends Seeder
                 'class_number' => $subject->class_number[0].$object->class_number[0],
                 'name' => $name,
                 'note' => $note,
+                'source_vocabulary' => $sourceVocabulary,
+                'source_term' => $sourceTerm,
             ]);
         }
 
@@ -69,12 +77,17 @@ class RelationSeeder extends Seeder
         // 該是平輩（互斥），不是父子——比照 SPDX 3.0.1 RelationshipType 把
         // usesTool／dependsOn 並列為平輩的先例（class_number 相同、call_number
         // 不同就足夠表達「同一組裡的另一個關係」，不需要再疊加 parent_class）。
+        // source_term 依語意就近指派方向(assists＝借助工具但非直接產出，對應
+        // usesTool；assisted-by 對應 dependsOn)——note 只具名了「usesTool／
+        // dependsOn 的平輩先例」這個結構性借用，沒有逐字寫明哪個方向對應哪個
+        // 詞條，這裡的把握比 documents/requires 這種直接具名的低,理由完整記在
+        // 回填 migration 的 docblock。
         $childSeeds = [
-            ['20', '10', 'assisted-by'],
-            ['10', '20', 'assists'],
+            ['20', '10', 'assisted-by', 'dependsOn'],
+            ['10', '20', 'assists', 'usesTool'],
         ];
 
-        foreach ($childSeeds as [$from, $to, $name]) {
+        foreach ($childSeeds as [$from, $to, $name, $sourceTerm]) {
             $subject = $leadScopes->firstWhere('class_number', $from);
             $object = $leadScopes->firstWhere('class_number', $to);
 
@@ -85,6 +98,8 @@ class RelationSeeder extends Seeder
                 'call_number' => '10',
                 'name' => $name,
                 'note' => 'AI 輔助但非直接產出/執行成品；與 uses/used 平輩，不是子關係（比照 SPDX usesTool/dependsOn 的平輩先例）。',
+                'source_vocabulary' => 'spdx',
+                'source_term' => $sourceTerm,
             ]);
         }
 
@@ -113,6 +128,8 @@ class RelationSeeder extends Seeder
             'call_number' => '00',
             'name' => 'requires',
             'note' => 'dcterms:requires — same-type dependency (e.g. a Technique that requires another Technique).',
+            'source_vocabulary' => 'dcterms',
+            'source_term' => 'requires',
         ]);
 
         // isRequiredBy 是 requires 的反向關係，反向關係用 reverse_id 表達
@@ -126,6 +143,8 @@ class RelationSeeder extends Seeder
             'call_number' => '10',
             'name' => 'isRequiredBy',
             'note' => 'dcterms:isRequiredBy — reverse of requires.',
+            'source_vocabulary' => 'dcterms',
+            'source_term' => 'isRequiredBy',
         ]);
 
         $requires->update(['reverse_id' => $isRequiredBy->id]);
@@ -151,6 +170,8 @@ class RelationSeeder extends Seeder
             'call_number' => '00',
             'name' => 'descendantOf',
             'note' => 'SPDX relationship type DESCENDANT_OF — "same lineage but post-dates". 涵蓋 GitHub repo 的「衍生自」與「fork 自」，fork 是這個關係的特例，不另立 predicate。',
+            'source_vocabulary' => 'spdx',
+            'source_term' => 'DESCENDANT_OF',
         ]);
 
         $ancestorOf = Relation::create([
@@ -160,6 +181,8 @@ class RelationSeeder extends Seeder
             'call_number' => '10',
             'name' => 'ancestorOf',
             'note' => 'SPDX relationship type ANCESTOR_OF — reverse of descendantOf.',
+            'source_vocabulary' => 'spdx',
+            'source_term' => 'ANCESTOR_OF',
         ]);
 
         $descendantOf->update(['reverse_id' => $ancestorOf->id]);
@@ -177,6 +200,8 @@ class RelationSeeder extends Seeder
             'call_number' => '20',
             'name' => 'accompanies',
             'note' => 'Tillett (1987) bibliographic-relationships taxonomy 的 Accompanying 類別命名（非 DCMI/SPDX 正式詞彙）。對稱關係：兩個獨立但相伴而生、共同組成同一個產品的 repo（例如前後端拆分）。',
+            'source_vocabulary' => 'tillett1987',
+            'source_term' => 'Accompanying',
         ]);
         $accompanies->update(['reverse_id' => $accompanies->id]);
 
@@ -191,6 +216,8 @@ class RelationSeeder extends Seeder
             'call_number' => '30',
             'name' => 'precedes',
             'note' => 'Tillett (1987) bibliographic-relationships taxonomy 的 Sequential 類別命名（非 DCMI/SPDX 正式詞彙）。依建立時間前後相接的同性質練習專案。',
+            'source_vocabulary' => 'tillett1987',
+            'source_term' => 'Sequential',
         ]);
 
         $succeeds = Relation::create([
@@ -200,6 +227,8 @@ class RelationSeeder extends Seeder
             'call_number' => '40',
             'name' => 'succeeds',
             'note' => 'Reverse of precedes.',
+            'source_vocabulary' => 'tillett1987',
+            'source_term' => 'Sequential',
         ]);
 
         $precedes->update(['reverse_id' => $succeeds->id]);
