@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\SessionAuthController;
 use App\Http\Controllers\Auth\SocialAuthController;
+use App\Http\Controllers\Auth\TokenSocialAuthController;
 use Illuminate\Support\Facades\Route;
 
 // 這裡刻意不註冊任何資源路由。所有 CRUD 都只走 `routes/api.php`，
@@ -35,5 +36,17 @@ Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'
     ->name('auth.social.callback');
 Route::post('/auth/login', [SessionAuthController::class, 'login'])->name('auth.login');
 Route::post('/auth/logout', [SessionAuthController::class, 'logout'])->name('auth.logout');
+
+// my-dev-grid-front（跨 origin SPA）版的 OAuth 登入——發 Sanctum API token，
+// 不是 session（decision-register.md D-56）。放在 web.php 而不是 api.php，
+// 是因為 Socialite 的 state 防偽驗證需要 session 支援，api.php 走的是
+// 無 session 的 stateless 'api' middleware group；email/password 登入
+// 跟登出不需要 Socialite，所以那兩支在 routes/api.php（見該檔案）。
+// 路徑多一段 /token/，跟上面 Triple 用的 /auth/{provider}/* 區分開，
+// 兩組 controller 刻意不共用（見 TokenSocialAuthController 的類別註解）。
+Route::get('/auth/token/{provider}/redirect', [TokenSocialAuthController::class, 'redirect'])
+    ->name('auth.token.social.redirect');
+Route::get('/auth/token/{provider}/callback', [TokenSocialAuthController::class, 'callback'])
+    ->name('auth.token.social.callback');
 
 Route::get('/{any}', fn () => view('app'))->where('any', '.*');

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\TokenLoginController;
 use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\GraphController;
 use App\Http\Controllers\ImplementationController;
@@ -10,10 +11,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // 前端（SPA）開機時拿這支確認目前的登入狀態——未登入回 401，
-// 已登入回目前的 User。
+// 已登入回目前的 User。`auth:sanctum` 對 Triple（session cookie）跟
+// my-dev-grid-front（bearer token）一視同仁，兩種認證方式都吃。
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+// my-dev-grid-front 版的 email+password 登入/登出，發 Sanctum API token，
+// 不是 session（decision-register.md D-56）。OAuth 版在 routes/web.php
+// （Socialite 需要 session 支援 state 防偽，這裡的 'api' middleware group
+// 沒有 session）。跟 Triple 用的 /auth/login、/auth/logout（routes/web.php，
+// SessionAuthController）刻意不共用，見 TokenLoginController 的類別註解。
+Route::post('/auth/login', [TokenLoginController::class, 'login'])->name('api.auth.login');
+Route::post('/auth/logout', [TokenLoginController::class, 'logout'])
+    ->middleware('auth:sanctum')
+    ->name('api.auth.logout');
 
 // 知識圖譜資料，維持完全公開，這個 PR 不動它。
 Route::get('/graph', [GraphController::class, 'index']);
