@@ -1,4 +1,46 @@
 {
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/user/my-dev-grid-skills/.claude/hooks/context-guard.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/user/my-dev-grid-skills/.claude/hooks/context-guard.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/user/my-dev-grid-skills/.claude/hooks/context-guard.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/user/my-dev-grid-skills/.claude/hooks/context-guard.sh"
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__create_trigger",
