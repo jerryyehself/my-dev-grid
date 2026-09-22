@@ -41,6 +41,39 @@ class PivotRelationApiTest extends TestCase
         $response->assertJsonPath('data.techniques.0.relation_id', $relation->id);
     }
 
+    public function test_index_documentation_includes_technique_and_implementation_relations()
+    {
+        $this->actingAsOwner();
+
+        $scope = Scope::factory()->create();
+        $technique = Technique::factory()->create();
+        $implementation = Implementation::factory()->create();
+        $relation = Relation::factory()->create();
+
+        $this->postJson('/api/documentations', [
+            'type' => $scope->id,
+            'title' => 'Laravel Docs',
+            'techniques' => [
+                ['id' => $technique->id, 'relation_id' => $relation->id],
+            ],
+            'implementations' => [
+                ['id' => $implementation->id, 'relation_id' => $relation->id],
+            ],
+        ])->assertCreated();
+
+        // index() 曾經只 eager load scope，漏了 techniques/implementations——
+        // whenLoaded() 沒讀到關聯就直接把整個鍵從 JSON 拿掉（不是回傳空陣列），
+        // 前端清單頁一讀 a.techniques.length 就整頁掛掉。這裡鎖住兩個鍵都要在。
+        $response = $this->getJson('/api/documentations');
+
+        $response->assertOk();
+        $data = collect($response->json('data'))->firstWhere('title', 'Laravel Docs');
+        $this->assertArrayHasKey('techniques', $data);
+        $this->assertArrayHasKey('implementations', $data);
+        $this->assertSame($technique->id, $data['techniques'][0]['id']);
+        $this->assertSame($implementation->id, $data['implementations'][0]['id']);
+    }
+
     public function test_store_documentation_rejects_unknown_relation_id()
     {
         $this->actingAsOwner();

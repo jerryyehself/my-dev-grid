@@ -19,7 +19,7 @@ class DocumentationController extends Controller
      */
     public function index()
     {
-        $documentations = Documentation::with('scope')->orderBy('title')->get();
+        $documentations = Documentation::with(['scope', 'techniques', 'implementations'])->orderBy('title')->get();
 
         return response()->json([
             'type' => Str::of(Documentation::class)
