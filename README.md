@@ -43,6 +43,10 @@ php artisan test                        # 全套測試
 - `php artisan github:sync-repos` — 打 GitHub API，把 repo 資料加值成 `Implementation` / `Technique` 與它們之間的關聯
 - `php artisan github:snapshot-repos` — 把當下的 repo 資料存成快照 fixture，讓測試不用打外部 API
 
+## 前端
+
+[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)（Vue 3 SPA）是這個 API 現在的正式管理介面：文章、`Scope`（階層分類號）、`Relation`（述詞）都在那邊新增/編輯。舊的內嵌 Vue 後台 Triple（`resources/js`，session cookie 登入）還在，但只是還沒被移除（D-48，見 `my-dev-grid-skills/docs/decision-register.md`），不是主要維護目標，也沒有 Triple 沒有而 `my-dev-grid-front` 有的資料——兩邊管的都只是 `Scope`／`Relation`。
+
 ## API
 
 讀（`index` / `show`）完全公開，寫（`store` / `update` / `destroy`）收斂到 `auth:sanctum`，實際擋權邏輯在 `app/Policies`。路由定義見 `routes/api.php`。
@@ -51,11 +55,16 @@ php artisan test                        # 全套測試
 | --- | --- |
 | `GET /api/graph` | 整張圖：三族節點 ＋ 三張 pivot ＋ `entity_relations` 的邊，`relation_id` 已解析成述詞名稱 |
 | `GET /api/graph/path` | 起訖點之間的最短路徑（BFS，邊當無向處理）。逆著走的那一跳會回報反向述詞 |
-| `GET /api/scopes` | 階層分類號。三族：`0000` Documentation、`1000` Technique、`2000` Implementation |
-| `GET /api/relations` | 述詞。15 條全部成對可逆，`reverse_id` 互指 |
-| `GET /api/documentations` | 文件／文章。`body` 欄位存 Markdown 原文 |
-| `GET /api/techniques` | 技術 |
-| `GET /api/implementations` | 實作／專案 |
+| `GET/POST/PUT/DELETE /api/scopes` | 階層分類號。三族：`0000` Documentation、`1000` Technique、`2000` Implementation。寫入需要登入 |
+| `GET/POST/PUT/DELETE /api/relations` | 述詞。15 條全部成對可逆，`reverse_id` 互指；被任何邊引用後大部分欄位鎖定唯讀（僅 `note` 可改）。寫入需要登入 |
+| `GET /api/relations/{id}/edges` | 一條述詞底下的邊，分頁 |
+| `GET/POST/PUT/DELETE /api/documentations` | 文件／文章。`body` 欄位存 Markdown 原文。寫入需要登入 |
+| `GET /api/techniques` | 技術。目前只能讀——建立/編輯完全靠 GitHub sync 自動 find-or-create，沒有任何介面（含 Triple）能手動維護，列為技術債 |
+| `GET /api/implementations` | 實作／專案。同上，只能讀 |
+
+### 認證
+
+`my-dev-grid-front` 用 Sanctum **API token**（`POST /api/auth/login`／`POST /api/auth/logout`，`GET /api/user` 確認登入狀態），不是 session cookie（D-56，`decision-register.md`）——跨 origin 的 SPA 沒辦法用 cookie 模式，除非前後端共用同一個根網域，目前沒有自訂網域可以共用。Triple 是同源的內嵌後台，繼續用它原本的 session cookie（`SessionAuthController`），兩套認證刻意不共用同一支 controller。
 
 ### 文章的內文
 
