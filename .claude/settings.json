@@ -38,6 +38,15 @@
             "command": "/home/user/my-dev-grid-skills/.claude/hooks/context-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "WebSearch|WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/user/my-dev-grid-skills/.claude/hooks/web-research-dispatch-guard.sh"
+          }
+        ]
       }
     ]
   },
