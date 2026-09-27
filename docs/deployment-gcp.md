@@ -1,45 +1,26 @@
-# Deploying to GCP (Cloud Run + Cloud SQL)
+# 部署到 GCP（Cloud Run + Cloud SQL）
 
-Backend deploy target: Cloud Run (managed) + Cloud SQL for PostgreSQL, region
-`asia-east1`. Tracks issue [#10](https://github.com/jerryyehself/my-dev-grid/issues/10).
+後端部署目標：Cloud Run（全代管）+ Cloud SQL for PostgreSQL，區域為 `asia-east1`。追蹤 issue [#10](https://github.com/jerryyehself/my-dev-grid/issues/10)。
 
-What's already done in this repo (no action needed):
+這個 repo 裡已經做好的部分（不用再動）：
 
-- `Dockerfile` — multi-stage build (Node for frontend assets, PHP for the
-  app), runs nginx + php-fpm + supervisord, reads `$PORT` at startup.
-- `docker/` — nginx config template, supervisord config, entrypoint script.
-- `.env.production.example` — reference for every env var/secret the Cloud
-  Run service needs (not read by the app; documentation only).
-- `.github/workflows/deploy-cloud-run.yml` — build → push → migrate →
-  deploy, authenticated via Workload Identity Federation.
+- `Dockerfile` — 多階段建置（Node 負責前端資源，PHP 負責應用程式），用 supervisord 同時跑 nginx 和 php-fpm，啟動時讀取 `$PORT`。
+- `docker/` — nginx 設定範本、supervisord 設定、entrypoint 腳本。
+- `.env.production.example` — 列出 Cloud Run 服務需要的每個環境變數和機密（應用程式不會讀這個檔，只是說明用）。
+- `.github/workflows/deploy-cloud-run.yml` — 建置 → 推送 → 跑 migration → 部署，用 Workload Identity Federation 登入 GCP。
 
-Everything below this line is GCP console/CLI work only **you** can do —
-it needs your own GCP billing account and IAM permissions, so none of it was
-done automatically. Steps assume the `gcloud` CLI, logged in
-(`gcloud auth login`) with an active billing account. Replace
-`PROJECT_ID` with whatever project ID you choose throughout.
+以下全部是 GCP 主控台／CLI 上的操作，**只有你本人**能做——需要你自己的 GCP 帳單帳戶和 IAM 權限，所以都沒有自動化。以下步驟假設你已經裝好 `gcloud` CLI、登入過（`gcloud auth login`），而且有可用的帳單帳戶。文中的 `PROJECT_ID` 一律換成你自己取的專案 ID。
 
-**Shortcut**: `scripts/gcp-setup.sh` runs steps 1-6 below in one shot (it's a
-literal wrapper around the same `gcloud` commands, not a different tool) and,
-if the `gh` CLI is installed and authenticated, pushes the resulting values
-straight into this repo's GitHub Actions Variables too:
+**捷徑**：`scripts/gcp-setup.sh` 會一次跑完下面第 1～6 步（內容就是同樣的 `gcloud` 指令包成一支腳本，不是另一套工具）；如果裝了 `gh` CLI 且已登入，還會把產生的值直接寫進這個 repo 的 GitHub Actions Variables：
 
 ```bash
 PROJECT_ID=your-project-id BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX \
   ./scripts/gcp-setup.sh
 ```
 
-It's a run-once script, not idempotent infrastructure-as-code — re-running it
-against the same `PROJECT_ID` fails on "already exists" for whatever it
-already created. It fills in **9 of the 16 variables** in step 7's table; the
-other **7** (`CLOUD_RUN_SERVICE`, `CLOUD_RUN_MIGRATE_JOB`,
-`SANCTUM_STATEFUL_DOMAINS`, `GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`,
-`LINE_CLIENT_ID`, `LINE_REDIRECT_URI`) each need either a name you pick, a
-URL that only exists after step 8's first deploy, or a real external OAuth
-app — none of them can be scripted. Step 8 (the first deploy itself) is
-still by hand either way; read on for what those are and why.
+這是只跑一次的腳本，不是可重複執行的 IaC（基礎設施即程式碼）——對同一個 `PROJECT_ID` 再跑一次，會在已經建立過的資源上報「already exists」失敗。它會填好第 7 步表格 16 個變數裡的 **9 個**；剩下 **7 個**（`CLOUD_RUN_SERVICE`、`CLOUD_RUN_MIGRATE_JOB`、`SANCTUM_STATEFUL_DOMAINS`、`GOOGLE_CLIENT_ID`、`GOOGLE_REDIRECT_URI`、`LINE_CLIENT_ID`、`LINE_REDIRECT_URI`）不是要你自己取名，就是要等第 8 步第一次部署後才有網址，或需要真的去申請外部 OAuth 應用程式，都沒辦法寫進腳本。不管用不用腳本，第 8 步（第一次部署）都要手動做；每個值是什麼、為什麼，看下面各步驟。
 
-## 1. Create the project and enable APIs
+## 1. 建立專案並啟用 API
 
 ```bash
 gcloud projects create PROJECT_ID
@@ -64,9 +45,9 @@ gcloud artifacts repositories create my-dev-grid \
   --description="my-dev-grid container images"
 ```
 
-This is `GCP_ARTIFACT_REGISTRY_REPO` below.
+這個名稱就是第 7 步的 `GCP_ARTIFACT_REGISTRY_REPO`。
 
-## 3. Cloud SQL for PostgreSQL (minimal spec)
+## 3. Cloud SQL for PostgreSQL（最小規格）
 
 ```bash
 gcloud sql instances create my-dev-grid-db \
@@ -84,15 +65,11 @@ gcloud sql users create my_dev_grid_app \
   --password="CHOOSE_A_STRONG_PASSWORD"
 ```
 
-Note the instance connection name from `gcloud sql instances describe
-my-dev-grid-db --format='value(connectionName)'` — it looks like
-`PROJECT_ID:asia-east1:my-dev-grid-db`. That's `CLOUD_SQL_CONNECTION_NAME`
-below. `db-f1-micro` is Cloud SQL's smallest tier; resize later with
-`gcloud sql instances patch` if the app outgrows it.
+用 `gcloud sql instances describe my-dev-grid-db --format='value(connectionName)'` 查出 instance 的連線名稱並記下來，格式像 `PROJECT_ID:asia-east1:my-dev-grid-db`，這就是第 7 步的 `CLOUD_SQL_CONNECTION_NAME`。`db-f1-micro` 是 Cloud SQL 最小的規格，之後應用程式不夠用再用 `gcloud sql instances patch` 升級。
 
 ## 4. Secret Manager
 
-Three secrets, matching what the Dockerfile/workflow reference:
+先建三個機密，名稱要和 Dockerfile／workflow 引用的一致：
 
 ```bash
 # APP_KEY: generate locally, don't reuse any key from a real .env
@@ -103,36 +80,20 @@ printf '%s' 'CHOOSE_A_STRONG_PASSWORD'  | gcloud secrets create DB_PASSWORD   --
 printf '%s' 'ghp_...'                   | gcloud secrets create GITHUB_TOKEN  --data-file=- # a GitHub token with read access for GitService's API calls
 ```
 
-Check `.env.example` if the app grows more required secrets later — anything
-that's currently a blank/sensitive value there (not `AWS_*`, which stays
-unused/blank) should get the same treatment.
+之後應用程式如果多了必填的機密，對照 `.env.example`：凡是目前留白或屬於敏感值的項目，都照同樣方式放進 Secret Manager（`AWS_*` 除外，那些沒有用到，保持空白）。
 
-**Login UI has landed (PR #33-#35) — these two are now wired into the
-workflow**, same treatment as `APP_KEY`/`DB_PASSWORD`/`GITHUB_TOKEN` above:
+**登入介面已經上線（PR #33～#35），下面這兩個也已經接進 workflow**，建立方式和上面的 `APP_KEY`／`DB_PASSWORD`／`GITHUB_TOKEN` 相同：
 
 ```bash
 printf '%s' 'GOCSPX-...' | gcloud secrets create GOOGLE_CLIENT_SECRET --data-file=-
 printf '%s' '...'        | gcloud secrets create LINE_CLIENT_SECRET   --data-file=-
 ```
 
-The other 5 (`GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`, `LINE_CLIENT_ID`,
-`LINE_REDIRECT_URI`, `SANCTUM_STATEFUL_DOMAINS`) aren't sensitive — same
-treatment as `DB_DATABASE`/`DB_USERNAME` below, plain repository
-**variables**, no Secret Manager entry needed. All 7 are now wired into
-`.github/workflows/deploy-cloud-run.yml`'s `env_vars`/`secrets` blocks — the
-workflow just won't do anything with them until the corresponding repo
-variables/secrets actually exist (steps 4/7 below), since real values still
-need a real Google Cloud Console / LINE Developers OAuth app, which is a
-step only you can do. **`--allow-unauthenticated` itself was never part of
-this** — see the correction in step 8 below; it's an IAM-level public-access
-switch, orthogonal to the Sanctum session auth this login work adds at the
-application layer.
+另外 5 個（`GOOGLE_CLIENT_ID`、`GOOGLE_REDIRECT_URI`、`LINE_CLIENT_ID`、`LINE_REDIRECT_URI`、`SANCTUM_STATEFUL_DOMAINS`）不是敏感值，和第 7 步的 `DB_DATABASE`／`DB_USERNAME` 一樣設成一般的 repository **variables** 就好，不用放進 Secret Manager。這 7 個都已經寫進 `.github/workflows/deploy-cloud-run.yml` 的 `env_vars`／`secrets` 區塊，但要等你實際建好對應的機密和變數（第 4、7 步）才會生效——真正的值得先在 Google Cloud Console／LINE Developers 建立 OAuth 應用程式才拿得到，這只有你能做。**`--allow-unauthenticated` 跟這件事無關**（見第 8 步的更正）：它是 IAM 層級的公開存取開關，和這次登入功能在應用程式層加上的 Sanctum session 驗證是兩回事。
 
-## 5. Runtime service account (what Cloud Run runs *as*)
+## 5. 執行用 service account（Cloud Run 執行時的身分）
 
-This is **not** the account GitHub Actions uses to deploy — it's the identity
-the running container itself has, so it can reach Secret Manager and Cloud
-SQL.
+這個**不是** GitHub Actions 部署時用的帳戶，而是容器執行時本身的身分，讓它能讀 Secret Manager、連 Cloud SQL。
 
 ```bash
 gcloud iam service-accounts create my-dev-grid-run \
@@ -147,12 +108,11 @@ gcloud projects add-iam-policy-binding PROJECT_ID \
   --role="roles/cloudsql.client"
 ```
 
-Email is `CLOUD_RUN_SERVICE_ACCOUNT` below.
+它的 email 就是第 7 步的 `CLOUD_RUN_SERVICE_ACCOUNT`。
 
-## 6. Deployer service account + Workload Identity Federation
+## 6. 部署用 service account + Workload Identity Federation
 
-This is the identity GitHub Actions impersonates to build/push/deploy — no
-downloaded JSON key involved.
+GitHub Actions 建置、推送、部署時，會以這個身分的名義操作（impersonate），全程不需要下載 JSON 金鑰。
 
 ```bash
 gcloud iam service-accounts create my-dev-grid-deployer \
@@ -185,110 +145,71 @@ gcloud iam service-accounts add-iam-policy-binding "${DEPLOYER}" \
   --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/jerryyehself/my-dev-grid"
 ```
 
-`PROJECT_NUMBER` (not the project *ID*) comes from `gcloud projects describe
-PROJECT_ID --format='value(projectNumber)'`.
+`PROJECT_NUMBER`（專案編號，不是專案 *ID*）用 `gcloud projects describe PROJECT_ID --format='value(projectNumber)'` 查。
 
-The full provider resource name for `GCP_WORKLOAD_IDENTITY_PROVIDER` is:
+`GCP_WORKLOAD_IDENTITY_PROVIDER` 要填的完整 provider 資源名稱是：
 
 ```
 projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/providers/github-provider
 ```
 
-## 7. GitHub repository variables
+## 7. GitHub repository 變數
 
-Repo → Settings → Secrets and variables → Actions → **Variables** tab (not
-Secrets — none of these are sensitive on their own, and no GitHub secret is
-needed at all since WIF is keyless and the actual app secrets stay in Secret
-Manager):
+Repo → Settings → Secrets and variables → Actions → **Variables** 分頁（不是 Secrets 分頁：這些值本身都不敏感；WIF 不用金鑰，應用程式真正的機密都留在 Secret Manager，所以完全不需要 GitHub secret）：
 
 | Variable | Value |
 |---|---|
 | `GCP_PROJECT_ID` | `PROJECT_ID` |
 | `GCP_REGION` | `asia-east1` |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER` | full provider name from step 6 |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | 來自第 6 步的完整 provider 名稱 |
 | `GCP_DEPLOYER_SERVICE_ACCOUNT` | `my-dev-grid-deployer@PROJECT_ID.iam.gserviceaccount.com` |
 | `GCP_ARTIFACT_REGISTRY_REPO` | `my-dev-grid` |
-| `CLOUD_RUN_SERVICE` | `my-dev-grid-api` (or whatever name you prefer) |
+| `CLOUD_RUN_SERVICE` | `my-dev-grid-api`（或你偏好的任何名稱） |
 | `CLOUD_RUN_SERVICE_ACCOUNT` | `my-dev-grid-run@PROJECT_ID.iam.gserviceaccount.com` |
 | `CLOUD_SQL_CONNECTION_NAME` | `PROJECT_ID:asia-east1:my-dev-grid-db` |
 | `DB_DATABASE` | `my_dev_grid` |
 | `DB_USERNAME` | `my_dev_grid_app` |
-| `SANCTUM_STATEFUL_DOMAINS` | the production host serving Triple 後台（例如 `my-dev-grid-api-xxxxx.a.run.app`，或之後接自訂網域就換成那個） |
-| `GOOGLE_CLIENT_ID` | from the Google OAuth app you create in Google Cloud Console |
-| `GOOGLE_REDIRECT_URI` | e.g. `https://your-service-url/auth/google/callback` |
-| `LINE_CLIENT_ID` | from the LINE Login channel you create in LINE Developers |
-| `LINE_REDIRECT_URI` | e.g. `https://your-service-url/auth/line/callback` |
-| `CLOUD_RUN_MIGRATE_JOB` | `my-dev-grid-migrate` (optional but recommended — see below) |
+| `SANCTUM_STATEFUL_DOMAINS` | 提供 Triple 後台的正式環境主機（例如 `my-dev-grid-api-xxxxx.a.run.app`，或之後接自訂網域就換成那個） |
+| `GOOGLE_CLIENT_ID` | 你在 Google Cloud Console 建立的 Google OAuth 應用程式提供 |
+| `GOOGLE_REDIRECT_URI` | 例如 `https://your-service-url/auth/google/callback` |
+| `LINE_CLIENT_ID` | 你在 LINE Developers 建立的 LINE Login channel 提供 |
+| `LINE_REDIRECT_URI` | 例如 `https://your-service-url/auth/line/callback` |
+| `CLOUD_RUN_MIGRATE_JOB` | `my-dev-grid-migrate`（可不設，但建議設——見第 8 步） |
 
-`.github/workflows/deploy-cloud-run.yml` documents these same variables at
-the top of the file.
+`.github/workflows/deploy-cloud-run.yml` 檔案開頭也列了同一批變數。
 
-If this repo also uses a GitHub **environment** named `production` for
-protection rules, add the variables there instead (the workflow targets
-`environment: production`); otherwise create that environment (Settings →
-Environments) or remove the `environment:` line from the workflow.
+workflow 指定了 `environment: production`。如果這個 repo 有用名為 `production` 的 GitHub **environment** 設保護規則，變數要改加在那個 environment 裡；沒有的話，就去 Settings → Environments 建一個，或把 workflow 裡的 `environment:` 那行拿掉。
 
-## 8. First deploy
+## 8. 第一次部署
 
-Push to `main`, or run the workflow manually (Actions tab → "Deploy to Cloud
-Run" → Run workflow). It will:
+push 到 `main`，或手動執行 workflow（Actions 分頁 → "Deploy to Cloud Run" → Run workflow）。它會：
 
-1. Build the image from `Dockerfile` and push it to Artifact Registry.
-2. Deploy/update a Cloud Run Job (`CLOUD_RUN_MIGRATE_JOB`) with this image
-   and run `php artisan migrate --force` via `--wait`, so the schema exists
-   before the new revision serves traffic. Leave `CLOUD_RUN_MIGRATE_JOB`
-   unset to skip this and run migrations yourself instead.
-3. Deploy the Cloud Run service with `--allow-unauthenticated`. **This stays
-   on even after login ships** (corrected 2026-09-08 — an earlier version of
-   this doc implied it would be dropped once the app had auth "in front of
-   it"). It's an IAM-level switch controlling whether Cloud Run accepts
-   requests at all; the public read-only site (`my-dev-grid-front`) and the
-   login page itself both need unauthenticated requests to reach the
-   service. Removing it would firewall off the whole public site, not just
-   protect write endpoints. Access control for writes is handled at the
-   application layer instead (Sanctum session auth + Policies, `PR #32`) —
-   that's the correct and permanent place for it, not a Cloud Run IAM
-   binding.
+1. 用 `Dockerfile` 建置映像檔，推送到 Artifact Registry。
+2. 用這個映像檔部署／更新 Cloud Run Job（`CLOUD_RUN_MIGRATE_JOB`），並用 `--wait` 跑完 `php artisan migrate --force`，確保新 revision 開始接流量前 schema 已經建好。不設 `CLOUD_RUN_MIGRATE_JOB` 就會跳過這步，migration 改由你自己跑。
+3. 用 `--allow-unauthenticated` 部署 Cloud Run 服務。**登入功能上線後這個選項仍然保留**（2026-09-08 更正：本文件早期版本暗示應用程式「前面有驗證」之後就會拿掉）。它是 IAM 層級的開關，決定 Cloud Run 接不接受請求；公開的唯讀網站（`my-dev-grid-front`）和登入頁本身，都需要未登入的請求也能打到服務。拿掉它等於把整個公開網站擋在外面，而不只是保護寫入端點。寫入權限改由應用程式層控管（Sanctum session 驗證 + Policies，`PR #32`）——那才是正確、長久的位置，不是 Cloud Run 的 IAM 綁定。
 
-After the first successful deploy, get the service URL:
+第一次部署成功後，查出服務網址：
 
 ```bash
 gcloud run services describe "$CLOUD_RUN_SERVICE" --region=asia-east1 --format='value(status.url)'
 ```
 
-Set `APP_URL` to that value — either add it to the `env_vars` block in the
-workflow and redeploy, or set it directly:
+把 `APP_URL` 設成這個網址：可以加進 workflow 的 `env_vars` 區塊再重新部署，或直接設定：
 
 ```bash
 gcloud run services update "$CLOUD_RUN_SERVICE" --region=asia-east1 \
   --set-env-vars="APP_URL=https://your-service-url"
 ```
 
-## 9. Sanity checks
+## 9. 部署後的基本檢查
 
-- `curl https://your-service-url/up` should return the framework's built-in
-  health check (200 OK) — confirms nginx, php-fpm, and the app booted.
-- `gcloud run services logs read "$CLOUD_RUN_SERVICE" --region=asia-east1`
-  (or Cloud Logging) if it doesn't; `clear_env` misconfiguration or a bad
-  `DB_HOST` typically shows up immediately here.
-- Hit an API route, e.g. `/api/scopes`, to confirm the Postgres connection
-  actually works end-to-end (not just that the container started).
+- `curl https://your-service-url/up` 應該回傳框架內建的健康檢查（200 OK），代表 nginx、php-fpm 和應用程式都有起來。
+- 如果沒有，看 `gcloud run services logs read "$CLOUD_RUN_SERVICE" --region=asia-east1`（或 Cloud Logging）；`clear_env` 設定錯誤或 `DB_HOST` 打錯，通常一眼就會在這裡看到。
+- 打一支 API，例如 `/api/scopes`，確認 Postgres 連線真的整條通了（不只是容器有起來）。
 
-## Notes / things to revisit later
+## 注意事項 / 之後要重新檢視的東西
 
-- **Local dev is unaffected.** `.env.example` still defaults to
-  `DB_CONNECTION=sqlite`; nothing here changes how `php artisan serve` /
-  `composer run dev` work locally.
-- **Storage is ephemeral.** The container's filesystem resets on every new
-  revision/instance. Nothing in this app currently writes to local disk at
-  runtime (no `Storage::` calls in `app/`), so this is safe today — if that
-  changes (file uploads, etc.), switch `FILESYSTEM_DISK` to a GCS-backed
-  disk rather than `local`.
-- **Cost control.** `--min-instances=0` in the workflow means the service
-  scales to zero (cheapest, but cold starts) and `db-f1-micro` is the
-  smallest Cloud SQL tier. Both are easy to size up later
-  (`gcloud run services update` / `gcloud sql instances patch`) once real
-  traffic shows up.
-- **Secret rotation.** `gcloud secrets versions add APP_KEY --data-file=-`
-  (etc.) adds a new version; the workflow always references `:latest`, so
-  the next deploy picks it up automatically — no workflow change needed.
+- **本機開發不受影響。** `.env.example` 預設仍是 `DB_CONNECTION=sqlite`，`php artisan serve`／`composer run dev` 在本機的用法完全不變。
+- **容器的儲存空間不會保留。** 每個新 revision／instance 的檔案系統都是全新的。這個應用程式目前執行時不會寫本機磁碟（`app/` 裡沒有 `Storage::` 呼叫），所以現在沒問題；之後如果有檔案上傳之類的需求，要把 `FILESYSTEM_DISK` 改成用 GCS 的磁碟，不能用 `local`。
+- **成本控制。** workflow 裡的 `--min-instances=0` 代表沒流量時服務會縮到 0 台（最省錢，但會有冷啟動），`db-f1-micro` 則是 Cloud SQL 最小的規格。等真的有流量，兩者都很容易再調大（`gcloud run services update`／`gcloud sql instances patch`）。
+- **更換機密。** 用 `gcloud secrets versions add APP_KEY --data-file=-`（其他機密同理）新增一個版本即可；workflow 一律引用 `:latest`，下次部署就會自動用新值，不用改 workflow。
