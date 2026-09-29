@@ -35,6 +35,10 @@ name: Deploy to Cloud Run
 #   GOOGLE_REDIRECT_URI            Google OAuth app redirect URI
 #   LINE_CLIENT_ID                 LINE Login channel id
 #   LINE_REDIRECT_URI              LINE Login channel redirect URI
+#   APP_URL                        這個 Cloud Run 服務自己的網址
+#   FRONTEND_URL                   前端（Cloudflare）網址：CORS 只放行它，
+#                                   OAuth 登入完成也導回它；沒設會退回
+#                                   http://localhost:5173，前端全部被擋
 # Optional:
 #   CLOUD_RUN_MIGRATE_JOB          Cloud Run Job name that runs
 #                                   `php artisan migrate --force` against
@@ -123,6 +127,8 @@ jobs:
             APP_NAME=my-dev-grid
             APP_ENV=production
             APP_DEBUG=false
+            APP_URL=${{ vars.APP_URL }}
+            FRONTEND_URL=${{ vars.FRONTEND_URL }}
             LOG_CHANNEL=stderr
             LOG_LEVEL=info
             DB_CONNECTION=pgsql
