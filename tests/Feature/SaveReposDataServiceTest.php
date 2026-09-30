@@ -374,8 +374,11 @@ class SaveReposDataServiceTest extends TestCase
         $frameworkScopeId = Scope::where('name', 'framework')->value('id');
         $packagetoolScopeId = Scope::where('name', 'packagetool')->value('id');
 
-        $this->assertDatabaseHas('techniques', ['title' => 'vue3', 'type' => $frameworkScopeId]);
-        $this->assertDatabaseMissing('techniques', ['title' => 'vue3', 'type' => $packagetoolScopeId]);
+        // 2026-09-30 起 vue3 經權威控制（SaveReposDataService::AUTHORITY）變成「Vue 版本 3」，
+        // 不再建一筆叫 vue3 的技術；framework scope 這件事沒變
+        $this->assertDatabaseHas('techniques', ['title' => 'Vue', 'version' => '3', 'type' => $frameworkScopeId]);
+        $this->assertDatabaseMissing('techniques', ['title' => 'vue3']);
+        $this->assertDatabaseMissing('techniques', ['type' => $packagetoolScopeId]);
     }
 
     public function test_reclassify_vue3_topic_migration_moves_existing_packagetool_row_in_place()

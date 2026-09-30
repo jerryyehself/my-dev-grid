@@ -238,6 +238,27 @@ class RelationSeeder extends Seeder
         $precedes->update(['reverse_id' => $succeeds->id]);
         $succeeds->update(['reverse_id' => $precedes->id]);
 
+        // 2026-09-30 使用者同意：技術的版本各自是一筆 Technique（title 相同、version 填主版號），
+        // 用 dcterms:isVersionOf／hasVersion 連回版本留空的那一筆。一個專案因此可以同時連到
+        // Vue 2 和 Vue 3，升級的歷史不會被蓋掉。定義跟理由的權威副本在
+        // 2026_09_30_190100_add_technique_version_relations.php；放在最後面，種出來的 id
+        // 才會跟那支 migration 補進舊資料庫的一樣。
+        $versionRelations = [];
+        foreach ((require database_path('migrations/2026_09_30_190100_add_technique_version_relations.php'))::RELATIONS as $name => $definition) {
+            $versionRelations[$name] = Relation::create([
+                'subject_id' => $technique->id,
+                'object_id' => $technique->id,
+                'class_number' => '11',
+                'call_number' => $definition['call_number'],
+                'name' => $name,
+                'note' => $definition['note'],
+                'source_vocabulary' => 'dcterms',
+                'source_term' => $definition['source_term'],
+            ]);
+        }
+        $versionRelations['isVersionOf']->update(['reverse_id' => $versionRelations['hasVersion']->id]);
+        $versionRelations['hasVersion']->update(['reverse_id' => $versionRelations['isVersionOf']->id]);
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 
