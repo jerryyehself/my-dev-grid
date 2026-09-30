@@ -40,6 +40,22 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    public function test_documentation_nodes_carry_subtype_and_url_other_nodes_do_not()
+    {
+        $documentation = Documentation::factory()->create(['url' => 'https://www.php.net/docs.php']);
+        $technique = Technique::factory()->create();
+
+        $nodes = collect($this->getJson('/api/graph')->assertOk()->json('nodes'))->keyBy('id');
+
+        $documentationNode = $nodes["documentation-{$documentation->id}"];
+        $this->assertSame($documentation->scope?->name, $documentationNode['subtype']);
+        $this->assertSame('https://www.php.net/docs.php', $documentationNode['url']);
+
+        $techniqueNode = $nodes["technique-{$technique->id}"];
+        $this->assertNull($techniqueNode['subtype']);
+        $this->assertNull($techniqueNode['url']);
+    }
+
     public function test_graph_resolves_documentation_technique_pivot_edge_with_predicate()
     {
         $documentation = Documentation::factory()->create();
