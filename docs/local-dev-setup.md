@@ -33,7 +33,7 @@ php artisan github:sync-repos
 
 這個指令會打 GitHub API 撈你帳號底下的公開 repo，透過 `SaveReposDataService` 寫入 `Implementation`（每個 repo）與 `Technique`（依 repo 的 languages／topics，含 framework／packagetool 分類邏輯）。`save_repos_content()` 用的是 `updateOrCreate`，這個指令本身重複執行是安全的，不會累積重複資料。
 
-正式環境（production）另外有 `routes/console.php` 裡的 `Schedule::command('github:sync-repos')->daily()` 每日排程，本地開發不需要另外設排程，手動照上面指令跑一次即可。
+正式環境（Cloud Run）每天由 Cloud Scheduler 觸發一個 Cloud Run Job 跑同一個指令（見 `docs/deployment-gcp.md` 第 10 步）；`routes/console.php` 裡的 `daily()` 排程只有在有 cron 跑 `schedule:run` 的主機上才會生效。本地開發不需要另外設排程，手動照上面指令跑一次即可。
 
 ## 快速對照表
 

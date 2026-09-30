@@ -44,6 +44,11 @@ name: Deploy to Cloud Run
 #                                   `php artisan migrate --force` against
 #                                   this image; the migration step is
 #                                   skipped when this isn't set
+#   CLOUD_RUN_SYNC_JOB             跑 `php artisan github:sync-repos`（每天的
+#                                   GitHub 同步）的 Cloud Run Job 名稱。這個
+#                                   workflow 只負責讓 Job 跟服務用同一個映像檔；
+#                                   每天觸發它的是手動設一次的 Cloud Scheduler
+#                                   （docs/deployment-gcp.md 第 10 步）。沒設就跳過
 #
 # No repository *secrets* are needed — app secrets (APP_KEY, DB_PASSWORD,
 # GITHUB_TOKEN, GOOGLE_CLIENT_SECRET, LINE_CLIENT_SECRET) live in Secret
@@ -159,3 +164,23 @@ jobs:
             --max-instances=3
             --memory=512Mi
             --cpu=1
+
+      # 每天的 GitHub 同步：Cloud Run 沒有 cron，routes/console.php 的 Laravel 排程在這裡不會跑，
+      # 改由 Cloud Scheduler 每天觸發這個 Job（設定見 docs/deployment-gcp.md 第 10 步）。
+      # 這一步只負責讓 Job 跟服務用同一個映像檔，不在部署時執行同步——
+      # 部署不該順便改資料，同步的時間由 Cloud Scheduler 決定。
+      # 放在服務部署之後：這步失敗不會擋到服務上線，Job 只是還停在上一個映像檔。
+      - name: Update GitHub sync job
+        if: vars.CLOUD_RUN_SYNC_JOB != ''
+        run: |
+          gcloud run jobs deploy "${{ vars.CLOUD_RUN_SYNC_JOB }}" \
+            --region="${{ vars.GCP_REGION }}" \
+            --image="$IMAGE" \
+            --command=php \
+            --args=artisan,github:sync-repos \
+            --service-account="${{ vars.CLOUD_RUN_SERVICE_ACCOUNT }}" \
+            --set-cloudsql-instances="${{ vars.CLOUD_SQL_CONNECTION_NAME }}" \
+            --set-env-vars="APP_ENV=production,LOG_CHANNEL=stderr,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_PORT=5432,DB_DATABASE=${{ vars.DB_DATABASE }},DB_USERNAME=${{ vars.DB_USERNAME }}" \
+            --set-secrets="APP_KEY=APP_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest,GITHUB_TOKEN=GITHUB_TOKEN:latest" \
+            --max-retries=1 \
+            --task-timeout=300
