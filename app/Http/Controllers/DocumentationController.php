@@ -19,7 +19,10 @@ class DocumentationController extends Controller
      */
     public function index()
     {
-        $documentations = Documentation::with(['scope', 'techniques', 'implementations'])->orderBy('title')->get();
+        $documentations = Documentation::visibleToViewer()
+            ->with(['scope', 'techniques', 'implementations'])
+            ->orderBy('title')
+            ->get();
 
         return response()->json([
             'type' => Str::of(Documentation::class)
@@ -59,6 +62,9 @@ class DocumentationController extends Controller
      */
     public function show(Documentation $documentation)
     {
+        // 草稿對沒登入的人等於不存在：回 404 而不是 403，不透露「這個 id 有一篇草稿」
+        abort_unless($documentation->isPublished() || Documentation::viewerCanSeeDrafts(), 404);
+
         $documentation->load(['scope', 'techniques', 'implementations']);
 
         return response()->json(new DocumentationResource($documentation));

@@ -59,7 +59,7 @@ class TechniqueController extends Controller
      */
     public function show(Technique $technique)
     {
-        $technique->load(['scope', 'documentations', 'implementations']);
+        $technique->load(['scope', 'documentations' => fn ($query) => $query->visibleToViewer(), 'implementations']);
 
         return response()->json(new TechniqueResource($technique));
     }

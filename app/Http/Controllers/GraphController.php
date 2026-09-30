@@ -37,7 +37,7 @@ class GraphController extends Controller
     public function index()
     {
         $nodes = collect()
-            ->concat($this->nodesFor(Documentation::all(), 'documentation'))
+            ->concat($this->nodesFor(Documentation::visibleToViewer()->get(), 'documentation'))
             ->concat($this->nodesFor(Technique::all(), 'technique'))
             ->concat($this->nodesFor(Implementation::all(), 'implementation'))
             ->values();
@@ -79,6 +79,12 @@ class GraphController extends Controller
         ]);
         $start = $validated['start'];
         $end = $validated['end'];
+
+        // 起訖點本身是草稿：當成找不到。不擋的話，下面的 nodesByIds() 會把草稿標題回傳出去
+        $hidden = $this->hiddenNodeIds();
+        if (isset($hidden[$start]) || isset($hidden[$end])) {
+            return response()->json(['found' => false, 'nodes' => [], 'edges' => []]);
+        }
 
         $adjacency = $this->buildUndirectedAdjacency($this->rawEdges());
 
@@ -125,6 +131,35 @@ class GraphController extends Controller
      * resolve reverse_id when a hop travels backward.
      */
     private function rawEdges(): Collection
+    {
+        $hidden = $this->hiddenNodeIds();
+
+        return $this->allRawEdges()
+            ->reject(fn (array $e) => isset($hidden[$e['source']]) || isset($hidden[$e['target']]))
+            ->values();
+    }
+
+    /**
+     * 這次請求看不到的節點（沒登入時的草稿文章），以 node id 為 key。
+     * 草稿節點不出現、連到它的邊也不出現，路徑查詢也不能經過它。
+     *
+     * @return array<string, true>
+     */
+    private function hiddenNodeIds(): array
+    {
+        if (Documentation::viewerCanSeeDrafts()) {
+            return [];
+        }
+
+        return Documentation::where(fn ($query) => $query
+            ->where('status', '!=', Documentation::STATUS_PUBLISHED)
+            ->orWhereNull('status'))
+            ->pluck('id')
+            ->mapWithKeys(fn (int $id) => [$this->nodeId('documentation', $id) => true])
+            ->all();
+    }
+
+    private function allRawEdges(): Collection
     {
         return collect()
             ->concat($this->pivotRawEdges(

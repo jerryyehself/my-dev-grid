@@ -66,7 +66,7 @@ class ImplementationController extends Controller
      */
     public function show(Implementation $implementation)
     {
-        $implementation->load(['scope', 'documentations', 'techniques']);
+        $implementation->load(['scope', 'documentations' => fn ($query) => $query->visibleToViewer(), 'techniques']);
 
         return response()->json(new ImplementationResource($implementation));
     }
