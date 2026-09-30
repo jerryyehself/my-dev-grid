@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Models\Documentation;
 use App\Models\Relation;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
@@ -26,6 +27,8 @@ use Illuminate\Support\Facades\DB;
  *
  * 實體都有 SoftDeletes，這裡是裸的 query builder、吃不到全域 scope，所以每個分支
  * 都自己 `whereNull('deleted_at')`——否則已刪除的實體會從邊的清單裡冒出來。
+ * 同一個理由，草稿文章也要自己濾：沒登入的請求看不到草稿，連到草稿的邊也不列
+ * （`Documentation::viewerCanSeeDrafts()`，2026-09-30）。
  */
 class RelationEdgeQuery
 {
@@ -34,7 +37,12 @@ class RelationEdgeQuery
 
     public const DEFAULT_PER_PAGE = 25;
 
-    public function __construct(private readonly Relation $relation) {}
+    private readonly bool $includeDrafts;
+
+    public function __construct(private readonly Relation $relation)
+    {
+        $this->includeDrafts = Documentation::viewerCanSeeDrafts();
+    }
 
     public function paginate(?int $perPage = null): LengthAwarePaginator
     {
@@ -107,13 +115,15 @@ class RelationEdgeQuery
         [$subjectType, $subjectTable, $subjectKey] = $subject;
         [$objectType, $objectTable, $objectKey] = $object;
 
-        return DB::table($table.' as link')
+        $query = DB::table($table.' as link')
             ->join($subjectTable.' as subject', 'subject.id', '=', 'link.'.$subjectKey)
             ->join($objectTable.' as object', 'object.id', '=', 'link.'.$objectKey)
             ->whereNull('subject.deleted_at')
             ->whereNull('object.deleted_at')
             ->where('link.relation_id', $this->relation->id)
             ->select($this->columns($subjectType, $objectType, $table));
+
+        return $this->hideDrafts($query, ['subject' => $subjectType, 'object' => $objectType]);
     }
 
     /**
@@ -121,7 +131,7 @@ class RelationEdgeQuery
      */
     private function entityRelationBranch(string $type, string $table): Builder
     {
-        return DB::table('entity_relations as link')
+        $query = DB::table('entity_relations as link')
             ->join($table.' as subject', 'subject.id', '=', 'link.subject_id')
             ->join($table.' as object', 'object.id', '=', 'link.object_id')
             ->whereNull('subject.deleted_at')
@@ -129,6 +139,28 @@ class RelationEdgeQuery
             ->where('link.entity_type', $type)
             ->where('link.relation_id', $this->relation->id)
             ->select($this->columns($type, $type, 'entity_relations'));
+
+        return $this->hideDrafts($query, ['subject' => $type, 'object' => $type]);
+    }
+
+    /**
+     * 主詞或受詞是文章、而這次請求看不到草稿時，只留已發布的那一端。
+     *
+     * @param  array{subject:string, object:string}  $types  別名 => 實體型別
+     */
+    private function hideDrafts(Builder $query, array $types): Builder
+    {
+        if ($this->includeDrafts) {
+            return $query;
+        }
+
+        foreach ($types as $alias => $type) {
+            if ($type === 'documentation') {
+                $query->where($alias.'.status', Documentation::STATUS_PUBLISHED);
+            }
+        }
+
+        return $query;
     }
 
     /**
