@@ -16,7 +16,9 @@ use RuntimeException;
  *
  * Pulls every public repo from GitService, upserts each one as an
  * Implementation (type: project), and links it to a Technique per
- * language/topic via the existing `uses` Relation. A `topics` entry is
+ * language/topic via the existing `usedBy` Relation (Technique usedBy
+ * Implementation — the reverse of `uses`, because `technique_implementation`
+ * always has the Technique as subject). A `topics` entry is
  * classified `framework` scope when it's a key in FRAMEWORK_BASE_LANGUAGE,
  * otherwise `packagetool` (see class_number/call_number in ScopeSeeder).
  *
@@ -114,7 +116,10 @@ class SaveReposDataService
 
     public function save_repos_data(): void
     {
-        $usesRelationId = $this->relation_id('uses');
+        // 語意是「專案 uses 技術」，但這裡寫的是 technique_implementation，那張表一律 Technique
+        // 當主詞，所以存的是反向那一筆 usedBy（技術 usedBy 專案）。見
+        // 2026_09_30_180000_fix_uses_relation_direction.php
+        $usesRelationId = $this->relation_id('usedBy');
         $requiresRelationId = $this->relation_id('requires');
         $specsRelationId = $this->relation_id('specs');
 

@@ -151,7 +151,7 @@ class RelationController extends Controller
     /**
      * 使用這個述詞的邊,分頁(規格 B5)。
      *
-     * 為什麼是獨立端點而不是塞進 show:`uses` 一條就有 84 筆邊,而詳情頁要的是可以
+     * 為什麼是獨立端點而不是塞進 show:`usedBy` 一條就有 84 筆邊,而詳情頁要的是可以
      * 翻頁的清單。塞進 show 等於每次開詳情頁都把全部邊撈出來,也讓 show 的回應
      * 大小隨資料成長。正規化與 UNION 的細節見 RelationEdgeQuery。
      *

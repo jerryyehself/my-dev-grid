@@ -11,7 +11,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
  * 一對反向關係的主詞受詞必須是對調的。
  *
  * 也就是 `reverse.subject_id === self.object_id` 且 `reverse.object_id === self.subject_id`。
- * 現有 15 條全部滿足：`specs` Doc→Tech 配 `specifiedBy` Tech→Doc、`uses` Tech→Impl 配
+ * 現有 15 條全部滿足：`specs` Doc→Tech 配 `specifiedBy` Tech→Doc、`usedBy` Tech→Impl 配
  * `used` Impl→Tech；同族的 `requires` Tech→Tech 對調是恆等，`accompanies` 自指也是恆等，
  * 所以同一條規則對三種情況一體適用，不用開特例。
  *

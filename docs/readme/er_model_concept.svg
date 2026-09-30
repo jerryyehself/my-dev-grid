@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 1780" width="1650" height="1780" role="img" aria-label="Documentation、Technique、Implementation 三個大類，各自底下有子類（Documentation 下有 sourcesite、document、post、conversation；Technique 下有 language、environment、packagetool、framework、assistant；Implementation 下有 work、project、problem、picture）。Technique 與 Documentation 之間是 specs 與 specifiedBy 互為反向，Implementation 與 Documentation 之間是 documents 與 documentedBy 互為反向。Technique 與 Implementation 之間有兩組謂語並存：uses 與 used 互為反向，代表技術或 AI 直接產出、執行成果；assists 與 assisted-by 互為反向，代表 AI 只提供建議，是 uses/used 的子類謂語。三個大類各自右上角都標了 entity_relations 的小迴圈，代表這個 Model 也能透過 entity_relations 表跟自己同型態的另一筆紀錄建立關聯，這是目前預留、尚未 seed 具體謂語的機制。每條線在紀錄層級都掛著 relation_id，回指某一筆 Relation。">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 1780" width="1650" height="1780" role="img" aria-label="Documentation、Technique、Implementation 三個大類，各自底下有子類（Documentation 下有 sourcesite、document、post、conversation；Technique 下有 language、environment、packagetool、framework、assistant；Implementation 下有 work、project、problem、picture）。Technique 與 Documentation 之間是 specs 與 specifiedBy 互為反向，Implementation 與 Documentation 之間是 documents 與 documentedBy 互為反向。Technique 與 Implementation 之間有兩組謂語並存：uses 與 usedBy 互為反向（實作 uses 技術），代表技術或 AI 直接產出、執行成果；assists 與 assisted-by 互為反向，代表 AI 只提供建議，與 uses/usedBy 並存的平輩謂語。三個大類各自右上角都標了 entity_relations 的小迴圈，代表這個 Model 也能透過 entity_relations 表跟自己同型態的另一筆紀錄建立關聯，這是目前預留、尚未 seed 具體謂語的機制。每條線在紀錄層級都掛著 relation_id，回指某一筆 Relation。">
   <style>
     text { font-family: Georgia, "Noto Serif TC", serif; }
     .box-doc  { fill: rgba(63,98,18,0.07);  stroke: #3f6212; }
@@ -49,16 +49,16 @@
   <rect class="edge-label-bg" x="972" y="686" width="260" height="30" rx="6"></rect>
   <text class="edge-label" x="1102" y="707">documents / documentedBy</text>
 
-  <!-- Technique <-> Implementation : uses / used (existing) -->
+  <!-- Technique <-> Implementation : uses / usedBy (Implementation uses Technique; renamed from uses/used 2026-09-30) -->
   <path class="edge" d="M 650 1000 L 1000 1000" marker-start="url(#arrowMuted2)" marker-end="url(#arrowMuted2)"></path>
   <rect class="edge-label-bg" x="755" y="985" width="140" height="30" rx="6"></rect>
-  <text class="edge-label" x="825" y="1006">uses / used</text>
+  <text class="edge-label" x="825" y="1006">uses / usedBy</text>
 
-  <!-- Technique <-> Implementation : assists / assisted-by (advisory, child of uses/used) -->
+  <!-- Technique <-> Implementation : assists / assisted-by (advisory, sibling of uses/usedBy) -->
   <path class="edge-assist" d="M 650 1080 L 1000 1080" marker-start="url(#arrowAssist)" marker-end="url(#arrowAssist)"></path>
   <rect class="edge-label-bg" x="705" y="1065" width="240" height="30" rx="6"></rect>
   <text class="edge-label" x="825" y="1086" fill="#b45309">assists / assisted-by</text>
-  <text class="meta-text" x="825" y="1125" text-anchor="middle" fill="#b45309" style="font-size:13.5px">AI 僅提供建議 · 與 uses/used 並存，不是取代</text>
+  <text class="meta-text" x="825" y="1125" text-anchor="middle" fill="#b45309" style="font-size:13.5px">AI 僅提供建議 · 與 uses/usedBy 並存，不是取代</text>
 
   <!-- ===== Documentation box ===== -->
   <rect class="box-doc" x="555" y="40" width="540" height="560" rx="26" stroke-width="3"></rect>

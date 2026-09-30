@@ -226,7 +226,7 @@ class Relation extends Model
      * 所以在 2026-09-17 之前這個方法是**單向的、因此是錯的**：只看自己那四張連結表，
      * 於是每一對關係都剛好一半鎖定、一半可改——`specs` 有 5 筆邊所以鎖定，而它的反向
      * `specifiedBy` 是 0 筆所以完全可改，儘管那 5 筆邊反著讀顯示的正是 `specifiedBy`。
-     * 最誇張的是 `uses`(84 筆) 與 `used`(0 筆)：`used` 的名字正在被 84 筆邊使用，卻
+     * 最誇張的是 `uses`(84 筆) 與 `used`(0 筆)（當時的名字，2026-09-30 改名為 `usedBy`／`uses`）：`used` 的名字正在被 84 筆邊使用，卻
      * 可以隨意改名、改主詞受詞、改分類號，追溯改變那些邊在使用者眼中的意義——正是
      * LOCKED_FIELDS 存在要防的事，只是從另一個方向進來。
      *
@@ -270,7 +270,7 @@ class Relation extends Model
      * 只看這一筆自己的四張連結表，不看反向。
      *
      * 公開而非 protected，是因為前端需要分辨「被自己的邊鎖住」與「被反向的邊鎖住」
-     * ——鎖定欄位的畫面要能說明理由（規格的 G5），而「這條的反向 `uses` 有 84 筆邊」
+     * ——鎖定欄位的畫面要能說明理由（規格的 G5），而「這條的反向 `usedBy` 有 84 筆邊」
      * 跟「這條自己有 84 筆邊」對使用者是兩件不同的事。
      */
     public function hasOwnReferences(): bool
@@ -302,7 +302,7 @@ class Relation extends Model
      * 跟 isReferenced() 的差別要講清楚，因為兩者故意不一樣：isReferenced() 把反向的
      * 引用也算進來（鎖不鎖定看的是「這個名字有沒有正在被邊使用」，而邊只存單向），
      * 這裡要的是**這條述詞自己的邊有幾筆**，也就是詳情頁那份清單的長度。
-     * `uses` 是 84、它的反向 `used` 是 0——兩者都 is_referenced=true，但清單長度不同。
+     * `usedBy` 是 84、它的反向 `uses` 是 0——兩者都 is_referenced=true，但清單長度不同。
      *
      * 跟 hasOwnReferences() 一樣，預載過（withReferenceCounts）就直接讀，沒預載才
      * 退回查一次；清單頁一定要預載，否則每一列各查四次。

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  *
  * 為什麼是 query builder 的 UNION，而不是像 `GraphController` 那樣各自 `->get()`
  * 再在 PHP 裡合併：`GraphController` 是刻意全量回傳整張圖（56 個節點、97 條邊），
- * 合併成本可以忽略。這裡不是——`uses` 一條述詞就有 84 筆邊，而詳情頁要的是
+ * 合併成本可以忽略。這裡不是——`usedBy` 一條述詞就有 84 筆邊，而詳情頁要的是
  * **分頁**。在 PHP 裡合併再切頁，等於每次翻頁都把全部邊撈進記憶體，那正是
  * 分頁要避免的事。UNION 之後包一層 `fromSub`，`LIMIT`/`OFFSET` 與 `count(*)`
  * 都落在資料庫裡。
@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\DB;
  */
 class RelationEdgeQuery
 {
-    /** 一頁最多幾筆。`uses` 有 84 筆，預設 25 夠翻，上限擋掉「一次要一萬筆」。 */
+    /** 一頁最多幾筆。`usedBy` 有 84 筆，預設 25 夠翻，上限擋掉「一次要一萬筆」。 */
     public const MAX_PER_PAGE = 100;
 
     public const DEFAULT_PER_PAGE = 25;

@@ -47,12 +47,12 @@ class RelationSourceVocabularyTest extends TestCase
         return [
             'documents' => ['documents', 'spdx', 'DOCUMENTATION_OF'],
             'documentedBy（沿用 documents 的詞條，note 沒有另外具名反向詞）' => ['documentedBy', 'spdx', 'DOCUMENTATION_OF'],
-            'uses' => ['uses', 'spdx', 'DEPENDS_ON'],
-            'used（note 裡跟 uses 同一句具名的反向詞條）' => ['used', 'spdx', 'DEPENDENCY_OF'],
+            'uses（實作 uses 技術，2026-09-30 修正方向）' => ['uses', 'spdx', 'DEPENDS_ON'],
+            'usedBy（uses 的反向，SPDX 2.3 具名的反向詞條）' => ['usedBy', 'spdx', 'DEPENDENCY_OF'],
             'requires' => ['requires', 'dcterms', 'requires'],
             'isRequiredBy' => ['isRequiredBy', 'dcterms', 'isRequiredBy'],
-            'assists（依語意就近指派，不是 note 逐字具名方向）' => ['assists', 'spdx', 'usesTool'],
-            'assisted-by' => ['assisted-by', 'spdx', 'dependsOn'],
+            'assists（SPDX 3 沒有反向詞條，照 documentedBy 的慣例沿用 usesTool）' => ['assists', 'spdx', 'usesTool'],
+            'assisted-by（實作把 AI 當工具用＝usesTool，2026-09-30 從 dependsOn 修正）' => ['assisted-by', 'spdx', 'usesTool'],
             'descendantOf' => ['descendantOf', 'spdx', 'DESCENDANT_OF'],
             'ancestorOf' => ['ancestorOf', 'spdx', 'ANCESTOR_OF'],
             'accompanies' => ['accompanies', 'tillett1987', 'Accompanying'],
@@ -100,6 +100,17 @@ class RelationSourceVocabularyTest extends TestCase
         $this->assertIsArray($sources);
         $this->assertCount(15, $sources, 'migration 的 SOURCES 表筆數跟 seeder 種出來的筆數對不上');
 
+        // 2026-09-30 的方向修正（fix_uses_relation_direction）在回填之後又改了三筆：舊 `uses`
+        // 改名 `usedBy`、舊 `used` 改名 `uses`、assisted-by 的詞條換掉。已經跑過的 migration
+        // 不回頭改，這裡把後來那支的結果疊上去，比對的是「兩支依序跑完」的最終狀態。
+        $fix = require database_path('migrations/2026_09_30_180000_fix_uses_relation_direction.php');
+        unset($sources['used']);
+        foreach ($fix::RENAMED as $name => $values) {
+            $sources[$name] = [$values['source_vocabulary'], $values['source_term']];
+        }
+        $sources['assisted-by'][1] = $fix::ASSISTED_BY_TERM;
+        $this->assertCount(15, $sources);
+
         foreach ($sources as $name => [$vocabulary, $term]) {
             $relation = Relation::where('name', $name)->first();
             $this->assertNotNull($relation, "migration 的 SOURCES 表裡有 seeder 沒種出來的名字：{$name}");
@@ -114,14 +125,14 @@ class RelationSourceVocabularyTest extends TestCase
 
     public function test_reverse_pairs_agree_on_shared_source(): void
     {
-        // documentedBy／used／succeeds 這三筆沒有在自己的 note 裡另外具名詞條，
+        // documentedBy／usedBy／succeeds 這三筆沒有在自己的 note 裡另外具名詞條，
         // 沿用正向那一筆的判斷——這支測試守的是「兩邊沒有因為之後有人改了
         // 其中一筆就悄悄長出分歧」，不是重新驗證值本身（上面已經驗證過）。
         $this->seed();
 
         $pairs = [
             ['documents', 'documentedBy'],
-            ['uses', 'used'],
+            ['uses', 'usedBy'],
             ['precedes', 'succeeds'],
         ];
 
@@ -129,7 +140,7 @@ class RelationSourceVocabularyTest extends TestCase
             $forwardRelation = Relation::where('name', $forward)->firstOrFail();
             $reverseRelation = Relation::where('name', $reverse)->firstOrFail();
 
-            // uses/used 的詞條實際上不同（DEPENDS_ON vs DEPENDENCY_OF），
+            // uses/usedBy 的詞條實際上不同（DEPENDS_ON vs DEPENDENCY_OF），
             // 只有 vocabulary 該一致；documents/documentedBy 與
             // precedes/succeeds 才是 vocabulary 跟 term 都完全沿用。
             $this->assertSame(
