@@ -37,7 +37,7 @@ class GraphController extends Controller
     public function index()
     {
         $nodes = collect()
-            ->concat($this->nodesFor(Documentation::visibleToViewer()->get(), 'documentation'))
+            ->concat($this->nodesFor(Documentation::visibleToViewer()->with('scope')->get(), 'documentation'))
             ->concat($this->nodesFor(Technique::all(), 'technique'))
             ->concat($this->nodesFor(Implementation::all(), 'implementation'))
             ->values();
@@ -121,6 +121,11 @@ class GraphController extends Controller
             'created_at' => $type === 'implementation' && $model->git_repo_created_at
                 ? $model->git_repo_created_at->format('Y-m-d')
                 : null,
+            // 文章節點的子類（scope 名稱，例如 post 是自己寫的文章、sourcesite 是官方文件
+            // 這類參考資料）與外部網址。前端的節點彈窗靠這兩個決定連去哪：post 連文章頁、
+            // 有網址的連外部網址。其他型別沒有這兩個概念，一律 null
+            'subtype' => $type === 'documentation' ? $model->scope?->name : null,
+            'url' => $type === 'documentation' ? $model->url : null,
         ]);
     }
 
