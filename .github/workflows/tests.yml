@@ -42,7 +42,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_DB: my_dev_grid
           POSTGRES_USER: my_dev_grid_app
