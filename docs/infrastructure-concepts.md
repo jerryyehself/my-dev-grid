@@ -27,6 +27,20 @@
 5. **無狀態的服務永遠比常駐的資料庫便宜**：這次帳單真正的持續支出來源是 Cloud SQL,不是 Cloud Run——任何平台的「serverless 運算」跟「傳統資料庫」都會有這種不對稱,規劃預算時資料庫那塊才是真正該精算的地方。
 6. **最小權限原則落到 IAM role 上**：每個 service account/IAM role 只給它實際要用到的最小權限集合（例如 deployer 不需要 `secretmanager.secretAccessor`,runtime 不需要 `run.admin`),這個判斷邏輯完全平台無關。
 
+## 為什麼是 PostgreSQL，不是 MySQL（2026-10-02 補記）
+
+2026-08-26 技術棧定案時直接選了 PostgreSQL，當時沒有留下理由；2026-10-02 建 Cloud SQL 時使用者問起（主控台的免費試用預設 MySQL），比較後確認維持 PostgreSQL，使用者要求記下來。
+
+- **程式本身不挑資料庫**：後端查詢都走 Eloquent，沒有用到任何一邊的專屬語法（`DB::raw` 只用在帶字串常數的欄位別名）。本機開發用 SQLite。所以這不是「非 PostgreSQL 不可」，是「PostgreSQL 留下的擴展空間比較多」。
+- **擴展空間（Cloud SQL 有支援的擴充，查證於 2026-10-02，[Cloud SQL 擴充清單](https://cloud.google.com/sql/docs/postgres/extensions)）**：
+  - `pgvector`：存語意向量，之後可以做「跟這篇文章相關的筆記」這類推薦，適合知識庫網站。
+  - `ltree`：樹狀階層，對應 scope 的父子分類。
+  - JSON 欄位的查詢能力也比 MySQL 完整。
+- **「圖形支援比較好」要打折**：PostgreSQL 的圖形資料庫擴充 Apache AGE（[官網](https://age.apache.org)，可用 Cypher 查詢）**不在 Cloud SQL 的擴充清單上**，要用得自己架 PostgreSQL 或換平台。「沿著關係找好幾層」用的遞迴查詢（`WITH RECURSIVE`），PostgreSQL 和 MySQL 8 都有（[MySQL 手冊](https://dev.mysql.com/doc/refman/8.0/en/with.html)），這點打平。以目前幾十個節點的規模，路徑查詢由後端程式自己算，不需要圖形資料庫。
+- **MySQL 對這個專案沒有獨有的優勢**：Laravel 兩邊支援一樣完整；主控台的免費試用是 MySQL、us-central1、Enterprise Plus 大規格，30 天後要升級，不適合長期放網站。唯一的非技術考量是台灣 PHP／Laravel 職缺較常見 MySQL（觀察，沒有數據），但 SQL 基本功通用。
+- **換掉的成本**：部署 workflow 寫死 `DB_CONNECTION=pgsql`／5432，CI 同時測 SQLite 與 PostgreSQL 16（2026-09-09 因一個只在 PostgreSQL 出現的 bug 加的），都要重做。
+- **版本固定 PostgreSQL 16**：主控台預設是 18，但 CI 用 `postgres:16`，正式環境跟測試同版。要升版時 CI 一起改。
+
 ## 這次具體選擇的規格（會過期的部分，僅供對照）
 
 - Region: `asia-east1`
