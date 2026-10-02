@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use SocialiteProviders\Line\Provider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -34,6 +35,16 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->configureRateLimiting();
+
+        // Cloud Run 在前端（Google Front End）終止 HTTPS，轉給容器的是 http 請求，
+        // 所以 route()／url() 產生的網址會是 http://。OAuth 的 redirect_uri 必須
+        // 跟 Google／LINE 後台登記的 https:// 網址一字不差，否則登入被拒。
+        // bootstrap/app.php 的 trustProxies 刻意只信任 X-Forwarded-For（不信任
+        // Proto），所以這裡依 APP_URL 決定：APP_URL 是 https 就強制所有產生的網址用
+        // https。本機 APP_URL 是 http://localhost，不受影響。
+        if (str_starts_with((string) config('app.url'), 'https://')) {
+            URL::forceScheme('https');
+        }
     }
 
     /**
