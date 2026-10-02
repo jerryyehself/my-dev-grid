@@ -22,7 +22,10 @@ Route::get('/user', function (Request $request) {
 // （Socialite 需要 session 支援 state 防偽，這裡的 'api' middleware group
 // 沒有 session）。跟 Triple 用的 /auth/login、/auth/logout（routes/web.php，
 // SessionAuthController）刻意不共用，見 TokenLoginController 的類別註解。
-Route::post('/auth/login', [TokenLoginController::class, 'login'])->name('api.auth.login');
+// 登入另外套 'login' limiter（每分鐘 5 次、依 IP），疊在整組 api 的 60 次之上。
+Route::post('/auth/login', [TokenLoginController::class, 'login'])
+    ->middleware('throttle:login')
+    ->name('api.auth.login');
 Route::post('/auth/logout', [TokenLoginController::class, 'logout'])
     ->middleware('auth:sanctum')
     ->name('api.auth.logout');
