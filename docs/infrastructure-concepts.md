@@ -38,8 +38,8 @@
   - JSON 欄位的查詢能力也比 MySQL 完整。
 - **「圖形支援比較好」要打折**：PostgreSQL 的圖形資料庫擴充 Apache AGE（[官網](https://age.apache.org)，可用 Cypher 查詢）**不在 Cloud SQL 的擴充清單上**，要用得自己架 PostgreSQL 或換平台。「沿著關係找好幾層」用的遞迴查詢（`WITH RECURSIVE`），PostgreSQL 和 MySQL 8 都有（[MySQL 手冊](https://dev.mysql.com/doc/refman/8.0/en/with.html)），這點打平。以目前幾十個節點的規模，路徑查詢由後端程式自己算，不需要圖形資料庫。
 - **MySQL 對這個專案沒有獨有的優勢**：Laravel 兩邊支援一樣完整；主控台的免費試用是 MySQL、us-central1、Enterprise Plus 大規格，30 天後要升級，不適合長期放網站。唯一的非技術考量是台灣 PHP／Laravel 職缺較常見 MySQL（觀察，沒有數據），但 SQL 基本功通用。
-- **換掉的成本**：部署 workflow 寫死 `DB_CONNECTION=pgsql`／5432，CI 同時測 SQLite 與 PostgreSQL 16（2026-09-09 因一個只在 PostgreSQL 出現的 bug 加的），都要重做。
-- **版本固定 PostgreSQL 16**：主控台預設是 18，但 CI 用 `postgres:16`，正式環境跟測試同版。要升版時 CI 一起改。
+- **換掉的成本**：部署 workflow 寫死 `DB_CONNECTION=pgsql`／5432，CI 同時測 SQLite 與 PostgreSQL（2026-09-09 因一個只在 PostgreSQL 出現的 bug 加的），都要重做。
+- **版本 PostgreSQL 18**：主控台預設是 18。資料庫還沒建，直接用 18 可以省掉之後一次大版本升級；CI 同步從 `postgres:16` 改成 `postgres:18`（PR #78，sqlite／pgsql 兩組都通過），正式環境跟測試同版。Cloud SQL 版本只能升不能降，要升版時 CI 一起改。
 
 ## 這次具體選擇的規格（會過期的部分，僅供對照）
 
