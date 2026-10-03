@@ -8,7 +8,10 @@ use App\Models\OauthIdentity;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Testing\TestResponse;
+use Laravel\Sanctum\Events\TokenAuthenticated;
+use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -350,6 +353,29 @@ class RefreshTokenCookieTest extends TestCase
         // 新的一組都能用
         $this->send('GET', '/api/user', headers: ['Authorization' => 'Bearer '.$response->json('token')])->assertOk();
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($cookie->getValue()))->assertOk();
+    }
+
+    public function test_session_does_not_issue_a_pair_when_the_callback_token_was_used_concurrently()
+    {
+        // 模擬兩個同時送來的 session 請求：這個請求通過 auth:sanctum 之後、換發之前，
+        // 另一個請求已經把同一支回呼 token 用掉（刪掉）了。這個請求不能再換出一組。
+        $user = $this->createUser();
+        $callbackToken = $user->createToken(
+            TokenSocialAuthController::CALLBACK_TOKEN_NAME,
+            ['*'],
+            now()->addMinutes(15),
+        )->plainTextToken;
+
+        Event::listen(TokenAuthenticated::class, function (TokenAuthenticated $event) {
+            PersonalAccessToken::query()->whereKey($event->token->getKey())->delete();
+        });
+
+        $response = $this->send('POST', '/api/auth/session', headers: ['Authorization' => "Bearer {$callbackToken}"]);
+
+        $response->assertUnauthorized();
+        $this->assertNull($this->refreshCookie($response));
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+        $this->assertDatabaseCount('personal_refresh_tokens', 0);
     }
 
     public function test_session_rejects_a_regular_access_token()

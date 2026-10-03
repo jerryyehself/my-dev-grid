@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
 use D076\SanctumRefreshTokens\Models\PersonalRefreshToken;
 use D076\SanctumRefreshTokens\Services\IAuthService;
-use D076\SanctumRefreshTokens\Services\ITokenService;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -83,11 +82,24 @@ class TokenRefreshController extends Controller
             return response()->json(['message' => '這個 token 不能用來建立登入狀態。'], 403);
         }
 
-        $tokens = DB::transaction(function () use ($user) {
-            app(ITokenService::class, ['user' => $user])->deleteCurrentTokens();
+        // 「單次使用」要用刪除的筆數判斷，不能只看 auth:sanctum 驗證時 token 還在：
+        // 兩個同時送來的請求都會先通過驗證，套件的 deleteCurrentTokens() 不看刪了幾筆，
+        // 兩邊都會各換出一組（pgsql 實測同一支回呼 token 並發 6 次換出 4 組）。
+        // 在 transaction 裡直接 DELETE 這一列：pgsql 上後到的 DELETE 會等先到的 commit，
+        // 之後刪到 0 筆 → 這裡當成 token 已經用掉，回 401，不發新的一組。
+        $tokens = DB::transaction(function () use ($user, $current) {
+            $claimed = PersonalAccessToken::query()->whereKey($current->getKey())->delete();
+
+            if ($claimed !== 1) {
+                return null;
+            }
 
             return $this->issueTokenPair($user);
         });
+
+        if ($tokens === null) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
 
         return $this->tokenPairResponse($tokens);
     }
