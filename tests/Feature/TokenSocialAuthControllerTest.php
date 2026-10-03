@@ -31,6 +31,20 @@ class TokenSocialAuthControllerTest extends TestCase
         $this->assertStringContainsString('google', $response->headers->get('Location'));
     }
 
+    public function test_line_redirect_requests_only_openid_and_profile_scopes()
+    {
+        // 不用 Socialite::fake()：要看真的 LINE driver 組出來的授權網址。
+        // 帶 email scope 而頻道沒申請 email 權限時，LINE 會回 INVALID_SCOPE。
+        $response = $this->get('/auth/token/line/redirect');
+
+        $response->assertRedirect();
+        $location = $response->headers->get('Location');
+        $this->assertStringStartsWith('https://access.line.me/oauth2/v2.1/authorize?', $location);
+
+        parse_str(parse_url($location, PHP_URL_QUERY), $query);
+        $this->assertSame('openid profile', $query['scope']);
+    }
+
     public function test_callback_rejects_unknown_provider()
     {
         $response = $this->get('/auth/token/facebook/callback');
