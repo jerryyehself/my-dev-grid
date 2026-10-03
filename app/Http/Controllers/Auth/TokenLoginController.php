@@ -5,8 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Auth\Concerns\IssuesFrontendTokens;
 use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
-use D076\SanctumRefreshTokens\Models\PersonalRefreshToken;
-use D076\SanctumRefreshTokens\Services\ITokenService;
+use App\Service\RefreshTokenFamilies;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -52,31 +51,26 @@ class TokenLoginController extends Controller
     }
 
     /**
-     * 撤銷這次請求用的 access token（連同跟它同一組的 refresh token），再撤銷
-     * cookie 裡那支 refresh token，最後叫瀏覽器刪掉 cookie。兩支都要撤：cookie
-     * 裡的 refresh token 不一定跟目前這支 access token 同一組（例如中間換發過、
-     * 或前端還拿著舊的 access token），只撤 access token 的話，cookie 留著還能換新的。
+     * 登出：不要求有效的 access token（不掛 auth:sanctum），bearer 跟 refresh cookie
+     * 任一個能證明身分就撤銷它所屬的整個 refresh token 家族，最後一律叫瀏覽器刪 cookie。
+     *
+     * 為什麼不要求 bearer：access token 只活 15 分鐘，閒置之後按登出，
+     * 以前會先被 401 擋掉，前端得先換發再登出，中間任何一步失敗 cookie 就留著，
+     * 重新整理又自動登入回來。refresh cookie 本身就是這次登入的憑證，拿得到它的人
+     * 本來就能換出 token，讓它也能撤銷自己的家族不會多給任何權限。
+     * Origin 檢查（frontend.origin）照舊，跨站請求打不到這裡。
+     *
+     * 兩個都沒有或都無效時照樣回 200（登出是冪等的）、清 cookie。
+     * Triple 走 session 的請求拿到的是 TransientToken，沒有資料庫裡的 token 可撤。
      */
-    public function logout(Request $request): JsonResponse
+    public function logout(Request $request, RefreshTokenFamilies $families): JsonResponse
     {
-        $user = $request->user();
+        $current = $request->user('sanctum')?->currentAccessToken();
 
-        // Triple 走 session 的請求拿到的是 TransientToken，沒有資料庫裡的 token 可撤，
-        // 這裡只處理真正的 API token。
-        if ($user->currentAccessToken() instanceof PersonalAccessToken) {
-            app(ITokenService::class, ['user' => $user])->deleteCurrentTokens();
-        }
-
-        if ($value = RefreshTokenCookie::read($request)) {
-            $refreshToken = PersonalRefreshToken::findToken($value);
-
-            // 只撤銷屬於這個登入者的 refresh token；不是他的就不動（只清 cookie）。
-            if ($refreshToken
-                && $refreshToken->tokenable_type === $user->getMorphClass()
-                && (int) $refreshToken->tokenable_id === (int) $user->getKey()) {
-                $refreshToken->delete();
-            }
-        }
+        $families->revokeForLogout(
+            RefreshTokenCookie::read($request),
+            $current instanceof PersonalAccessToken ? $current : null,
+        );
 
         return response()
             ->json(['message' => '已登出。'])

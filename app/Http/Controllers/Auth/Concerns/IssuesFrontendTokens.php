@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Auth\Concerns;
 
 use App\Http\RefreshTokenCookie;
 use App\Models\User;
+use App\Service\RefreshTokenFamilies;
 use D076\SanctumRefreshTokens\DTOs\TokensDTO;
-use D076\SanctumRefreshTokens\Services\ITokenService;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -15,14 +15,12 @@ use Illuminate\Http\JsonResponse;
  */
 trait IssuesFrontendTokens
 {
+    /**
+     * 新的一次登入：開一個新的 refresh token 家族（見 App\Service\RefreshTokenFamilies）。
+     */
     protected function issueTokenPair(User $user): TokensDTO
     {
-        // 壽命明確從 config 帶進去，不吃套件 createTokens() 的預設值——
-        // 套件預設的 refresh 壽命走 `_no_remember`（1 天），見 config/sanctum.php。
-        return app(ITokenService::class, ['user' => $user])->createTokens(
-            accessTokenExpiresAt: now()->addMinutes((int) config('sanctum.expiration')),
-            refreshTokenExpiresAt: now()->addMinutes((int) config('sanctum.refresh_token_expiration')),
-        );
+        return app(RefreshTokenFamilies::class)->issue($user);
     }
 
     /**

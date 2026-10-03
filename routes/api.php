@@ -27,10 +27,12 @@ Route::get('/user', function (Request $request) {
 Route::post('/auth/login', [TokenLoginController::class, 'login'])
     ->middleware('throttle:login')
     ->name('api.auth.login');
-// 登出另外要求 Origin＝FRONTEND_URL（frontend.origin），理由見
-// EnsureFrontendOrigin。auth:sanctum 排在前面：沒帶 token 一樣先回 401。
+// 登出要求 Origin＝FRONTEND_URL（frontend.origin，理由見 EnsureFrontendOrigin），
+// 但不要求有效的 access token：bearer 或 refresh cookie 任一個就能撤銷自己的登入
+// （理由見 TokenLoginController::logout）。不掛 auth:sanctum，所以另外套
+// 'token-refresh' limiter（每分鐘 30 次/IP）。
 Route::post('/auth/logout', [TokenLoginController::class, 'logout'])
-    ->middleware(['auth:sanctum', 'frontend.origin'])
+    ->middleware(['throttle:token-refresh', 'frontend.origin'])
     ->name('api.auth.logout');
 
 // 「重新整理後維持登入」（refresh token 放在 Partitioned httpOnly cookie，

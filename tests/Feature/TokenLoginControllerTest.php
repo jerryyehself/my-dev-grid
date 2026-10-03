@@ -121,10 +121,14 @@ class TokenLoginControllerTest extends TestCase
             ->assertUnauthorized();
     }
 
-    public function test_logout_requires_a_token()
+    public function test_logout_requires_the_frontend_origin()
     {
-        $response = $this->postJson('/api/auth/logout');
+        // 登出不要求 token（refresh cookie 也能登出，見 RefreshTokenCookieTest），
+        // 但一定要從前端網站發出
+        $this->postJson('/api/auth/logout')->assertForbidden();
 
-        $response->assertUnauthorized();
+        $this->withHeader('Origin', config('app.frontend_url'))
+            ->postJson('/api/auth/logout')
+            ->assertOk();
     }
 }

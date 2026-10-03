@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Auth\Concerns\IssuesFrontendTokens;
 use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
-use D076\SanctumRefreshTokens\Models\PersonalRefreshToken;
-use D076\SanctumRefreshTokens\Services\IAuthService;
-use Illuminate\Auth\AuthenticationException;
+use App\Service\RefreshTokenFamilies;
+use App\Service\RefreshTokenOutcome;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,11 +32,16 @@ class TokenRefreshController extends Controller
     use IssuesFrontendTokens;
 
     /**
-     * 不帶 Authorization header，只看 refresh cookie。
-     * 套件的 refresh() 是單次使用：舊的 refresh token（連同綁定的 access token）
-     * 刪掉後才發新的一組，重放舊值會被拒。
+     * 不帶 Authorization header，只看 refresh cookie。換發、重放偵測、90 天上限都在
+     * App\Service\RefreshTokenFamilies::rotate()，這裡只把結果對應成回應：
+     *
+     * - 換發成功 → 200＋新 cookie。
+     * - 同一支剛被用掉（寬限秒數內，兩個分頁同時換發）→ 409，不動 cookie：
+     *   瀏覽器裡的 cookie 多半已經是先到那個請求換出來的新值，清掉會把它也登出。
+     *   前端收到 409 會稍等再用（新的）cookie 重試一次。
+     * - 其他（無效、過期、重放→家族已撤銷、超過 90 天上限）→ 401＋清 cookie。
      */
-    public function refresh(Request $request, IAuthService $auth): JsonResponse
+    public function refresh(Request $request, RefreshTokenFamilies $families): JsonResponse
     {
         $value = RefreshTokenCookie::read($request);
 
@@ -45,25 +49,13 @@ class TokenRefreshController extends Controller
             return $this->rejectRefresh();
         }
 
-        try {
-            $tokens = DB::transaction(function () use ($auth, $value) {
-                // 先鎖住這筆 refresh token 的資料列。套件的 refresh() 是「先查、
-                // 再刪、再發新的」，沒有鎖的話兩個同時送來的請求（例如兩個分頁同時
-                // 重新整理）可能都查得到同一支、各換出一組，單次使用就破功了。
-                // 鎖住之後，第二個請求要等第一個 commit，那時這筆已經被刪，查不到 → 401。
-                // （pgsql 是真的列鎖；sqlite 會忽略 FOR UPDATE，但它本來就整個資料庫序列化寫入。）
-                PersonalRefreshToken::query()
-                    ->whereKey(RefreshTokenCookie::idOf($value))
-                    ->lockForUpdate()
-                    ->first();
+        [$outcome, $tokens] = $families->rotate($value);
 
-                return $auth->refresh($value);
-            });
-        } catch (AuthenticationException) {
-            return $this->rejectRefresh();
-        }
-
-        return $this->tokenPairResponse($tokens);
+        return match ($outcome) {
+            RefreshTokenOutcome::Rotated => $this->tokenPairResponse($tokens),
+            RefreshTokenOutcome::ConcurrentReplay => response()->json(['message' => '登入狀態剛更新過，請重試。'], 409),
+            default => $this->rejectRefresh(),
+        };
     }
 
     /**

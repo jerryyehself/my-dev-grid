@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Controllers\Auth\TokenSocialAuthController;
 use App\Http\RefreshTokenCookie;
 use App\Models\OauthIdentity;
+use App\Models\RefreshToken;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -189,11 +190,6 @@ class RefreshTokenCookieTest extends TestCase
             ->assertOk()
             ->assertJsonPath('id', $user->id);
 
-        // 舊的 refresh token 已經用掉：重放回 401、清 cookie
-        $replay = $this->send('POST', '/api/auth/refresh', $this->cookieJar($oldRefresh));
-        $replay->assertUnauthorized();
-        $this->assertCookieCleared($replay);
-
         // 換發時舊的 access token 一起撤銷
         $this->send('GET', '/api/user', headers: ['Authorization' => "Bearer {$oldAccessToken}"])
             ->assertUnauthorized();
@@ -201,8 +197,133 @@ class RefreshTokenCookieTest extends TestCase
         // 新的 refresh token 還能再換一次
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($newRefresh->getValue()))->assertOk();
 
-        $this->assertDatabaseCount('personal_refresh_tokens', 1);
+        // 用掉的舊值留著（標記 used_at）才認得出重放；活著的 access token 只有最新那支
+        $this->assertDatabaseCount('personal_refresh_tokens', 3);
         $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->assertSame(1, RefreshToken::query()->whereNull('used_at')->count());
+        $this->assertSame(1, RefreshToken::query()->distinct()->count('family_id'));
+    }
+
+    public function test_replaying_a_used_refresh_token_after_the_grace_period_revokes_the_whole_family()
+    {
+        $this->createUser();
+        $login = $this->login();
+        $first = $this->refreshCookie($login)->getValue();
+        $second = $this->refreshCookie($this->send('POST', '/api/auth/refresh', $this->cookieJar($first)))->getValue();
+        $thirdResponse = $this->send('POST', '/api/auth/refresh', $this->cookieJar($second));
+        $third = $this->refreshCookie($thirdResponse)->getValue();
+        $liveAccessToken = $thirdResponse->json('token');
+
+        // 另一次登入（另一個家族）不受影響
+        $otherLogin = $this->login();
+        $otherRefresh = $this->refreshCookie($otherLogin)->getValue();
+
+        $this->travel(config('sanctum.refresh_token_reuse_grace_seconds') + 1)->seconds();
+
+        // 第一支早就用掉了，又被送來 → 視為被偷
+        $replay = $this->send('POST', '/api/auth/refresh', $this->cookieJar($first));
+        $replay->assertUnauthorized();
+        $this->assertCookieCleared($replay);
+
+        // 整個家族都撤銷：目前那支 refresh token 跟它的 access token 都不能用了
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($third))->assertUnauthorized();
+        $this->send('GET', '/api/user', headers: ['Authorization' => "Bearer {$liveAccessToken}"])->assertUnauthorized();
+
+        $this->send('GET', '/api/user', headers: ['Authorization' => 'Bearer '.$otherLogin->json('token')])->assertOk();
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($otherRefresh))->assertOk();
+    }
+
+    public function test_a_concurrent_replay_within_the_grace_period_gets_409_and_does_not_revoke_anything()
+    {
+        // 兩個分頁同時拿同一支換發（Web Locks 不可用時）：只有一個換得到，
+        // 另一個 409、不清 cookie、不撤銷家族
+        $this->createUser();
+        $value = $this->refreshCookie($this->login())->getValue();
+
+        $winner = $this->send('POST', '/api/auth/refresh', $this->cookieJar($value));
+        $loser = $this->send('POST', '/api/auth/refresh', $this->cookieJar($value));
+
+        $winner->assertOk();
+        $loser->assertStatus(409);
+        $this->assertNull($this->refreshCookie($loser), '409 不能清 cookie：瀏覽器裡多半已經是新值');
+        $this->assertNull($loser->json('token'));
+
+        // 先到那個換出來的仍然有效
+        $this->send('GET', '/api/user', headers: ['Authorization' => 'Bearer '.$winner->json('token')])->assertOk();
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($this->refreshCookie($winner)->getValue()))->assertOk();
+    }
+
+    public function test_a_wrong_secret_for_an_existing_id_does_not_revoke_the_family()
+    {
+        // 只知道 id（cookie 的 `|` 前面）不能拿來把別人登出
+        $this->createUser();
+        $value = $this->refreshCookie($this->login())->getValue();
+        $used = $this->refreshCookie($this->send('POST', '/api/auth/refresh', $this->cookieJar($value)))->getValue();
+        [$usedId] = explode('|', $value, 2);
+
+        $this->travel(config('sanctum.refresh_token_reuse_grace_seconds') + 1)->seconds();
+
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar("{$usedId}|not-the-secret"))->assertUnauthorized();
+        $this->send('POST', '/api/auth/logout', $this->cookieJar("{$usedId}|not-the-secret"))->assertOk();
+
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($used))->assertOk();
+    }
+
+    public function test_a_session_cannot_be_extended_past_the_absolute_cap()
+    {
+        $this->createUser();
+        $value = $this->refreshCookie($this->login())->getValue();
+        $startedAt = now()->copy();
+
+        // 每 20 天換發一次，滑動的 30 天不會過期
+        foreach ([20, 40, 60, 80] as $day) {
+            $this->travelTo($startedAt->copy()->addDays($day));
+            $response = $this->send('POST', '/api/auth/refresh', $this->cookieJar($value));
+            $response->assertOk();
+            $cookie = $this->refreshCookie($response);
+            $value = $cookie->getValue();
+        }
+
+        // 第 80 天換出來的那支，到期時間（cookie 也是）不超過原始登入 + 90 天
+        $this->assertLessThanOrEqual($startedAt->copy()->addDays(90)->getTimestamp(), $cookie->getExpiresTime());
+
+        $this->travelTo($startedAt->copy()->addDays(90)->addMinute());
+        $response = $this->send('POST', '/api/auth/refresh', $this->cookieJar($value));
+        $response->assertUnauthorized();
+        $this->assertCookieCleared($response);
+        $this->assertDatabaseCount('personal_refresh_tokens', 0);
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_the_absolute_cap_also_applies_when_the_token_itself_has_not_expired()
+    {
+        // 上限只看原始登入時間：就算 refresh token 本身還沒到期也一樣拒絕
+        config(['sanctum.refresh_token_max_lifetime' => 60]);
+        $this->createUser();
+        $value = $this->refreshCookie($this->login())->getValue();
+
+        $this->travel(30)->minutes();
+        $value = $this->refreshCookie($this->send('POST', '/api/auth/refresh', $this->cookieJar($value)))->getValue();
+
+        $this->travel(31)->minutes();
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($value))->assertUnauthorized();
+    }
+
+    public function test_a_legacy_refresh_token_without_a_family_still_rotates_and_joins_a_family()
+    {
+        // 加家族欄位之前發的資料列（family_id 是 null）
+        $user = $this->createUser();
+        $legacy = $user->createRefreshToken(now()->addDays(30))->plainTextToken;
+
+        $response = $this->send('POST', '/api/auth/refresh', $this->cookieJar($legacy));
+        $response->assertOk();
+        $current = $this->refreshCookie($response)->getValue();
+        $this->assertSame(0, RefreshToken::query()->whereNull('family_id')->count());
+
+        // 舊那支之後被重放，也會撤銷它換出來的新家族
+        $this->travel(config('sanctum.refresh_token_reuse_grace_seconds') + 1)->seconds();
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($legacy))->assertUnauthorized();
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($current))->assertUnauthorized();
     }
 
     public function test_refresh_without_cookie_returns_401_and_clears_the_cookie()
@@ -436,23 +557,47 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertSame(0, $user->tokens()->count());
     }
 
-    public function test_logout_does_not_revoke_another_users_refresh_token()
+    public function test_logout_with_only_the_cookie_revokes_the_family_even_after_the_access_token_expired()
     {
+        // 閒置超過 15 分鐘再按登出：access token 已過期，只靠 cookie 也要能登出
         $this->createUser();
-        $other = User::factory()->create(['email' => 'other@example.com', 'password' => self::PASSWORD]);
-        $otherRefresh = $this->refreshCookie($this->send('POST', '/api/auth/login', body: [
-            'email' => 'other@example.com',
-            'password' => self::PASSWORD,
-        ]))->getValue();
-        $token = $this->login()->json('token');
+        $login = $this->login();
+        $refresh = $this->refreshCookie($login)->getValue();
+        $expired = $login->json('token');
 
-        $response = $this->send('POST', '/api/auth/logout', $this->cookieJar($otherRefresh), ['Authorization' => "Bearer {$token}"]);
+        $this->travel(16)->minutes();
+
+        $response = $this->send('POST', '/api/auth/logout', $this->cookieJar($refresh), ['Authorization' => "Bearer {$expired}"]);
 
         $response->assertOk();
         $this->assertCookieCleared($response);
-        $this->send('POST', '/api/auth/refresh', $this->cookieJar($otherRefresh))
-            ->assertOk()
-            ->assertJsonPath('data.id', $other->id);
+        $this->assertDatabaseCount('personal_refresh_tokens', 0);
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($refresh))->assertUnauthorized();
+    }
+
+    public function test_logout_with_only_the_bearer_revokes_its_family()
+    {
+        $this->createUser();
+        $login = $this->login();
+        $refresh = $this->refreshCookie($login)->getValue();
+
+        $this->send('POST', '/api/auth/logout', headers: ['Authorization' => 'Bearer '.$login->json('token')])->assertOk();
+
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($refresh))->assertUnauthorized();
+    }
+
+    public function test_logout_without_any_credential_is_a_harmless_no_op()
+    {
+        $this->createUser();
+        $login = $this->login();
+
+        $response = $this->send('POST', '/api/auth/logout');
+
+        $response->assertOk();
+        $this->assertCookieCleared($response);
+        $this->assertDatabaseCount('personal_refresh_tokens', 1);
+        $this->send('GET', '/api/user', headers: ['Authorization' => 'Bearer '.$login->json('token')])->assertOk();
     }
 
     public function test_logout_without_cookie_still_works_for_the_old_frontend()
