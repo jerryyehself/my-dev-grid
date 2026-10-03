@@ -131,6 +131,10 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertDatabaseHas('techniques', ['title' => 'laravel', 'type' => $frameworkScopeId]);
     }
 
+    /**
+     * 語意是「專案 uses 技術」；technique_implementation 一律 Technique 當主詞，所以存的是
+     * 反向那一筆 usedBy（Technique → Implementation）。2026-09-30 以前名字跟方向對調了。
+     */
     public function test_save_repos_data_links_project_to_techniques_via_uses_relation()
     {
         $this->seed();
@@ -140,13 +144,18 @@ class SaveReposDataServiceTest extends TestCase
 
         $project = Implementation::where('git_repo_id', 111)->firstOrFail();
         $php = Technique::where('title', 'PHP')->firstOrFail();
-        $usesRelationId = Relation::where('name', 'uses')->value('id');
+        $usesRelationId = Relation::where('name', 'usedBy')->value('id');
 
         $this->assertDatabaseHas('technique_implementation', [
             'implementation_id' => $project->id,
             'technique_id' => $php->id,
             'relation_id' => $usesRelationId,
         ]);
+
+        // 存的那一筆主詞是技術、受詞是實作，跟 technique_implementation 的方向一致
+        $relation = Relation::with(['subject', 'object'])->findOrFail($usesRelationId);
+        $this->assertSame('Technique', $relation->subject->name);
+        $this->assertSame('Implementation', $relation->object->name);
     }
 
     public function test_save_repos_data_reuses_existing_technique_across_repos()
@@ -365,8 +374,11 @@ class SaveReposDataServiceTest extends TestCase
         $frameworkScopeId = Scope::where('name', 'framework')->value('id');
         $packagetoolScopeId = Scope::where('name', 'packagetool')->value('id');
 
-        $this->assertDatabaseHas('techniques', ['title' => 'vue3', 'type' => $frameworkScopeId]);
-        $this->assertDatabaseMissing('techniques', ['title' => 'vue3', 'type' => $packagetoolScopeId]);
+        // 2026-09-30 起 vue3 經權威控制（SaveReposDataService::AUTHORITY）變成「Vue 版本 3」，
+        // 不再建一筆叫 vue3 的技術；framework scope 這件事沒變
+        $this->assertDatabaseHas('techniques', ['title' => 'Vue', 'version' => '3', 'type' => $frameworkScopeId]);
+        $this->assertDatabaseMissing('techniques', ['title' => 'vue3']);
+        $this->assertDatabaseMissing('techniques', ['type' => $packagetoolScopeId]);
     }
 
     public function test_reclassify_vue3_topic_migration_moves_existing_packagetool_row_in_place()
@@ -379,7 +391,7 @@ class SaveReposDataServiceTest extends TestCase
         // 模擬修正前的同步結果:vue3 之前被誤分類進 packagetool。
         $existing = Technique::create(['type' => $packagetoolScopeId, 'title' => 'vue3']);
 
-        $usesRelationId = Relation::where('name', 'uses')->value('id');
+        $usesRelationId = Relation::where('name', 'usedBy')->value('id');
         $project = Implementation::factory()->create();
         $project->techniques()->attach($existing->id, ['relation_id' => $usesRelationId]);
 
@@ -413,7 +425,7 @@ class SaveReposDataServiceTest extends TestCase
 
         // 掛一個既有的 technique_implementation pivot row,用來驗證 migration
         // 是就地改 type、不是刪除重建(不然這筆 pivot 就會斷連)。
-        $usesRelationId = Relation::where('name', 'uses')->value('id');
+        $usesRelationId = Relation::where('name', 'usedBy')->value('id');
         $project = Implementation::factory()->create();
         $project->techniques()->attach($existing->id, ['relation_id' => $usesRelationId]);
 

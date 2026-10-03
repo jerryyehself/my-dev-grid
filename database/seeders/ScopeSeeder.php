@@ -68,7 +68,7 @@ class ScopeSeeder extends Seeder
         $technique = $this->scope([
             'class_number' => '10',
             'name' => 'Technique',
-            'comment' => '本體三大分類之一：`technique` 資料表的頂層分類，代表被使用的技術本身（語言、框架、套件工具、執行環境），由 `SaveReposDataService` 依 GitHub repo 的 languages／topics 自動 find-or-create，並透過 `technique_implementation` 中介表以 `uses` 關係連回使用它的 `Implementation`。',
+            'comment' => '本體三大分類之一：`technique` 資料表的頂層分類，代表被使用的技術本身（語言、框架、套件工具、執行環境），由 `SaveReposDataService` 依 GitHub repo 的 languages／topics 自動 find-or-create，並透過 `technique_implementation` 中介表以 `usedBy` 關係（`uses` 的反向）連回使用它的 `Implementation`。',
         ]);
 
         $this->scope([

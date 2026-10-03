@@ -14,6 +14,18 @@ class GraphApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_technique_version_records_are_labelled_with_their_version()
+    {
+        // 版本是獨立的一筆，title 相同（2026-09-30），標籤不帶版本的話圖上會有兩個一樣的「Vue」
+        $base = Technique::factory()->create(['title' => 'Vue']);
+        $v3 = Technique::factory()->create(['title' => 'Vue', 'version' => '3']);
+
+        $response = $this->getJson('/api/graph');
+
+        $response->assertJsonFragment(['id' => "technique-{$base->id}", 'type' => 'technique', 'label' => 'Vue']);
+        $response->assertJsonFragment(['id' => "technique-{$v3->id}", 'type' => 'technique', 'label' => 'Vue 3']);
+    }
+
     public function test_graph_lists_every_entity_as_a_node_even_without_edges()
     {
         $documentation = Documentation::factory()->create();

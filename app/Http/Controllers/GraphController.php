@@ -109,12 +109,21 @@ class GraphController extends Controller
         return "{$type}-{$id}";
     }
 
+    /**
+     * 技術的版本是獨立的一筆（title 相同、version 填主版號，2026-09-30），標籤要帶版本，
+     * 不然圖上會出現兩個一模一樣的「Vue」。規則在 `Technique::label`，這裡不自己拼字串。
+     */
+    private function labelFor($model): string
+    {
+        return $model instanceof Technique ? $model->label : $model->title;
+    }
+
     private function nodesFor(Collection $models, string $type): Collection
     {
         return $models->map(fn ($model) => [
             'id' => $this->nodeId($type, $model->id),
             'type' => $type,
-            'label' => $model->title,
+            'label' => $this->labelFor($model),
             // 只有 Implementation 有這個欄位（git_repo_created_at，來自 GitHub API），
             // Documentation/Technique 完全沒有對應的時間概念，一律回傳 null——不是
             // 每個節點都有意義的「熱度」資料，前端要誠實處理這個缺口，不是掰一個假時間。
@@ -362,7 +371,7 @@ class GraphController extends Controller
             return [
                 'id' => $nodeId,
                 'type' => $type,
-                'label' => $model?->title,
+                'label' => $model ? $this->labelFor($model) : null,
             ];
         })->values()->all();
     }
