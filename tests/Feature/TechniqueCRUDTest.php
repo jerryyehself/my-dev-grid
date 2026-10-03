@@ -110,6 +110,18 @@ class TechniqueCRUDTest extends TestCase
         $this->assertSoftDeleted('techniques', ['id' => $technique->id]);
     }
 
+    public function test_delete_message_names_the_version()
+    {
+        // 版本是獨立的一筆、title 相同（2026-09-30）：訊息只寫 title 的話，刪的是 Vue 還是 Vue 3 分不出來
+        $this->actingAsOwner();
+
+        $technique = Technique::factory()->create(['title' => 'Vue', 'version' => '3']);
+
+        $this->deleteJson("/api/techniques/{$technique->id}")
+            ->assertOk()
+            ->assertJsonFragment(['message' => 'Vue 3 was deleted.']);
+    }
+
     public function test_delete_technique_rejects_unauthenticated_request()
     {
         $technique = Technique::factory()->create();

@@ -96,11 +96,12 @@ class TechniqueController extends Controller
     {
         $this->authorize('delete', $technique);
 
-        $title = $technique->title;
+        // 用顯示名稱：只說「Vue was deleted.」分不出刪的是 Vue 還是 Vue 3
+        $label = $technique->label;
         $technique->delete();
 
         return response()->json([
-            'message' => "$title was deleted.",
+            'message' => "$label was deleted.",
         ]);
     }
 }

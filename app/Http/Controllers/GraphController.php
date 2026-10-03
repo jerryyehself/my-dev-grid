@@ -111,11 +111,11 @@ class GraphController extends Controller
 
     /**
      * 技術的版本是獨立的一筆（title 相同、version 填主版號，2026-09-30），標籤要帶版本，
-     * 不然圖上會出現兩個一模一樣的「Vue」。
+     * 不然圖上會出現兩個一模一樣的「Vue」。規則在 `Technique::label`，這裡不自己拼字串。
      */
     private function labelFor($model): string
     {
-        return filled($model->version ?? null) ? "{$model->title} {$model->version}" : $model->title;
+        return $model instanceof Technique ? $model->label : $model->title;
     }
 
     private function nodesFor(Collection $models, string $type): Collection
