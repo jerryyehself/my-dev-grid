@@ -60,6 +60,18 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# 同一時間只跑一個部署（#81）。2026-10-02 #77～#79 幾乎同時合併，三個部署同時跑，
+# #79 的 `gcloud run deploy` 撞到 Cloud Run 的版本衝突（ABORTED: Conflict）而失敗；
+# migration Job 同時跑兩次也不安全。
+# - cancel-in-progress: false：已經在跑的部署不中斷（中途取消可能停在 migration 跑完、
+#   新版還沒上線的狀態）。
+# - GitHub 對同一個 group 最多保留一個「排隊中」的 run：連續合併三個時，第二個會被
+#   第三個取代、不會執行。這是預期的：第三個 commit 已經包含第二個的內容（含 migration），
+#   部署最新的就好。
+concurrency:
+  group: deploy-cloud-run
+  cancel-in-progress: false
+
 permissions:
   contents: read
   id-token: write
