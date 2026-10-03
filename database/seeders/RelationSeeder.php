@@ -25,18 +25,22 @@ class RelationSeeder extends Seeder
             ['00', '10', 'specs', 'No clean external-vocabulary mapping; closest is Dublin Core dcterms:conformsTo, but direction/semantics don\'t fully align — kept as a project-specific predicate (Documentation specs a Technique).', null, null],
             ['00', '20', 'documents', 'SPDX DOCUMENTATION_OF — Documentation documents an Implementation (SPDX 2.3 relationships spec).', 'spdx', 'DOCUMENTATION_OF'],
             ['10', '00', 'specifiedBy', 'Reverse of specs.', null, null],
-            ['10', '20', 'uses', 'Close in spirit to SPDX DEPENDS_ON/DEPENDENCY_OF and PROV-O prov:used (Activity used Entity); this project\'s subject direction (Technique as subject) is a project convention, not a literal PROV-O mapping — kept as-is since data already exists.', 'spdx', 'DEPENDS_ON'],
+            // uses／usedBy：實作 uses 技術（Implementation 當主詞），跟 ER model 概念圖一致。2026-09-30
+            // 以前這一對定義反了（Technique uses Implementation），改名的經過與理由見
+            // 2026_09_30_180000_fix_uses_relation_direction.php。這一列留在原本的位置，
+            // 種出來的 id 才會跟改名過的舊資料庫一樣（technique_implementation 的邊都指向這一筆）。
+            ['10', '20', 'usedBy', 'Reverse of uses.', 'spdx', 'DEPENDENCY_OF'],
             ['20', '00', 'documentedBy', 'Reverse of documents.', 'spdx', 'DOCUMENTATION_OF'],
-            ['20', '10', 'used', 'Reverse of uses.', 'spdx', 'DEPENDENCY_OF'],
+            ['20', '10', 'uses', 'SPDX 2.3 DEPENDS_ON (A depends on B) — an Implementation uses a Technique. Close in spirit to PROV-O prov:used (Activity used Entity).', 'spdx', 'DEPENDS_ON'],
         ];
 
         $reverseSeed = [
             ['specs', 'specifiedBy'],
             ['documents', 'documentedBy'],
             ['specifiedBy', 'specs'],
-            ['uses', 'used'],
+            ['usedBy', 'uses'],
             ['documentedBy', 'documents'],
-            ['used', 'uses'],
+            ['uses', 'usedBy'],
         ];
 
         // 可重複執行（2026-10-02）：每一筆都經過 relation()，以 name 為鍵「沒有才建」，
@@ -71,23 +75,23 @@ class RelationSeeder extends Seeder
             Relation::where('name', $subject)->whereNull('reverse_id')->update(['reverse_id' => $reverseId]);
         }
 
-        // 「assisted-by」/「assists」跟「used」/「uses」同一組 class_number，
-        // 差別在 AI 只提供建議(assisted-by/assists)還是直接產出/執行成品(uses/used)。
+        // 「assisted-by」/「assists」跟「uses」/「usedBy」同一組 class_number，
+        // 差別在 AI 只提供建議(assisted-by/assists)還是直接產出/執行成品(uses/usedBy)。
         //
         // 2026-09-12 修正：這兩組原本用 parent_class 把 assists/assisted-by
-        // 掛成 uses/used 的子關係，是誤用——assists 的定義明講「非直接產出/
+        // 掛成 uses/usedBy 的子關係，是誤用——assists 的定義明講「非直接產出/
         // 執行成品」，明確排除了 uses 的情況，依 RDFS rdfs7（子屬性的每一筆
         // 事實都蘊含父屬性成立），assists ⊑ uses 會導出自相矛盾的蘊含。兩者
         // 該是平輩（互斥），不是父子——比照 SPDX 3.0.1 RelationshipType 把
         // usesTool／dependsOn 並列為平輩的先例（class_number 相同、call_number
         // 不同就足夠表達「同一組裡的另一個關係」，不需要再疊加 parent_class）。
-        // source_term 依語意就近指派方向(assists＝借助工具但非直接產出，對應
-        // usesTool；assisted-by 對應 dependsOn)——note 只具名了「usesTool／
-        // dependsOn 的平輩先例」這個結構性借用，沒有逐字寫明哪個方向對應哪個
-        // 詞條，這裡的把握比 documents/requires 這種直接具名的低,理由完整記在
-        // 回填 migration 的 docblock。
+        // source_term：assisted-by（實作 → AI 工具）對應 SPDX 3.0.1 usesTool（「from 把 to
+        // 當工具用」，from 是實作），assists 是反向、SPDX 3 沒有反向詞條，照 documentedBy
+        // 的慣例沿用 usesTool。2026-09-30 以前 assisted-by 對到 dependsOn——那是 uses 的
+        // 詞條，跟上面「與 uses 平輩」自相矛盾，修正經過見
+        // 2026_09_30_180000_fix_uses_relation_direction.php。
         $childSeeds = [
-            ['20', '10', 'assisted-by', 'dependsOn'],
+            ['20', '10', 'assisted-by', 'usesTool'],
             ['10', '20', 'assists', 'usesTool'],
         ];
 
@@ -101,7 +105,7 @@ class RelationSeeder extends Seeder
                 'class_number' => $subject->class_number[0].$object->class_number[0],
                 'call_number' => '10',
                 'name' => $name,
-                'note' => 'AI 輔助但非直接產出/執行成品；與 uses/used 平輩，不是子關係（比照 SPDX usesTool/dependsOn 的平輩先例）。',
+                'note' => 'AI 輔助但非直接產出/執行成品；與 uses/usedBy 平輩，不是子關係（比照 SPDX usesTool/dependsOn 的平輩先例）。',
                 'source_vocabulary' => 'spdx',
                 'source_term' => $sourceTerm,
             ]);
