@@ -35,9 +35,9 @@ class TokenRefreshController extends Controller
      * 不帶 Authorization header，只看 refresh cookie。換發、重放偵測、90 天上限都在
      * App\Service\RefreshTokenFamilies::rotate()，這裡只把結果對應成回應：
      *
-     * - 換發成功 → 200＋新 cookie。
-     * - 同一支剛被用掉（寬限秒數內，兩個分頁同時換發）→ 409，不動 cookie：
-     *   瀏覽器裡的 cookie 多半已經是先到那個請求換出來的新值，清掉會把它也登出。
+     * - 換發成功 → 200＋新 cookie（包含寬限秒數內、從剛換出來的那支接著換發的情況）。
+     * - 同一支剛被用掉、它換出來的那支也用掉了（寬限秒數內）→ 409，不動 cookie：
+     *   瀏覽器裡的 cookie 多半已經是別的請求換出來的新值，清掉會把它也登出。
      *   前端收到 409 會稍等再用（新的）cookie 重試一次。
      * - 其他（無效、過期、重放→家族已撤銷、超過 90 天上限）→ 401＋清 cookie。
      */

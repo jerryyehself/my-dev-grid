@@ -71,10 +71,9 @@ return [
     // 算起，換發不會延後。超過就不再換發、要重新登入。
     'refresh_token_max_lifetime' => (int) env('SANCTUM_REFRESH_TOKEN_MAX_LIFETIME', 129600),
 
-    // 已經用掉的 refresh token 在幾秒內又被送來，算「同一個瀏覽器兩個分頁同時換發」
-    // 而不是被偷（回 409、不撤銷）；超過這個秒數才觸發整個家族撤銷。前端平常用
-    // Web Locks 讓分頁排隊，只有不支援的瀏覽器才會撞到這個寬限期。取捨見
-    // App\Service\RefreshTokenFamilies 的類別註解。
+    // 已經用掉的 refresh token 在幾秒內又被送來，不算被偷（兩個分頁同時換發、換發回應
+    // 還沒到就重新整理）：從它換出來、還沒用過的那支接著換發，或回 409，都不撤銷；
+    // 超過這個秒數才觸發整個家族撤銷。取捨見 App\Service\RefreshTokenFamilies 的類別註解。
     'refresh_token_reuse_grace_seconds' => (int) env('SANCTUM_REFRESH_TOKEN_REUSE_GRACE', 10),
 
     /*

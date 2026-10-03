@@ -15,9 +15,9 @@ enum RefreshTokenOutcome
     case Invalid;
 
     /**
-     * 剛剛（寬限秒數內）才被用掉的 token 又被送來：視為同一個瀏覽器的兩個分頁
-     * 同時換發（Web Locks 不可用時會發生），不撤銷家族，也不清 cookie——
-     * 瀏覽器裡的 cookie 很可能已經是先到那個請求換出來的新值。
+     * 剛剛（寬限秒數內）才被用掉的 token 又被送來，而且它換出來的那支也已經用掉了
+     * （同一支被三個以上的請求同時送來）：不撤銷家族，也不清 cookie——
+     * 瀏覽器裡的 cookie 很可能已經是別的請求換出來的新值。
      */
     case ConcurrentReplay;
 

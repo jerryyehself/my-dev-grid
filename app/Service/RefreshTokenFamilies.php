@@ -23,17 +23,24 @@ use Laravel\Sanctum\PersonalAccessToken;
  * - 單次使用＋重放偵測：換發時舊的那支標記 used_at（不刪），之後再被送來就是重放。
  *   重放超過寬限秒數 → 視為被偷，整個家族（所有 refresh token 跟它們的 access token）
  *   一起撤銷。秘密不符的請求不會動到任何家族（不然知道 id 就能把別人登出）。
- * - 寬限秒數（預設 10 秒）內的重放：視為同一個瀏覽器兩個分頁同時換發
- *   （前端用 Web Locks 排隊，不支援的瀏覽器才會撞），回 ConcurrentReplay、不撤銷。
- *   取捨：寬限期內偵測不到重放，但寬限期內的重放也拿不到任何 token；
- *   過了寬限期再被送來一樣會觸發撤銷。
+ * - 寬限秒數（預設 10 秒）內的重放：不當成被偷。兩種正常情況會這樣：
+ *   (a) 沒有 Web Locks 的瀏覽器兩個分頁同時換發；(b) 換發回應還沒到瀏覽器就重新整理
+ *   （Cloud Run 冷啟動時換發要好幾秒，很容易發生）——伺服器已經換掉，瀏覽器還拿著舊的。
+ *   這時如果「用掉它時換出來的那支」（直接後繼）還沒被用過，就改從後繼換發一組給它
+ *   （後繼標記用掉、它的 access token 撤銷）；後繼也已經用掉才回 ConcurrentReplay（409）。
+ *   沒有這一步，(b) 會變成：寬限期內 409、下一次重新整理超過寬限期 → 判定重放 → 站主被登出。
+ *   取捨：偷到舊值、又剛好在合法換發後 10 秒內送出的人，能拿到一組 token——但這等於他
+ *   早幾秒拿去用（偷到還沒用過的 refresh token 本來就換得到），不是新的能力；而且受害者
+ *   手上的那支也因此變成「已用掉」，受害者下一次換發（最晚 access token 15 分鐘到期時）
+ *   就會觸發整個家族撤銷，把他一起踢掉。任何時候一個家族裡活著的 refresh token 只有一支。
+ *   過了寬限期再被送來一律撤銷。
  * - 絕對上限：family_started_at 是原始登入時間，換發不延後；超過
  *   sanctum.refresh_token_max_lifetime（預設 90 天）就撤銷整個家族，要重新登入。
  *   新發的 refresh token 到期時間也不會超過這個上限。
  *
  * 併發（pgsql）：先不加鎖讀出 token 拿到 family_id，再把整個家族的資料列
  * 「依 id 排序」SELECT ... FOR UPDATE。換發跟撤銷都用同一個順序加鎖，不會互相 deadlock；
- * 同一支 token 同時換發時，後到的等先到的 commit，再看到 used_at → ConcurrentReplay。
+ * 同一支 token 同時換發時，後到的等先到的 commit，再看到 used_at → 走上面的寬限期規則。
  * 撤銷時的 DELETE 是加鎖之後另一個 statement，看得到等待期間別人 commit 的新資料列。
  * sqlite 會忽略 FOR UPDATE，但寫入本來就整個資料庫序列化（只用在測試）。
  */
@@ -102,13 +109,23 @@ class RefreshTokenFamilies
             }
 
             // 加鎖後拿到的是最新 commit 的版本；等待期間被刪掉的就不會在裡面
-            $token = $this->lockFamily($peek)->firstWhere('id', $peek->getKey());
+            $family = $this->lockFamily($peek);
+            $token = $family->firstWhere('id', $peek->getKey());
             if ($token === null) {
                 return [RefreshTokenOutcome::Invalid, null];
             }
 
             if ($token->used_at !== null) {
                 if ($token->used_at->gt(now()->subSeconds($this->graceSeconds()))) {
+                    // 寬限期內：它的直接後繼（同一家族裡 id 緊接在後的那支，就是用掉它時
+                    // 換出來的）還沒被用過，代表那次換發的結果瀏覽器多半沒收到（回應途中
+                    // 重新整理、連線中斷），或是另一個分頁的換發才剛完成。改從後繼換發，
+                    // 家族裡活著的 refresh token 仍然只有一支；後繼也已經用掉就回 409。
+                    $successor = $family->first(fn (RefreshToken $row) => $row->getKey() > $token->getKey());
+                    if ($successor !== null && $successor->used_at === null) {
+                        return $this->rotateUnused($successor);
+                    }
+
                     return [RefreshTokenOutcome::ConcurrentReplay, null];
                 }
 
@@ -122,38 +139,49 @@ class RefreshTokenFamilies
                 return [RefreshTokenOutcome::ReuseDetected, null];
             }
 
-            // 上限先於單支到期檢查：最後一支的到期時間被截在上限上，過了上限要清掉整個家族
-            $startedAt = $token->family_started_at ?? $token->created_at;
-            if (! $this->familyEndsAt($startedAt)->isFuture()) {
-                $this->revokeFamilyOf($token);
-
-                return [RefreshTokenOutcome::SessionCapReached, null];
-            }
-
-            if ($token->expires_at === null || ! $token->expires_at->isFuture()) {
-                return [RefreshTokenOutcome::Invalid, null];
-            }
-
-            $user = $token->tokenable;
-            if (! $user instanceof User) {
-                return [RefreshTokenOutcome::Invalid, null];
-            }
-
-            // family_id 是 null 的舊資料列（加家族欄位之前發的）：換發時補上，
-            // 之後重放這支也能追到新家族
-            $familyId = $token->family_id ?? (string) Str::uuid();
-
-            RefreshToken::query()->whereKey($token->getKey())->update([
-                'used_at' => now(),
-                'family_id' => $familyId,
-                'family_started_at' => $startedAt,
-            ]);
-            if ($token->access_token_id !== null) {
-                PersonalAccessToken::query()->whereKey($token->access_token_id)->delete();
-            }
-
-            return [RefreshTokenOutcome::Rotated, $this->issue($user, $familyId, $startedAt->copy())];
+            return $this->rotateUnused($token);
         });
+    }
+
+    /**
+     * 換發一支（已加鎖、還沒用過的）refresh token：標記 used_at、刪掉它綁定的
+     * access token，在同一個家族發新的一組。
+     *
+     * @return array{0: RefreshTokenOutcome, 1: TokensDTO|null}
+     */
+    private function rotateUnused(RefreshToken $token): array
+    {
+        // 上限先於單支到期檢查：最後一支的到期時間被截在上限上，過了上限要清掉整個家族
+        $startedAt = $token->family_started_at ?? $token->created_at;
+        if (! $this->familyEndsAt($startedAt)->isFuture()) {
+            $this->revokeFamilyOf($token);
+
+            return [RefreshTokenOutcome::SessionCapReached, null];
+        }
+
+        if ($token->expires_at === null || ! $token->expires_at->isFuture()) {
+            return [RefreshTokenOutcome::Invalid, null];
+        }
+
+        $user = $token->tokenable;
+        if (! $user instanceof User) {
+            return [RefreshTokenOutcome::Invalid, null];
+        }
+
+        // family_id 是 null 的舊資料列（加家族欄位之前發的）：換發時補上，
+        // 之後重放這支也能追到新家族
+        $familyId = $token->family_id ?? (string) Str::uuid();
+
+        RefreshToken::query()->whereKey($token->getKey())->update([
+            'used_at' => now(),
+            'family_id' => $familyId,
+            'family_started_at' => $startedAt,
+        ]);
+        if ($token->access_token_id !== null) {
+            PersonalAccessToken::query()->whereKey($token->access_token_id)->delete();
+        }
+
+        return [RefreshTokenOutcome::Rotated, $this->issue($user, $familyId, $startedAt->copy())];
     }
 
     /**

@@ -233,24 +233,51 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($otherRefresh))->assertOk();
     }
 
-    public function test_a_concurrent_replay_within_the_grace_period_gets_409_and_does_not_revoke_anything()
+    public function test_a_replay_within_the_grace_period_continues_from_the_unused_successor()
     {
-        // 兩個分頁同時拿同一支換發（Web Locks 不可用時）：只有一個換得到，
-        // 另一個 409、不清 cookie、不撤銷家族
+        // 換發回應還沒到瀏覽器就重新整理（或沒有 Web Locks 的兩個分頁同時換發）：
+        // 伺服器已經把 T1 換成 T2，瀏覽器還拿著 T1。寬限期內再送 T1，從還沒用過的 T2
+        // 接著換發，不當成被偷、不撤銷家族
         $this->createUser();
-        $value = $this->refreshCookie($this->login())->getValue();
+        $t1 = $this->refreshCookie($this->login())->getValue();
 
-        $winner = $this->send('POST', '/api/auth/refresh', $this->cookieJar($value));
-        $loser = $this->send('POST', '/api/auth/refresh', $this->cookieJar($value));
+        $lost = $this->send('POST', '/api/auth/refresh', $this->cookieJar($t1));
+        $lost->assertOk();
+        $t2 = $this->refreshCookie($lost)->getValue();
 
-        $winner->assertOk();
-        $loser->assertStatus(409);
-        $this->assertNull($this->refreshCookie($loser), '409 不能清 cookie：瀏覽器裡多半已經是新值');
-        $this->assertNull($loser->json('token'));
+        $retry = $this->send('POST', '/api/auth/refresh', $this->cookieJar($t1));
+        $retry->assertOk();
+        $t3 = $this->refreshCookie($retry)->getValue();
+        $this->assertNotSame($t2, $t3);
 
-        // 先到那個換出來的仍然有效
-        $this->send('GET', '/api/user', headers: ['Authorization' => 'Bearer '.$winner->json('token')])->assertOk();
-        $this->send('POST', '/api/auth/refresh', $this->cookieJar($this->refreshCookie($winner)->getValue()))->assertOk();
+        // 家族裡活著的 refresh token 只有一支（T3），T2 的 access token 一起撤銷
+        $this->assertSame(1, RefreshToken::query()->whereNull('used_at')->count());
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->send('GET', '/api/user', headers: ['Authorization' => 'Bearer '.$lost->json('token')])->assertUnauthorized();
+        $this->send('GET', '/api/user', headers: ['Authorization' => 'Bearer '.$retry->json('token')])->assertOk();
+
+        // 同一支 T1 第三次：它的後繼 T2 已經用掉 → 409、不清 cookie、不撤銷
+        $third = $this->send('POST', '/api/auth/refresh', $this->cookieJar($t1));
+        $third->assertStatus(409);
+        $this->assertNull($this->refreshCookie($third), '409 不能清 cookie：瀏覽器裡多半已經是新值');
+        $this->assertNull($third->json('token'));
+
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($t3))->assertOk();
+    }
+
+    public function test_after_a_grace_handoff_the_bypassed_token_is_still_detected_as_reuse_later()
+    {
+        // 寬限期內從後繼換發之後，被跳過的那支（T2）之後再被送來，照樣觸發家族撤銷
+        $this->createUser();
+        $t1 = $this->refreshCookie($this->login())->getValue();
+        $t2 = $this->refreshCookie($this->send('POST', '/api/auth/refresh', $this->cookieJar($t1)))->getValue();
+        $t3 = $this->refreshCookie($this->send('POST', '/api/auth/refresh', $this->cookieJar($t1)))->getValue();
+
+        $this->travel(config('sanctum.refresh_token_reuse_grace_seconds') + 1)->seconds();
+
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($t2))->assertUnauthorized();
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($t3))->assertUnauthorized();
+        $this->assertDatabaseCount('personal_refresh_tokens', 0);
     }
 
     public function test_a_wrong_secret_for_an_existing_id_does_not_revoke_the_family()
