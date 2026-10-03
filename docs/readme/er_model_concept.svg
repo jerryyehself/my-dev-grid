@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 1780" width="1650" height="1780" role="img" aria-label="Documentation、Technique、Implementation 三個大類，各自底下有子類（Documentation 下有 sourcesite、document、post、conversation；Technique 下有 language、environment、packagetool、framework、assistant；Implementation 下有 work、project、problem、picture）。每個方向各一支單向箭頭，從主詞指向受詞：Documentation specs Technique、Technique specifiedBy Documentation；Documentation documents Implementation、Implementation documentedBy Documentation；Implementation uses Technique、Technique usedBy Implementation，代表技術或 AI 直接產出、執行成果；Implementation assisted-by Technique、Technique assists Implementation，代表 AI 只提供建議，與 uses／usedBy 並存的平輩謂語。三個大類各自右上角都標了 entity_relations 的小迴圈，代表這個 Model 也能透過 entity_relations 表跟自己同型態的另一筆紀錄建立關聯，這是目前預留、尚未 seed 具體謂語的機制。每條線在紀錄層級都掛著 relation_id，回指某一筆 Relation。">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 1780" width="1650" height="1780" role="img" aria-label="Documentation、Technique、Implementation 三個大類，各自底下有子類（Documentation 下有 sourcesite、document、post、conversation；Technique 下有 language、environment、packagetool、framework、assistant；Implementation 下有 work、project、problem、picture）。每個方向各一支單向箭頭，從主詞指向受詞：Documentation specs Technique、Technique specifiedBy Documentation；Documentation documents Implementation、Implementation documentedBy Documentation；Implementation uses Technique、Technique usedBy Implementation，代表技術或 AI 直接產出、執行成果；Implementation assisted-by Technique、Technique assists Implementation，代表 AI 只提供建議，與 uses／usedBy 並存的平輩謂語。三個大類各自右上角都標了 entity_relations 的小迴圈，代表這個 Model 也能透過 entity_relations 表跟自己同型態的另一筆紀錄建立關聯，例如 Technique 的 requires（框架需要語言）與 isVersionOf／hasVersion（Vue 3 是 Vue 的一個版本，2026-09-30 加入）。每條線在紀錄層級都掛著 relation_id，回指某一筆 Relation。">
   <style>
     text { font-family: Georgia, "Noto Serif TC", serif; }
     .box-doc  { fill: rgba(63,98,18,0.07);  stroke: #3f6212; }
@@ -156,7 +156,7 @@
   <text class="legend" x="182" y="1690">AI 僅提供建議（assists／assisted-by）</text>
 
   <path class="edge" stroke-dasharray="4 4" d="M 124 1710 C 124 1694, 156 1694, 156 1710" marker-end="url(#arrowMuted2)"></path>
-  <text class="legend" x="182" y="1720">entity_relations（同型態，預留機制）</text>
+  <text class="legend" x="182" y="1720">entity_relations（同型態：requires、isVersionOf…）</text>
 
   <line x1="110" y1="1752" x2="166" y2="1752" class="edge" marker-end="url(#arrowMuted2)"></line>
   <text class="legend" x="182" y="1757">箭頭從主詞指向受詞，每個方向各一支，標的是那個方向的述詞（例：實作 uses 技術）</text>
