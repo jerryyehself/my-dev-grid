@@ -80,6 +80,45 @@ class RelationEdgesTest extends TestCase
         }
     }
 
+    /**
+     * 技術的名稱要帶版本，規則跟圖譜節點的 label 同一條（`Technique::labelFrom()`）。
+     *
+     * 版本是獨立的一筆、title 相同（2026-09-30），只取 title 的話 `Vue 3 isVersionOf Vue`
+     * 會顯示成 `Vue isVersionOf Vue`。同時涵蓋 entity_relations（技術對技術，兩端都有
+     * version）與 pivot（文章那一端沒有 version 欄位，UNION 裡補 NULL）兩種分支。
+     */
+    public function test_technique_titles_carry_their_version()
+    {
+        $relation = Relation::factory()->create();
+        $vue = Technique::factory()->create(['title' => 'Vue']);
+        $vue3 = Technique::factory()->create(['title' => 'Vue', 'version' => '3']);
+
+        EntityRelation::factory()->create([
+            'entity_type' => 'technique',
+            'subject_id' => $vue3->id,
+            'object_id' => $vue->id,
+            'relation_id' => $relation->id,
+        ]);
+
+        $documentation = Documentation::factory()->create(['title' => 'Vue 3 升級筆記']);
+        $documentation->techniques()->attach($vue3->id, ['relation_id' => $relation->id]);
+
+        $edges = collect($this->getJson("/api/relations/{$relation->id}/edges")->assertOk()->json('data'))
+            ->keyBy('source');
+
+        $this->assertSame('Vue 3', $edges['entity_relations']['subject_title']);
+        $this->assertSame('Vue', $edges['entity_relations']['object_title'], '版本留空的那筆只有 title。');
+
+        $this->assertSame('Vue 3 升級筆記', $edges['documentation_technique']['subject_title'], '文章沒有版本，名稱不變。');
+        $this->assertSame('Vue 3', $edges['documentation_technique']['object_title']);
+
+        // 算名稱用的 version 欄位不外流：前端拿到的已經是組好的名稱，再給一份原料只會被拼第二次。
+        foreach ($edges as $edge) {
+            $this->assertArrayNotHasKey('subject_version', $edge);
+            $this->assertArrayNotHasKey('object_version', $edge);
+        }
+    }
+
     public function test_edges_of_another_relation_are_not_included()
     {
         $relation = $this->relationWithOneEdgePerTable();

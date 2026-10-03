@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Models\Documentation;
 use App\Models\Relation;
+use App\Models\Technique;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,10 @@ use Illuminate\Support\Facades\DB;
  * 都自己 `whereNull('deleted_at')`——否則已刪除的實體會從邊的清單裡冒出來。
  * 同一個理由，草稿文章也要自己濾：沒登入的請求看不到草稿，連到草稿的邊也不列
  * （`Documentation::viewerCanSeeDrafts()`，2026-09-30）。
+ *
+ * `subject_title`／`object_title` 是**顯示用的名稱**：技術帶版本（「Vue 3」），規則跟
+ * 圖譜節點的 label 是同一條 `Technique::labelFrom()`（2026-10-03）。只取 title 的話，
+ * `Vue 3 isVersionOf Vue` 這條邊會顯示成 `Vue isVersionOf Vue`。
  */
 class RelationEdgeQuery
 {
@@ -56,7 +61,26 @@ class RelationEdgeQuery
             ->orderBy('subject_id')
             ->orderBy('object_type')
             ->orderBy('object_id')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->through(fn (object $edge) => $this->withDisplayTitles($edge));
+    }
+
+    /**
+     * 把 title 換成顯示用的名稱，再拿掉只為了算名稱才多選的 version 欄位。
+     *
+     * 為什麼在 PHP 裡拼、不在 SQL 裡 `title || ' ' || version`：規則（version 留空就只有
+     * title）已經寫在 `Technique::labelFrom()`，SQL 再寫一份就是兩份會各自漂移的規則；
+     * 而且這裡只處理分頁後的那一頁（最多 MAX_PER_PAGE 筆），不是全部的邊。
+     * version 欄位不留在回應裡：前端拿到的已經是組好的名稱，多給一份原料只會讓呼叫端
+     * 有機會再拼一次，變成「Vue 3 3」。
+     */
+    private function withDisplayTitles(object $edge): object
+    {
+        $edge->subject_title = Technique::labelFrom($edge->subject_title, $edge->subject_version);
+        $edge->object_title = Technique::labelFrom($edge->object_title, $edge->object_version);
+        unset($edge->subject_version, $edge->object_version);
+
+        return $edge;
     }
 
     /**
@@ -175,13 +199,30 @@ class RelationEdgeQuery
             DB::raw($this->quoted($subjectType).' as subject_type'),
             'subject.id as subject_id',
             'subject.title as subject_title',
+            $this->versionColumn($subjectType, 'subject'),
             DB::raw($this->quoted($objectType).' as object_type'),
             'object.id as object_id',
             'object.title as object_title',
+            $this->versionColumn($objectType, 'object'),
             // 這筆邊是從哪張表來的。除錯時分得出「同一對實體的兩條邊」來自不同的
             // 連結表，前端也可以據此決定要連到哪個畫面。
             DB::raw($this->quoted($source).' as source'),
         ];
+    }
+
+    /**
+     * 只有 techniques 有 version 欄位；documentations／implementations 沒有，那一格補 NULL，
+     * 讓六個分支的欄位數與位置還是一樣（見上面 UNION 按位置對齊的提醒）。
+     *
+     * NULL 明確轉成字串型別：第一個分支（documentation_implementation）兩端都不是技術，
+     * 裸的 NULL 在 PostgreSQL 是 unknown 型別，交給 UNION 去推導雖然目前推得出來，
+     * 但寫明型別比依賴推導規則可靠。
+     */
+    private function versionColumn(string $type, string $alias): mixed
+    {
+        return $type === 'technique'
+            ? $alias.'.version as '.$alias.'_version'
+            : DB::raw('CAST(NULL AS VARCHAR(255)) as '.$alias.'_version');
     }
 
     /**
