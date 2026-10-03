@@ -100,7 +100,10 @@ class TokenLoginControllerTest extends TestCase
         ]);
         $token = $user->createToken('my-dev-grid-front')->plainTextToken;
 
+        // 登出 2026-10-03 起要求 Origin＝FRONTEND_URL（EnsureFrontendOrigin），
+        // 瀏覽器裡的前端一定會帶，這裡照實際請求補上。
         $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('Origin', config('app.frontend_url'))
             ->postJson('/api/auth/logout');
 
         $response->assertOk();
@@ -118,10 +121,14 @@ class TokenLoginControllerTest extends TestCase
             ->assertUnauthorized();
     }
 
-    public function test_logout_requires_a_token()
+    public function test_logout_requires_the_frontend_origin()
     {
-        $response = $this->postJson('/api/auth/logout');
+        // 登出不要求 token（refresh cookie 也能登出，見 RefreshTokenCookieTest），
+        // 但一定要從前端網站發出
+        $this->postJson('/api/auth/logout')->assertForbidden();
 
-        $response->assertUnauthorized();
+        $this->withHeader('Origin', config('app.frontend_url'))
+            ->postJson('/api/auth/logout')
+            ->assertOk();
     }
 }

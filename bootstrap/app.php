@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsureFrontendOrigin;
+use App\Http\RefreshTokenCookie;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -53,6 +55,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // 整組 routes/api.php 套用名為 'api' 的 limiter（定義在
         // AppServiceProvider::boot：每分鐘 60 次、依 IP）。
         $middleware->throttleApi('api');
+
+        // refresh token cookie 不經過 EncryptCookies。routes/api.php 平常沒有
+        // EncryptCookies（那是 web group 的），但 statefulApi() 會在請求來自
+        // SANCTUM_STATEFUL_DOMAINS 時把它加進來——到時候讀到的 cookie 會被當成
+        // 加密值解密失敗、變成 null。值本身是套件發的隨機 token（資料庫只存雜湊），
+        // 不需要再加密一層；列進 except，不管走哪條路徑讀寫的都是同一個原始值。
+        $middleware->encryptCookies(except: [RefreshTokenCookie::NAME]);
+
+        // 會讀寫 refresh cookie 的端點要求 Origin＝FRONTEND_URL，見 EnsureFrontendOrigin。
+        $middleware->alias([
+            'frontend.origin' => EnsureFrontendOrigin::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

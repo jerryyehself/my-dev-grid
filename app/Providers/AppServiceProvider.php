@@ -51,7 +51,7 @@ class AppServiceProvider extends ServiceProvider
      * 定義具名 rate limiter（Laravel 官方文件：Routing → Rate Limiting）。
      * 超過上限時 throttle middleware 回 HTTP 429（含 Retry-After header）。
      *
-     * 三個 limiter 在快取裡各用自己的 key 前綴，桶子互不影響。
+     * 各 limiter 在快取裡各用自己的 key 前綴，桶子互不影響。
      * 正式環境 CACHE_STORE=database，所有 Cloud Run instance 共用同一份計數。
      */
     protected function configureRateLimiting(): void
@@ -73,6 +73,15 @@ class AppServiceProvider extends ServiceProvider
         // 擋掉會直接看到錯誤頁，所以額度給寬一點。這兩支本身不驗證密碼、不能被拿來
         // 猜密碼，限制只是避免有人狂打去消耗對 Google/LINE 的呼叫與建立帳號。
         RateLimiter::for('social-login', fn (Request $request) => Limit::perMinute(20)->by(self::clientIp($request)));
+
+        // refresh token 換發（POST /api/auth/refresh、POST /api/auth/session）：每分鐘 30 次，依 IP。
+        //
+        // 不共用 5 次的 login limiter：前端每次整頁重新整理都會打一次 refresh，
+        // access token 過期（401）時也會打一次，作者自己開幾個分頁、連按幾次重新整理
+        // 就會用完 5 次，被擋下來等於被登出；反過來也不該讓重新整理吃掉帳密登入的額度。
+        // refresh token 是 40 字元隨機值（資料庫只存雜湊），用猜的不可行，這裡的限制
+        // 只是擋異常的大量請求。整組 api 每分鐘 60 次的上限照樣疊在上面。
+        RateLimiter::for('token-refresh', fn (Request $request) => Limit::perMinute(30)->by(self::clientIp($request)));
     }
 
     /**

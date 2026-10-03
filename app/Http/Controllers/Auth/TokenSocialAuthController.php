@@ -24,6 +24,13 @@ class TokenSocialAuthController extends Controller
 {
     private const ALLOWED_PROVIDERS = ['google', 'line'];
 
+    /**
+     * 回呼發的 token 用這個名稱，跟帳密登入／換發出來的 access token（套件命名
+     * 'access-token'）分開。POST /api/auth/session 只接受這個名稱的 token，
+     * 見 TokenRefreshController::session。
+     */
+    public const CALLBACK_TOKEN_NAME = 'oauth-callback';
+
     public function redirect(string $provider): RedirectResponse
     {
         abort_unless(in_array($provider, self::ALLOWED_PROVIDERS, true), 404);
@@ -58,7 +65,18 @@ class TokenSocialAuthController extends Controller
             return redirect(config('app.frontend_url').'/?auth_error=not_authorized');
         }
 
-        $token = $identity->user->createToken('my-dev-grid-front')->plainTextToken;
+        // 這支回呼「不」設 refresh cookie：這裡是 run.app 的頂層導覽，Partitioned
+        // cookie 會存進 run.app 自己的分區，jerrylib.com 頁面永遠讀不到——前端要
+        // 拿這支短效 token 去打 POST /api/auth/session 換成正式的一組，cookie 才會
+        // 落在 jerrylib.com 的分區（詳見 TokenRefreshController 的類別註解）。
+        //
+        // 壽命跟一般 access token 一樣（sanctum.expiration，預設 15 分鐘），不是
+        // 更短：舊版前端（還沒接 session 端點）直接拿這支當登入 token 用。
+        $token = $identity->user->createToken(
+            self::CALLBACK_TOKEN_NAME,
+            ['*'],
+            now()->addMinutes((int) config('sanctum.expiration')),
+        )->plainTextToken;
 
         // Token 放在 URL fragment（#token=...），不是 query string：fragment
         // 不會被送到任何伺服器（包含前端自己的 hosting），瀏覽器也不會把它

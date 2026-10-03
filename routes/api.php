@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\TokenLoginController;
+use App\Http\Controllers\Auth\TokenRefreshController;
 use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\GraphController;
 use App\Http\Controllers\ImplementationController;
@@ -26,9 +27,28 @@ Route::get('/user', function (Request $request) {
 Route::post('/auth/login', [TokenLoginController::class, 'login'])
     ->middleware('throttle:login')
     ->name('api.auth.login');
+// 登出要求 Origin＝FRONTEND_URL（frontend.origin，理由見 EnsureFrontendOrigin），
+// 但不要求有效的 access token：bearer 或 refresh cookie 任一個就能撤銷自己的登入
+// （理由見 TokenLoginController::logout）。不掛 auth:sanctum，所以另外套
+// 'token-refresh' limiter（每分鐘 30 次/IP）。
 Route::post('/auth/logout', [TokenLoginController::class, 'logout'])
-    ->middleware('auth:sanctum')
+    ->middleware(['throttle:token-refresh', 'frontend.origin'])
     ->name('api.auth.logout');
+
+// 「重新整理後維持登入」（refresh token 放在 Partitioned httpOnly cookie，
+// 見 TokenRefreshController 類別註解）：
+// - refresh：不帶 Authorization，只看 cookie，換一組新的 access＋refresh token。
+// - session：OAuth 回呼的短效 token 換成正式的一組，並設定 refresh cookie
+//   （OAuth 回呼本身不能設，CHIPS 分區的關係）。
+// 兩支都套 'token-refresh' limiter（每分鐘 30 次/IP，理由見 AppServiceProvider）
+// 跟 Origin 檢查。
+Route::middleware(['throttle:token-refresh', 'frontend.origin'])->group(function () {
+    Route::post('/auth/refresh', [TokenRefreshController::class, 'refresh'])
+        ->name('api.auth.refresh');
+    Route::post('/auth/session', [TokenRefreshController::class, 'session'])
+        ->middleware('auth:sanctum')
+        ->name('api.auth.session');
+});
 
 // 知識圖譜資料，維持完全公開，這個 PR 不動它。
 Route::get('/graph', [GraphController::class, 'index']);
