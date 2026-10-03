@@ -1,6 +1,6 @@
 # 更新紀錄
 
-「IN | ARCHIVE」（`jerrylib.com`）後端 API 的所有重要變更都記錄在這個檔案。
+「IN / ARCHIVE」（`jerrylib.com`）後端 API 的所有重要變更都記錄在這個檔案。
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
@@ -45,7 +45,7 @@ GitHub 同步
 
 - 以 Laravel Sanctum 發 API token：email＋密碼登入、登出，`GET /api/user` 查詢登入狀態（#31, #32）。
 - Google 與 LINE 社群登入（Socialite），登入後帶短效 token 導回前端（#31, #32）。
-- 重新整理後維持登入：access token 15 分鐘、refresh token 30 天且單次使用，放在 Partitioned httpOnly cookie；重放用過的 refresh token 會撤銷同一次登入的所有 token（#85）。
+- 重新整理後維持登入：access token 15 分鐘、refresh token 30 天且單次使用，放在 Partitioned httpOnly cookie；重放用過的 refresh token 會撤銷同一次登入的所有 token，從第一次登入起最多 90 天就要重新登入（#85）。
 - 草稿文章只有登入的人看得到，公開的讀取端點、圖譜與路徑查詢都不回傳草稿（#72）。
 
 部署
