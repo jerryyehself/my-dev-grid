@@ -30,11 +30,20 @@ use Illuminate\Support\Facades\Route;
 // SPA 殼頁面渲染出來，不是我們要的「未知 provider 就 404」效果。改成
 // 讓 {provider} 先原封不動吃下任何值，實際驗證交給 controller 自己的
 // abort_unless()，才能確保未知 provider 真的回 404。
-Route::get('/auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])
-    ->name('auth.social.redirect');
-Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
-    ->name('auth.social.callback');
-Route::post('/auth/login', [SessionAuthController::class, 'login'])->name('auth.login');
+//
+// Rate limit（2026-10-02 站長決定，limiter 定義在 AppServiceProvider）：
+// email+password 登入用 'login'（每分鐘 5 次/IP）；社群登入用較寬的
+// 'social-login'（每分鐘 20 次/IP），原因見該 limiter 的註解。
+// logout 不限制。
+Route::middleware('throttle:social-login')->group(function () {
+    Route::get('/auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])
+        ->name('auth.social.redirect');
+    Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])
+        ->name('auth.social.callback');
+});
+Route::post('/auth/login', [SessionAuthController::class, 'login'])
+    ->middleware('throttle:login')
+    ->name('auth.login');
 Route::post('/auth/logout', [SessionAuthController::class, 'logout'])->name('auth.logout');
 
 // my-dev-grid-front（跨 origin SPA）版的 OAuth 登入——發 Sanctum API token，
@@ -44,9 +53,11 @@ Route::post('/auth/logout', [SessionAuthController::class, 'logout'])->name('aut
 // 跟登出不需要 Socialite，所以那兩支在 routes/api.php（見該檔案）。
 // 路徑多一段 /token/，跟上面 Triple 用的 /auth/{provider}/* 區分開，
 // 兩組 controller 刻意不共用（見 TokenSocialAuthController 的類別註解）。
-Route::get('/auth/token/{provider}/redirect', [TokenSocialAuthController::class, 'redirect'])
-    ->name('auth.token.social.redirect');
-Route::get('/auth/token/{provider}/callback', [TokenSocialAuthController::class, 'callback'])
-    ->name('auth.token.social.callback');
+Route::middleware('throttle:social-login')->group(function () {
+    Route::get('/auth/token/{provider}/redirect', [TokenSocialAuthController::class, 'redirect'])
+        ->name('auth.token.social.redirect');
+    Route::get('/auth/token/{provider}/callback', [TokenSocialAuthController::class, 'callback'])
+        ->name('auth.token.social.callback');
+});
 
 Route::get('/{any}', fn () => view('app'))->where('any', '.*');

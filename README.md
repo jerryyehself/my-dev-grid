@@ -14,7 +14,7 @@
 
 判斷紀錄屬於哪個類別，主要包括文件(Documentation)、使用技術(Technique)、實際執行(Implementation)
 
-![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/scope_sample.png?raw=true "主詞/受詞範例")
+![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/scope_sample.png?raw=true "分類一覽：三大類與各自的子分類（my-dev-grid-front /ontology/scopes）")
 
 ### Relation
 
