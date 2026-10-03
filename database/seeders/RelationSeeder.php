@@ -43,6 +43,9 @@ class RelationSeeder extends Seeder
             ['uses', 'usedBy'],
         ];
 
+        // 可重複執行（2026-10-02）：每一筆都經過 relation()，以 name 為鍵「沒有才建」，
+        // 反向配對也只補還沒配對的。原本全部用 create()，正式環境跑第二次就整份重複。
+
         // 一次撈出所有 scopes 並依 is_scope_lead 分組
         $scopes = Scope::all();
 
@@ -55,7 +58,7 @@ class RelationSeeder extends Seeder
             $subject = $leadScopes->firstWhere('class_number', $from);
             $object = $leadScopes->firstWhere('class_number', $to);
 
-            Relation::create([
+            $this->relation([
                 'subject_id' => $subject->id,
                 'object_id' => $object->id,
                 'class_number' => $subject->class_number[0].$object->class_number[0],
@@ -68,7 +71,8 @@ class RelationSeeder extends Seeder
 
         foreach ($reverseSeed as [$subject, $reverse]) {
             $reverseId = Relation::where('name', $reverse)->value('id');
-            Relation::where('name', $subject)->update(['reverse_id' => $reverseId]);
+            // 只補還沒配對的：重跑時不蓋掉後台改過的反向關係（見 relation() 的說明）
+            Relation::where('name', $subject)->whereNull('reverse_id')->update(['reverse_id' => $reverseId]);
         }
 
         // 「assisted-by」/「assists」跟「uses」/「usedBy」同一組 class_number，
@@ -95,7 +99,7 @@ class RelationSeeder extends Seeder
             $subject = $leadScopes->firstWhere('class_number', $from);
             $object = $leadScopes->firstWhere('class_number', $to);
 
-            Relation::create([
+            $this->relation([
                 'subject_id' => $subject->id,
                 'object_id' => $object->id,
                 'class_number' => $subject->class_number[0].$object->class_number[0],
@@ -108,9 +112,9 @@ class RelationSeeder extends Seeder
         }
 
         $reverseId = Relation::where('name', 'assists')->value('id');
-        Relation::where('name', 'assisted-by')->update(['reverse_id' => $reverseId]);
+        Relation::where('name', 'assisted-by')->whereNull('reverse_id')->update(['reverse_id' => $reverseId]);
         $reverseId = Relation::where('name', 'assisted-by')->value('id');
-        Relation::where('name', 'assists')->update(['reverse_id' => $reverseId]);
+        Relation::where('name', 'assists')->whereNull('reverse_id')->update(['reverse_id' => $reverseId]);
 
         // dcterms:requires / dcterms:isRequiredBy (Dublin Core) — same-type
         // dependency, used via entity_relations (e.g. a Technique that
@@ -125,7 +129,7 @@ class RelationSeeder extends Seeder
         // the seeded predicates above (01/02/10/12/20/21).
         $technique = $leadScopes->firstWhere('class_number', '10');
 
-        $requires = Relation::create([
+        $requires = $this->relation([
             'subject_id' => $technique->id,
             'object_id' => $technique->id,
             'class_number' => '11',
@@ -140,7 +144,7 @@ class RelationSeeder extends Seeder
         // （見下一行），不疊加 parent_class——DCMI Metadata Terms 的
         // dcterms:requires／dcterms:isRequiredBy 皆為 dcterms:relation 的
         // 子屬性、彼此平輩，沒有互為父子，這裡比照同一個先例。
-        $isRequiredBy = Relation::create([
+        $isRequiredBy = $this->relation([
             'subject_id' => $technique->id,
             'object_id' => $technique->id,
             'class_number' => '11',
@@ -151,8 +155,7 @@ class RelationSeeder extends Seeder
             'source_term' => 'isRequiredBy',
         ]);
 
-        $requires->update(['reverse_id' => $isRequiredBy->id]);
-        $isRequiredBy->update(['reverse_id' => $requires->id]);
+        $this->pairReverse($requires, $isRequiredBy);
 
         // Implementation×Implementation 同型別關聯（class_number '22'，跟上面
         // requires/isRequiredBy 用 Technique×Technique '11' 同一個「一組
@@ -167,7 +170,7 @@ class RelationSeeder extends Seeder
         // predicate）。SPDX 2.3 relationships 定義的 DESCENDANT_OF／
         // ANCESTOR_OF：「same lineage but post-dates／pre-dates」。
         // https://spdx.github.io/spdx-spec/v3.0.1/model/Core/Vocabularies/RelationshipType/
-        $descendantOf = Relation::create([
+        $descendantOf = $this->relation([
             'subject_id' => $implementation->id,
             'object_id' => $implementation->id,
             'class_number' => '22',
@@ -178,7 +181,7 @@ class RelationSeeder extends Seeder
             'source_term' => 'DESCENDANT_OF',
         ]);
 
-        $ancestorOf = Relation::create([
+        $ancestorOf = $this->relation([
             'subject_id' => $implementation->id,
             'object_id' => $implementation->id,
             'class_number' => '22',
@@ -189,15 +192,14 @@ class RelationSeeder extends Seeder
             'source_term' => 'ANCESTOR_OF',
         ]);
 
-        $descendantOf->update(['reverse_id' => $ancestorOf->id]);
-        $ancestorOf->update(['reverse_id' => $descendantOf->id]);
+        $this->pairReverse($descendantOf, $ancestorOf);
 
         // 2026-09-11 使用者確認：兩個 repo 共同組成同一個產品（例如前後端
         // 拆分），彼此獨立但相伴而生，不是誰包含誰的 whole-part。取自 Tillett
         // (1987) 書目關係分類法的 Accompanying 類別命名——老實記錄：這不是
         // DCMI/SPDX 那種有固定 predicate URI 的機器可讀詞彙，是分類法的類別
         // 名稱，沒有更貼切的正式詞彙可用。對稱關係，reverse_id 指向自己。
-        $accompanies = Relation::create([
+        $accompanies = $this->relation([
             'subject_id' => $implementation->id,
             'object_id' => $implementation->id,
             'class_number' => '22',
@@ -207,13 +209,13 @@ class RelationSeeder extends Seeder
             'source_vocabulary' => 'tillett1987',
             'source_term' => 'Accompanying',
         ]);
-        $accompanies->update(['reverse_id' => $accompanies->id]);
+        $this->pairReverse($accompanies, $accompanies);
 
         // 2026-09-11 使用者確認：同性質的練習專案，依建立時間前後相接
         // （啟發式：同樣的技術主題 + 建立時間連續，中間沒有夾著其他主題的
         // 專案，且間隔在 1 年以內）。同樣取自 Tillett (1987) 的 Sequential
         // 類別命名，非正式機器可讀詞彙——老實記錄。
-        $precedes = Relation::create([
+        $precedes = $this->relation([
             'subject_id' => $implementation->id,
             'object_id' => $implementation->id,
             'class_number' => '22',
@@ -224,7 +226,7 @@ class RelationSeeder extends Seeder
             'source_term' => 'Sequential',
         ]);
 
-        $succeeds = Relation::create([
+        $succeeds = $this->relation([
             'subject_id' => $implementation->id,
             'object_id' => $implementation->id,
             'class_number' => '22',
@@ -235,8 +237,7 @@ class RelationSeeder extends Seeder
             'source_term' => 'Sequential',
         ]);
 
-        $precedes->update(['reverse_id' => $succeeds->id]);
-        $succeeds->update(['reverse_id' => $precedes->id]);
+        $this->pairReverse($precedes, $succeeds);
 
         // 2026-09-30 使用者同意：技術的版本各自是一筆 Technique（title 相同、version 填主版號），
         // 用 dcterms:isVersionOf／hasVersion 連回版本留空的那一筆。一個專案因此可以同時連到
@@ -245,7 +246,7 @@ class RelationSeeder extends Seeder
         // 才會跟那支 migration 補進舊資料庫的一樣。
         $versionRelations = [];
         foreach ((require database_path('migrations/2026_09_30_190100_add_technique_version_relations.php'))::RELATIONS as $name => $definition) {
-            $versionRelations[$name] = Relation::create([
+            $versionRelations[$name] = $this->relation([
                 'subject_id' => $technique->id,
                 'object_id' => $technique->id,
                 'class_number' => '11',
@@ -256,10 +257,37 @@ class RelationSeeder extends Seeder
                 'source_term' => $definition['source_term'],
             ]);
         }
-        $versionRelations['isVersionOf']->update(['reverse_id' => $versionRelations['hasVersion']->id]);
-        $versionRelations['hasVersion']->update(['reverse_id' => $versionRelations['isVersionOf']->id]);
+        // 跟上面其他述詞一樣經過 relation()／pairReverse()，重跑不會重複建、也不會蓋掉後台改過的配對（#84）
+        $this->pairReverse($versionRelations['isVersionOf'], $versionRelations['hasVersion']);
 
         // $this->createRandomRelation($nonLeadScopes);
+    }
+
+    /**
+     * 以 name 為鍵「沒有才建」：已經存在的不更新，重跑不會重複也不會改動資料。
+     *
+     * - 鍵用 name：程式裡找 relation 一律用 name（SaveReposDataService、回填
+     *   migration），資料表沒有 unique 約束可以依靠。
+     * - 不用 updateOrCreate：述詞在後台可以編輯（D-81）；而且已被引用的
+     *   relation 改到 LOCKED_FIELDS 會丟 RelationLockedException，重跑 seeder
+     *   不該碰既有資料。要改既有資料，請走後台或另寫 migration。
+     * - 含軟刪除的列（withTrashed）：後台刪掉的述詞，重跑不會又建一筆新的回來。
+     */
+    private function relation(array $attributes): Relation
+    {
+        return Relation::withTrashed()->firstOrCreate(['name' => $attributes['name']], $attributes);
+    }
+
+    /**
+     * 兩邊都還沒配對時才設反向關係（對稱關係傳同一筆兩次）。另一邊由
+     * Relation::syncReverse()（saved 事件）自動補成雙向。重跑時兩邊早已配對，
+     * 不會改動；後台改過的配對也不會被蓋回去。
+     */
+    private function pairReverse(Relation $relation, Relation $reverse): void
+    {
+        if (is_null($relation->reverse_id) && is_null($reverse->reverse_id)) {
+            $relation->update(['reverse_id' => $reverse->id]);
+        }
     }
 
     private function createRandomRelation($nonLeadScopes)

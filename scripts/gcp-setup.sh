@@ -54,7 +54,8 @@ gcloud services enable \
   artifactregistry.googleapis.com \
   secretmanager.googleapis.com \
   iamcredentials.googleapis.com \
-  cloudresourcemanager.googleapis.com
+  cloudresourcemanager.googleapis.com \
+  cloudscheduler.googleapis.com
 
 echo "==> 2. Artifact Registry"
 gcloud artifacts repositories create "$ARTIFACT_REPO" \
@@ -143,11 +144,12 @@ echo "CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME}"
 echo "DB_DATABASE=my_dev_grid"
 echo "DB_USERNAME=my_dev_grid_app"
 
-# The counts in the two echoes below (9 pushed, 16 total) are hand-maintained:
-# 9 is the number of `gh variable set` calls here, 16 is how many distinct
+# The counts in the two echoes below (9 pushed, 19 total) are hand-maintained:
+# 9 is the number of `gh variable set` calls here, 19 is how many distinct
 # `vars.*` references deploy-cloud-run.yml has. If that workflow gains or loses
 # a variable, update both this block and the "still needs a human" list at the
-# end — they were already wrong once (said "8 of the 12") before 2026-09-16.
+# end — they were already wrong once (said "8 of the 12") before 2026-09-16,
+# and again (said 16) after APP_URL/FRONTEND_URL/CLOUD_RUN_SYNC_JOB were added.
 if [ -n "$GITHUB_REPO" ] && command -v gh >/dev/null 2>&1; then
   echo
   echo "==> gh CLI found — pushing these into ${GITHUB_REPO}'s Actions Variables"
@@ -160,7 +162,7 @@ if [ -n "$GITHUB_REPO" ] && command -v gh >/dev/null 2>&1; then
   gh variable set CLOUD_SQL_CONNECTION_NAME --repo "$GITHUB_REPO" --body "$CLOUD_SQL_CONNECTION_NAME"
   gh variable set DB_DATABASE --repo "$GITHUB_REPO" --body "my_dev_grid"
   gh variable set DB_USERNAME --repo "$GITHUB_REPO" --body "my_dev_grid_app"
-  echo "Pushed 9 of the 16 repository variables deploy-cloud-run.yml reads."
+  echo "Pushed 9 of the 19 repository variables deploy-cloud-run.yml reads."
 else
   echo
   echo "==> gh CLI not found/authenticated (or GITHUB_REPO unset) — copy the 9 values"
@@ -171,6 +173,9 @@ echo
 echo "==> Still needs a human, no way around it (docs/deployment-gcp.md step 7):"
 echo "  - CLOUD_RUN_SERVICE            pick a name, e.g. my-dev-grid-api"
 echo "  - CLOUD_RUN_MIGRATE_JOB        pick a name, e.g. my-dev-grid-migrate"
+echo "  - CLOUD_RUN_SYNC_JOB           pick a name, e.g. my-dev-grid-github-sync (then step 10: Cloud Scheduler)"
+echo "  - APP_URL                      this Cloud Run service's own URL — only known after step 8's first deploy"
+echo "  - FRONTEND_URL                 the front-end site (Cloudflare), e.g. https://jerrylib.com"
 echo "  - SANCTUM_STATEFUL_DOMAINS     the production host — only known after step 8's first deploy"
 echo "  - GOOGLE_CLIENT_ID/REDIRECT_URI, LINE_CLIENT_ID/REDIRECT_URI"
 echo "                                 from the real Google Cloud Console OAuth app / LINE Developers console"

@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -27,6 +28,31 @@ return Application::configure(basePath: dirname(__DIR__))
         //
         // 內文是使用者寫的內容,不是表單欄位,後端不該在存進去之前替它做任何修改。
         $middleware->trimStrings(except: ['body']);
+
+        // 信任 Cloud Run 前端（Google Front End）轉發的 X-Forwarded-For。
+        //
+        // 正式環境跑在 Cloud Run，服務只能從 Google 的前端進來，Laravel 看到的
+        // 連線來源（REMOTE_ADDR）永遠是那一層的內部位址。沒設定信任 proxy 的話，
+        // $request->ip() 回傳的就是它，所有訪客會共用同一個 rate limit 桶子——
+        // 第 6 個人登入就全站被鎖。所以要告訴 Laravel 信任 X-Forwarded-For。
+        //
+        // 依據 Laravel 官方文件（Requests → Configuring Trusted Proxies →
+        // 「Trusting All Proxies」，`at: '*'`）；只信任 X-Forwarded-For 一個 header，
+        // 不連 Host／Proto／Port 一起信任，避免順帶改變 URL 產生與 Sanctum
+        // stateful 網域判斷的既有行為。
+        //
+        // 注意：`at: '*'` 會讓 $request->ip() 取 X-Forwarded-For 「最左邊」那個值，
+        // 而那一段是用戶端自己可以填的（Google 前端是把真實 IP 附加在最右邊）。
+        // 所以 rate limit 的 key 不直接用 $request->ip()，改用
+        // AppServiceProvider::clientIp() 取最右邊那個，避免偽造 header 繞過限制。
+        $middleware->trustProxies(
+            at: '*',
+            headers: Request::HEADER_X_FORWARDED_FOR,
+        );
+
+        // 整組 routes/api.php 套用名為 'api' 的 limiter（定義在
+        // AppServiceProvider::boot：每分鐘 60 次、依 IP）。
+        $middleware->throttleApi('api');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
