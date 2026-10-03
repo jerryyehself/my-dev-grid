@@ -100,7 +100,10 @@ class TokenLoginControllerTest extends TestCase
         ]);
         $token = $user->createToken('my-dev-grid-front')->plainTextToken;
 
+        // 登出 2026-10-03 起要求 Origin＝FRONTEND_URL（EnsureFrontendOrigin），
+        // 瀏覽器裡的前端一定會帶，這裡照實際請求補上。
         $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('Origin', config('app.frontend_url'))
             ->postJson('/api/auth/logout');
 
         $response->assertOk();
