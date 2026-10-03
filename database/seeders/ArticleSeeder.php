@@ -18,7 +18,8 @@ use RuntimeException;
  * 前提：scopes 已經有 `post`（ScopeSeeder 建的），沒有就直接丟錯，不替它補建。
  *
  * 冪等：用 title 當 key 做 updateOrCreate，重跑只會更新同一筆，不會重複新增
- * （ScopeSeeder／RelationSeeder 用 create()，正式環境跑兩次就整份重複過，這支不能犯一樣的錯）。
+ * （ScopeSeeder／RelationSeeder 原本用 create()，正式環境跑兩次就整份重複過；2026-10-02 起改成
+ * 以 name 為鍵「沒有才建」，跟這支不同的是不會蓋掉既有內容，因為分類／述詞可以在後台編輯）。
  * 代價是重跑會把 body／status 等欄位蓋回 fixture 的內容——要改文章請改 fixture 再重跑，
  * 或者直接在編輯器改、之後就別重跑。被站長軟刪除的文章不會被復活（見 run()）。
  *
