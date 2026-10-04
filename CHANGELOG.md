@@ -43,8 +43,9 @@ GitHub 同步
 
 登入與授權
 
-- 以 Laravel Sanctum 發 API token：email＋密碼登入、登出，`GET /api/user` 查詢登入狀態（#31, #32）。
-- Google 與 LINE 社群登入（Socialite），登入後帶短效 token 導回前端（#31, #32）。
+- email＋密碼登入、登出，Google 與 LINE 社群登入（Socialite），`GET /api/user` 查詢登入狀態；寫入權限由 Policy 判斷（#31, #32）。
+- 給前端用的登入端點發 Sanctum API token，社群登入完成後把 token 放在 URL fragment 帶回前端，不進伺服器存取紀錄（commit `38b9e19`）。
+- LINE 登入只申請 `openid`、`profile`，不申請 email（#90）。
 - 重新整理後維持登入：access token 15 分鐘、refresh token 30 天且單次使用，放在 Partitioned httpOnly cookie；重放用過的 refresh token 會撤銷同一次登入的所有 token，從第一次登入起最多 90 天就要重新登入（#85）。
 - 草稿文章只有登入的人看得到，公開的讀取端點、圖譜與路徑查詢都不回傳草稿（#72）。
 
@@ -53,12 +54,13 @@ GitHub 同步
 - 以 Dockerfile 建置映像檔，經 GitHub Actions 與 Workload Identity Federation 部署到 Cloud Run，資料庫為 Cloud SQL 的 PostgreSQL；部署時以 Cloud Run Job 執行 migration（#21, #37, #56, #70）。
 - GCP 手動設定步驟包成可重複執行的腳本 `scripts/gcp-setup.sh`，另附部署與基礎架構說明文件（#42, #56, #68, #77）。
 - `APP_URL` 為 https 時強制產生 https 網址，修正 OAuth 的 `redirect_uri` 變成 http（#82）。
+- 部署 workflow 同一時間只跑一個，後到的排隊，不會兩個部署同時切換流量（#89）。
 - CI 同時以 SQLite 與 PostgreSQL 18 跑測試（#38, #78）。
 
 安全性
 
 - 頻率限制，依 IP 計算：登入每分鐘 5 次、一般 API 每分鐘 60 次，社群登入與 refresh token 換發另有各自的額度（#79, #85）。
-- CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（#70, #85）。
+- CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
 [1.0.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.0.0
