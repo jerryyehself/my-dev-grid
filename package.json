@@ -10,13 +10,13 @@
         "@tailwindcss/vite": "^4.0.0",
         "@vitejs/plugin-vue": "^5.2.4",
         "autoprefixer": "^10.4.21",
-        "axios": "^1.8.2",
+        "axios": "^1.20.0",
         "concurrently": "^9.0.1",
         "laravel-vite-plugin": "^1.2.0",
-        "postcss": "^8.5.6",
+        "postcss": "^8.5.28",
         "prettier": "^3.6.0",
         "tailwindcss": "^4.1.10",
-        "vite": "^6.2.4"
+        "vite": "^6.4.3"
     },
     "dependencies": {
         "@formkit/auto-animate": "^0.8.2",
