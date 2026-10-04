@@ -43,6 +43,8 @@ php artisan test                        # 全套測試
 - `php artisan github:sync-repos` — 打 GitHub API，把 repo 資料加值成 `Implementation` / `Technique` 與它們之間的關聯
 - `php artisan github:snapshot-repos` — 把當下的 repo 資料存成快照 fixture，讓測試不用打外部 API
 
+正式環境每天跑一次 `github:sync-repos`：部署時一併更新 Cloud Run Job，由 Cloud Scheduler 觸發。
+
 ## 前端
 
 [`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)（Vue 3 SPA，部署在 Cloudflare，網址 `jerrylib.com`，正式公開前用 Cloudflare Access 鎖住）是這個 API 的公開網站，也是現在的正式管理介面：文章、`Scope`（階層分類號）、`Relation`（述詞）都在那邊新增/編輯。舊的內嵌 Vue 後台 Triple（`resources/js`，session cookie 登入）還在，但只是還沒被移除（D-48，見 `my-dev-grid-skills/docs/decision-register.md`），不是主要維護目標，也沒有 Triple 沒有而 `my-dev-grid-front` 有的資料——兩邊管的都只是 `Scope`／`Relation`。
@@ -67,10 +69,10 @@ php artisan test                        # 全套測試
 `my-dev-grid-front` 用 Sanctum **API token**，不是 session cookie（D-56，`decision-register.md`）：
 
 - 帳號密碼：`POST /api/auth/login`／`POST /api/auth/logout`，`GET /api/user` 確認登入狀態。
-- Google／LINE：`GET /auth/token/{provider}/redirect` → callback（`TokenSocialAuthController`）登入後，帶著短效 token 導回前端的 `/auth/callback`，前端再用它打 `POST /api/auth/session` 換成正式的一組。
+- Google／LINE：`GET /auth/token/{provider}/redirect` → callback（`TokenSocialAuthController`）登入後，帶著短效 token 導回前端的 `/auth/callback`，前端再用它打 `POST /api/auth/session` 換成正式的一組。LINE 只申請 `openid profile`：套件預設會帶 `email`，但頻道沒有申請 email 權限，會回 `INVALID_SCOPE`。
 - 重新整理後維持登入：access token 只活 15 分鐘（`SANCTUM_ACCESS_TOKEN_EXPIRATION`），另外發一支 30 天的 refresh token（`SANCTUM_REFRESH_TOKEN_EXPIRATION`，套件 `d076/sanctum-refresh-tokens`），放在 API 網域的 `__Host-mdg_refresh` cookie（HttpOnly、Secure、SameSite=None、Partitioned）。前端開機時打 `POST /api/auth/refresh` 換回登入狀態，每次換發都會換掉 refresh token（單次使用）；用過的 refresh token 被重放會撤銷同一次登入的所有 token（`App\Service\RefreshTokenFamilies`），一次登入最長 90 天（`SANCTUM_REFRESH_TOKEN_MAX_LIFETIME`）。登出不要求有效的 access token，refresh cookie 也能撤銷。refresh／session／logout 只接受 `Origin` 等於 `FRONTEND_URL` 的請求。為什麼 OAuth 回呼不能直接設 cookie，見 `TokenRefreshController` 的類別註解。
 
-跨 origin 的 SPA 要用 cookie 模式，前後端得共用同一個根網域。前端已經在 `jerrylib.com`，後端還沒部署、之後會先在 `*.run.app`；要等後端也掛上 `api.jerrylib.com` 這類子網域，才重新評估要不要換成 cookie 模式（`management-debt-ledger.md`）。
+跨 origin 的 SPA 要用 cookie 模式，前後端得共用同一個根網域。前端在 `jerrylib.com`，後端目前用 Cloud Run 的 `*.run.app` 網址；要等後端也掛上 `api.jerrylib.com` 這類子網域，才重新評估要不要換成 cookie 模式（`management-debt-ledger.md`）。
 
 Triple 是同源的內嵌後台，繼續用它原本的 session cookie（`SessionAuthController`，社群登入走 `/auth/{provider}/*`）。兩套認證刻意不共用同一支 controller。
 
@@ -82,4 +84,10 @@ Triple 是同源的內嵌後台，繼續用它原本的 session cookie（`Sessio
 
 Cloud Run ＋ Cloud SQL Postgres，`--min-instances=0` 可以縮到零。設計與實際設定見 [`docs/deployment-gcp.md`](docs/deployment-gcp.md)、[`docs/infrastructure-concepts.md`](docs/infrastructure-concepts.md)，workflow 在 `.github/workflows/deploy-cloud-run.yml`。
 
-**還沒做第一次部署**（`deployment-gcp.md` 第 8 步）。workflow 在 push 到 `main` 時觸發，但 GCP 相關的 repository variables 還沒設定，所以目前每次都是 skipped。
+已經部署在正式環境（服務 `my-dev-grid-api`，區域 `asia-east1`）。push 到 `main` 會觸發 workflow，依序做這幾件事：建置並推送映像檔、用 Cloud Run Job 跑 `php artisan migrate --force`、部署新版、更新每天同步 GitHub 的 Job。同一時間只跑一個部署，後到的排隊（`concurrency`）。
+
+因為 migration 跑完到新版上線之間，舊版程式還在接流量，資料庫結構變更要照 `CLAUDE.md`「資料庫結構變更的順序」分次部署。
+
+## 更新紀錄
+
+見 [`CHANGELOG.md`](CHANGELOG.md)。
