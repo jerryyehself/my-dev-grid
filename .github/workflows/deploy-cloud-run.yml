@@ -86,7 +86,10 @@ jobs:
     # Skip cleanly (no red X) until the GCP-side setup is done and these
     # variables are populated, per docs/deployment-gcp.md.
     if: vars.GCP_PROJECT_ID != '' && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
-    environment: production
+    # url 讓 repo 首頁右側的 Deployments 直接連到正式環境的服務網址。
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
 
     steps:
       - name: Checkout
@@ -134,6 +137,7 @@ jobs:
             --wait
 
       - name: Deploy to Cloud Run
+        id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
