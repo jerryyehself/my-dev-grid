@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\OauthIdentity;
+use App\Service\SocialiteDriver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Laravel\Socialite\Facades\Socialite;
 
 /**
  * my-dev-grid-front 版的 OAuth 登入回呼——跟 SocialAuthController 平行存在，
@@ -35,7 +35,7 @@ class TokenSocialAuthController extends Controller
     {
         abort_unless(in_array($provider, self::ALLOWED_PROVIDERS, true), 404);
 
-        return Socialite::driver($provider)
+        return SocialiteDriver::for($provider)
             ->redirectUrl(route('auth.token.social.callback', $provider))
             ->redirect();
     }
@@ -44,7 +44,7 @@ class TokenSocialAuthController extends Controller
     {
         abort_unless(in_array($provider, self::ALLOWED_PROVIDERS, true), 404);
 
-        $socialiteUser = Socialite::driver($provider)
+        $socialiteUser = SocialiteDriver::for($provider)
             ->redirectUrl(route('auth.token.social.callback', $provider))
             ->user();
 

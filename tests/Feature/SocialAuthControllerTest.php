@@ -31,6 +31,15 @@ class SocialAuthControllerTest extends TestCase
         $this->assertStringContainsString('google', $response->headers->get('Location'));
     }
 
+    public function test_line_redirect_requests_only_openid_and_profile_scopes()
+    {
+        $response = $this->get('/auth/line/redirect');
+
+        $response->assertRedirect();
+        parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $query);
+        $this->assertSame('openid profile', $query['scope']);
+    }
+
     public function test_callback_rejects_unknown_provider()
     {
         $response = $this->get('/auth/facebook/callback');

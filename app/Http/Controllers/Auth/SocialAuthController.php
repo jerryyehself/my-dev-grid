@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\OauthIdentity;
+use App\Service\SocialiteDriver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthController extends Controller
 {
@@ -25,7 +25,7 @@ class SocialAuthController extends Controller
     {
         abort_unless(in_array($provider, self::ALLOWED_PROVIDERS, true), 404);
 
-        return Socialite::driver($provider)->redirect();
+        return SocialiteDriver::for($provider)->redirect();
     }
 
     /**
@@ -39,7 +39,7 @@ class SocialAuthController extends Controller
     {
         abort_unless(in_array($provider, self::ALLOWED_PROVIDERS, true), 404);
 
-        $socialiteUser = Socialite::driver($provider)->user();
+        $socialiteUser = SocialiteDriver::for($provider)->user();
 
         $identity = OauthIdentity::where('provider', $provider)
             ->where('provider_user_id', $socialiteUser->getId())
