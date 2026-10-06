@@ -1,0 +1,52 @@
+name: Release
+
+# 依 CHANGELOG.md 自動建立 git tag 與 GitHub Release（D-107）。
+#
+# 為什麼不手動打 tag：雲端 Claude session 推不了 tag、也建不了 Release，
+# 所以版本只寫進 CHANGELOG.md，由這個 workflow 補成 tag＋Release。
+# 規則與本機測試方式見 .github/scripts/release-from-changelog.sh。
+#
+# 這個 workflow 只打 tag、建 Release，不部署；部署仍然是 push 到 main 時
+# 由 deploy-cloud-run.yml 負責。
+#
+# 用 GITHUB_TOKEN 建立的 tag／Release 不會再觸發其他 workflow（GitHub 刻意的
+# 防遞迴設計）。目前沒有任何 workflow 監聽 tag 或 release 事件，所以沒影響；
+# 之後如果要加，得改用 PAT 或 GitHub App token。
+
+on:
+  push:
+    branches: [main]
+    paths: ['CHANGELOG.md']
+  # 手動補跑：例如這個 workflow 剛加進來、CHANGELOG 沒變動時，補打既有版本的 tag
+  workflow_dispatch: {}
+
+# 兩次 CHANGELOG 變動接連合併時，不讓兩個 run 同時檢查「tag 存不存在」再一起建立。
+# 不中斷進行中的 run：建到一半取消，可能只建了部分版本；
+# 被取代的排隊 run 也沒關係，下一個 run 看的是最新的 CHANGELOG，會補齊。
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create releases from CHANGELOG
+    runs-on: ubuntu-latest
+    # 只在 main 上建 Release；手動觸發時選了其他分支就跳過，避免 tag 打在沒上線的 commit
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 要完整歷史才找得到「寫上日期的那個 commit」，也要有既有 tag 才能判斷哪些版本建過了
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Create missing releases
+        run: bash .github/scripts/release-from-changelog.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
