@@ -4,7 +4,7 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
-## [1.0.1] - 待上線
+## [1.0.1] - 2026-10-06
 
 ### 修正
 
