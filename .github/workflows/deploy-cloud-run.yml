@@ -58,6 +58,15 @@ name: Deploy to Cloud Run
 on:
   push:
     branches: [main]
+    # 只改文件的 push 不部署（D-107）：例如 CHANGELOG 寫上上線日期，映像檔內容不變，
+    # 重新部署只是白跑一次 build＋migration。
+    # 刻意只寫根目錄的 `*.md`、不寫 `**.md`：database/seeders/fixtures/articles/*.md
+    # 是 ArticleSeeder 讀的資料，會打包進映像檔，改了它要部署才能在正式環境重跑 seeder。
+    # 這兩個 pattern 跟 .dockerignore 排除的 `*.md`、`docs` 一致——不進映像檔的才跳過。
+    # 一次 push 裡只要有任何一個檔案不符合這兩個 pattern，就照常部署。
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
   workflow_dispatch: {}
 
 # 同一時間只跑一個部署（#81）。2026-10-02 #77～#79 幾乎同時合併，三個部署同時跑，
