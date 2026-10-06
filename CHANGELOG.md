@@ -4,6 +4,12 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [1.0.1] - 待上線
+
+### 修正
+
+- 更新前端建置用的 npm 依賴（僅 `package-lock.json`，不影響 PHP 執行環境），修正 `npm audit` 回報的 15 個有漏洞套件，其中 3 個為 critical：`form-data`、`shell-quote`、`tar`；其餘涵蓋 `axios`、`vite`、`vue`、`rollup`、`postcss` 等。
+
 ## [1.0.0] - 2026-10-04
 
 第一個公開版本。Laravel 13 寫成的 API，部署在 Cloud Run。
@@ -61,4 +67,5 @@ GitHub 同步
 - CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
+[1.0.1]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.0.1
 [1.0.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.0.0
