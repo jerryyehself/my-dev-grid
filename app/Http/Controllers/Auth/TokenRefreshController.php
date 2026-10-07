@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Exceptions\RefreshTokenRejectedException;
 use App\Http\Controllers\Auth\Concerns\IssuesFrontendTokens;
 use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
 use App\Service\RefreshTokenFamilies;
 use App\Service\RefreshTokenOutcome;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -46,14 +48,14 @@ class TokenRefreshController extends Controller
         $value = RefreshTokenCookie::read($request);
 
         if ($value === null) {
-            return $this->rejectRefresh();
+            $this->rejectRefresh();
         }
 
         [$outcome, $tokens] = $families->rotate($value);
 
         return match ($outcome) {
             RefreshTokenOutcome::Rotated => $this->tokenPairResponse($tokens),
-            RefreshTokenOutcome::ConcurrentReplay => response()->json(['message' => '登入狀態剛更新過，請重試。'], 409),
+            RefreshTokenOutcome::ConcurrentReplay => abort(409, '登入狀態剛更新過，請重試。'),
             default => $this->rejectRefresh(),
         };
     }
@@ -71,7 +73,7 @@ class TokenRefreshController extends Controller
 
         if (! $current instanceof PersonalAccessToken
             || $current->name !== TokenSocialAuthController::CALLBACK_TOKEN_NAME) {
-            return response()->json(['message' => '這個 token 不能用來建立登入狀態。'], 403);
+            abort(403, '這個 token 不能用來建立登入狀態。');
         }
 
         // 「單次使用」要用刪除的筆數判斷，不能只看 auth:sanctum 驗證時 token 還在：
@@ -90,16 +92,14 @@ class TokenRefreshController extends Controller
         });
 
         if ($tokens === null) {
-            return response()->json(['message' => 'Unauthenticated.'], 401);
+            throw new AuthenticationException;
         }
 
         return $this->tokenPairResponse($tokens);
     }
 
-    private function rejectRefresh(): JsonResponse
+    private function rejectRefresh(): never
     {
-        return response()
-            ->json(['message' => '登入已過期，請重新登入。'], 401)
-            ->withCookie(RefreshTokenCookie::forget());
+        throw new RefreshTokenRejectedException;
     }
 }

@@ -60,4 +60,6 @@ Route::middleware('throttle:social-login')->group(function () {
         ->name('auth.token.social.callback');
 });
 
-Route::get('/{any}', fn () => view('app'))->where('any', '.*');
+// SPA 殼頁面的 catch-all。排除 `api`、`api/*`：不存在的 API 路徑要回 404
+// （problem details），不是 200 的 HTML 殼頁面。
+Route::get('/{any}', fn () => view('app'))->where('any', '(?!api(?:/|$)).*');
