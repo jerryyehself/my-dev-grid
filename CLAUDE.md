@@ -60,3 +60,5 @@
   4. 確認沒問題後，再用另一次部署刪掉舊欄位
 - **回填或刪除資料的 migration**：PR 裡記錄執行前後的筆數，說明怎麼確認影響範圍正確；大量改寫資料時，先用查詢確認筆數再動手。
 - **正式環境第一次跑會刪資料的 migration 前**，先確認 Cloud SQL 有開自動備份——`docs/deployment-gcp.md` 建立 instance 的指令帶了 `--no-backup`。
+
+以上是精簡規則。分次部署的範例、PostgreSQL 的鎖與 `lock_timeout`、用 `online()` 建索引、回滾做法、合併前檢查清單，見 [`docs/zero-downtime-migrations.md`](docs/zero-downtime-migrations.md)。

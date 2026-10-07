@@ -86,7 +86,7 @@ Cloud Run ＋ Cloud SQL Postgres，`--min-instances=0` 可以縮到零。設計�
 
 已經部署在正式環境（服務 `my-dev-grid-api`，區域 `asia-east1`）。push 到 `main` 會觸發 workflow，依序做這幾件事：建置並推送映像檔、用 Cloud Run Job 跑 `php artisan migrate --force`、部署新版、更新每天同步 GitHub 的 Job。同一時間只跑一個部署，後到的排隊（`concurrency`）。
 
-因為 migration 跑完到新版上線之間，舊版程式還在接流量，資料庫結構變更要照 `CLAUDE.md`「資料庫結構變更的順序」分次部署。
+因為 migration 跑完到新版上線之間，舊版程式還在接流量，資料庫結構變更要照 `CLAUDE.md`「資料庫結構變更的順序」分次部署。改名、刪欄位、改型別、加 NOT NULL 的分次步驟，以及 PostgreSQL 鎖、`lock_timeout`、建索引、回滾的細節，見 [`docs/zero-downtime-migrations.md`](docs/zero-downtime-migrations.md)。
 
 ## 更新紀錄
 
