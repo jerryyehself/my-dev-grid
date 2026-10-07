@@ -2,6 +2,12 @@
 
 namespace App\Providers;
 
+use App\Http\RefreshTokenCookie;
+use App\OpenApi\ApiSecurity;
+use App\OpenApi\ProblemDetailsResponses;
+use Dedoc\Scramble\Scramble;
+use Dedoc\Scramble\Support\Generator\OpenApi;
+use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -35,6 +41,8 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->configureRateLimiting();
+
+        $this->configureApiDocs();
 
         // Cloud Run 在前端（Google Front End）終止 HTTPS，轉給容器的是 http 請求，
         // 所以 route()／url() 產生的網址會是 http://。OAuth 的 redirect_uri 必須
@@ -82,6 +90,36 @@ class AppServiceProvider extends ServiceProvider
         // refresh token 是 40 字元隨機值（資料庫只存雜湊），用猜的不可行，這裡的限制
         // 只是擋異常的大量請求。整組 api 每分鐘 60 次的上限照樣疊在上面。
         RateLimiter::for('token-refresh', fn (Request $request) => Limit::perMinute(30)->by(self::clientIp($request)));
+    }
+
+    /**
+     * OpenAPI 文件（Scramble，D-118）裡程式碼推不出來的部分。
+     *
+     * - 驗證方式：Sanctum bearer token（文件層級預設）跟 refresh token cookie；
+     *   每支端點實際用哪一種由 ApiSecurity 依路由的 middleware 標出來。
+     * - 錯誤格式：4xx／5xx 一律是 problem details，另外每支端點都可能回 429
+     *   （ProblemDetailsResponses）。
+     *
+     * 文件頁本身的設定（路徑、公開與否、頻率限制）在 config/scramble.php。
+     */
+    protected function configureApiDocs(): void
+    {
+        Scramble::configure()
+            ->withDocumentTransformers(function (OpenApi $openApi) {
+                $openApi->secure(
+                    SecurityScheme::http('bearer')
+                        ->as(ApiSecurity::BEARER)
+                        ->setDescription('Sanctum API token。由 `POST /auth/login`、`POST /auth/refresh`、`POST /auth/session` 取得，有效 15 分鐘。')
+                );
+                $openApi->components->addSecurityScheme(
+                    ApiSecurity::REFRESH_COOKIE,
+                    SecurityScheme::apiKey('cookie', RefreshTokenCookie::NAME)
+                        ->as(ApiSecurity::REFRESH_COOKIE)
+                        ->setDescription('refresh token（有效 30 天、單次使用），登入時由伺服器以 HttpOnly cookie 設定，前端 JS 讀不到。')
+                );
+            })
+            ->withDocumentTransformers(ProblemDetailsResponses::class)
+            ->withOperationTransformers(ApiSecurity::class);
     }
 
     /**

@@ -10,6 +10,7 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Technique;
 use App\Models\TechniqueImplementationLink;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
@@ -34,6 +35,8 @@ class GraphController extends Controller
      * git_repo_created_at) — documentation/technique have no equivalent
      * field and always report null.
      */
+    // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
+    #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, subtype: string|null, url: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null}>}')]
     public function index()
     {
         $nodes = collect()
@@ -71,6 +74,8 @@ class GraphController extends Controller
      * real alternate-path search (e.g. Yen's algorithm) can come later if
      * it turns out to matter.
      */
+    // 同 index()：手動組的回應，在這裡寫明形狀。找不到路徑時 found 是 false、nodes／edges 是空陣列。
+    #[Response(200, type: 'array{found: bool, nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, storedDirection: "forward"|"reverse", hasDefinedReverse: bool}>}')]
     public function path(Request $request)
     {
         $validated = $request->validate([

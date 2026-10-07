@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
 use App\Service\RefreshTokenFamilies;
 use App\Service\RefreshTokenOutcome;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,6 +44,8 @@ class TokenRefreshController extends Controller
      *   前端收到 409 會稍等再用（新的）cookie 重試一次。
      * - 其他（無效、過期、重放→家族已撤銷、超過 90 天上限）→ 401＋清 cookie。
      */
+    #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
+    #[Response(401, 'refresh token 無效、過期、已被撤銷，或超過 90 天上限；同時清除 refresh cookie。')]
     public function refresh(Request $request, RefreshTokenFamilies $families): JsonResponse
     {
         $value = RefreshTokenCookie::read($request);
@@ -66,6 +69,7 @@ class TokenRefreshController extends Controller
      * token，就能用 curl 自己填 Origin 打這支，換成 30 天的 refresh token。
      * 換發時把回呼那支 token 撤銷，回呼 token 只能用一次。
      */
+    #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
     public function session(Request $request): JsonResponse
     {
         $user = $request->user();

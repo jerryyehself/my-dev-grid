@@ -8,6 +8,8 @@ use App\Http\Resources\RelationResource;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Service\RelationEdgeQuery;
+use Dedoc\Scramble\Attributes\QueryParameter;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Support\Str;
 
 class RelationController extends Controller
@@ -157,6 +159,11 @@ class RelationController extends Controller
      *
      * 跟 index/show 同一種公開等級——圖譜資料本來就是公開唯讀的。
      */
+    // 分頁參數由 paginate() 自己讀，邊的欄位來自 RelationEdgeQuery 的 UNION 查詢，
+    // Scramble 都推不出來，在這裡寫明給 OpenAPI 文件用。
+    #[QueryParameter('page', '頁碼，從 1 開始。', type: 'int', default: 1)]
+    #[QueryParameter('per_page', '每頁筆數，預設 '.RelationEdgeQuery::DEFAULT_PER_PAGE.'，最多 '.RelationEdgeQuery::MAX_PER_PAGE.'。', type: 'int', default: RelationEdgeQuery::DEFAULT_PER_PAGE)]
+    #[Response(200, 'Laravel 的 length-aware 分頁格式。', type: 'array{current_page: int, data: list<array{subject_type: "documentation"|"technique"|"implementation", subject_id: int, subject_title: string, object_type: "documentation"|"technique"|"implementation", object_id: int, object_title: string, source: string}>, first_page_url: string, from: int|null, last_page: int, last_page_url: string, links: list<array{url: string|null, label: string, active: bool}>, next_page_url: string|null, path: string, per_page: int, prev_page_url: string|null, to: int|null, total: int}')]
     public function edges(Relation $relation)
     {
         $edges = (new RelationEdgeQuery($relation))

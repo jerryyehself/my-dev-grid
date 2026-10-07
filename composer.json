@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.4",
         "d076/sanctum-refresh-tokens": "^4.0",
+        "dedoc/scramble": "^0.13.47",
         "laravel/framework": "^13.0",
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.31",
