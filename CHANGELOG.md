@@ -4,6 +4,23 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [Unreleased]
+
+### 新增
+
+- API 文件：`/docs/api`（文件頁）與 `/docs/api.json`（OpenAPI 3.1）公開，不需要登入。由 Scramble 依路由、FormRequest、Resource 自動產生，另外補上 Sanctum bearer token 與 refresh cookie 兩種驗證方式、`/api/graph` 等手動組成的回應形狀、錯誤格式與 429。OAuth 跳轉端點不在文件裡（#98）。
+- API 的分頁做法寫進文件：五種資源清單一次回傳全部，只有 `GET /api/relations/{id}/edges` 分頁（#98）。
+
+### 變更
+
+- API 的 4xx／5xx 回應改為 RFC 9457 problem details（`application/problem+json`，含 `type`、`title`、`status`、`detail`、`instance`），向下相容：`message` 與 422 的 `errors` 保留原值，狀態碼不變。500 不含例外內容。`POST /api/scopes`、`POST /api/relations` 的 422 現在也有 `message`（#98）。
+- `/api` 底下的錯誤一律回 JSON，不再看 `Accept` header（#98）。
+
+### 修正
+
+- 未帶 `Accept: application/json` 的未登入請求回 401，不再是 500（#98）。
+- 不存在的 `/api/*` 路徑回 404，不再回 200 的網頁（#98）。
+
 ## [1.0.1] - 2026-10-06
 
 ### 修正
