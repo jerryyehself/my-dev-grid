@@ -137,7 +137,7 @@ jobs:
             --args=artisan,migrate,--force \
             --service-account="${{ vars.CLOUD_RUN_SERVICE_ACCOUNT }}" \
             --set-cloudsql-instances="${{ vars.CLOUD_SQL_CONNECTION_NAME }}" \
-            --set-env-vars="APP_ENV=production,LOG_CHANNEL=stderr,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_PORT=5432,DB_DATABASE=${{ vars.DB_DATABASE }},DB_USERNAME=${{ vars.DB_USERNAME }}" \
+            --set-env-vars="APP_ENV=production,LOG_CHANNEL=cloud_run,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_PORT=5432,DB_DATABASE=${{ vars.DB_DATABASE }},DB_USERNAME=${{ vars.DB_USERNAME }}" \
             --set-secrets="APP_KEY=APP_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest" \
             --max-retries=0 \
             --task-timeout=600
@@ -159,8 +159,9 @@ jobs:
             APP_DEBUG=false
             APP_URL=${{ vars.APP_URL }}
             FRONTEND_URL=${{ vars.FRONTEND_URL }}
-            LOG_CHANNEL=stderr
+            LOG_CHANNEL=cloud_run
             LOG_LEVEL=info
+            GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
             DB_CONNECTION=pgsql
             DB_HOST=/cloudsql/${{ vars.CLOUD_SQL_CONNECTION_NAME }}
             DB_PORT=5432
@@ -205,7 +206,7 @@ jobs:
             --args=artisan,github:sync-repos \
             --service-account="${{ vars.CLOUD_RUN_SERVICE_ACCOUNT }}" \
             --set-cloudsql-instances="${{ vars.CLOUD_SQL_CONNECTION_NAME }}" \
-            --set-env-vars="APP_ENV=production,LOG_CHANNEL=stderr,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_PORT=5432,DB_DATABASE=${{ vars.DB_DATABASE }},DB_USERNAME=${{ vars.DB_USERNAME }}" \
+            --set-env-vars="APP_ENV=production,LOG_CHANNEL=cloud_run,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_PORT=5432,DB_DATABASE=${{ vars.DB_DATABASE }},DB_USERNAME=${{ vars.DB_USERNAME }}" \
             --set-secrets="APP_KEY=APP_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest,GITHUB_TOKEN=GITHUB_TOKEN:latest" \
             --max-retries=1 \
             --task-timeout=300
