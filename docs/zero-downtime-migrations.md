@@ -2,7 +2,7 @@
 
 改資料表結構之前照這份做。`CLAUDE.md`「資料庫結構變更的順序」是規則的精簡版；這份補上為什麼、怎麼分次、PostgreSQL 與 Laravel 的細節。這份只是文件，沒有任何自動檢查（D-125），追蹤 issue [#99](https://github.com/jerryyehself/my-dev-grid/issues/99)。
 
-**版本**：Laravel 13.30.1（`composer.lock`）。正式環境是 Cloud SQL `POSTGRES_16`（`docs/deployment-gcp.md` 第 3 步），所以下面引用的都是 PostgreSQL 16 文件；CI 的 Postgres 是 `postgres:18`（`.github/workflows/tests.yml`），兩邊版本不同。
+**版本**：Laravel 13.30.1（`composer.lock`）。正式環境是 Cloud SQL PostgreSQL 18（`docs/infrastructure-concepts.md`；`docs/deployment-gcp.md` 第 3 步原本寫 16，已更正），CI 也是 `postgres:18`（`.github/workflows/tests.yml`）。下面的實測是在本機 PostgreSQL 16.14 上做的，引用的也是 PostgreSQL 16 文件；用到的鎖等級與 DDL 行為在 18 沒有已知差異，但沒有在 18 上重量過〔推論〕。
 
 **標記**：每個說法都標了根據。
 
