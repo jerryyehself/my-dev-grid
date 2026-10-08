@@ -43,7 +43,7 @@
 
 這些改動開 PR 前，PR 說明裡要寫：
 1. **回滾方式**：具體指令，不是「必要時回滾」。程式碼退版用 `gcloud run services update-traffic <服務名> --region=asia-east1 --to-revisions=<上一個 revision>=100`；資料庫退版要看 migration 的 `down()` 能不能在不掉資料的情況下還原，不能的話要寫明補救方式。
-2. **驗證範圍**：CI 的 PHPUnit（sqlite 與 pgsql 兩種都要過），加上針對這次改動的手動確認步驟。
+2. **驗證範圍**：CI 的 PHPUnit（sqlite 與 pgsql 兩種都要過），加上針對這次改動的手動確認步驟。動到部署管線（`Dockerfile`、`docker/`、workflow、環境變數）、日誌／middleware／`bootstrap/app.php`／`config/`，或 `composer.lock` 相依套件的 PR，請求合併前要先跑 `scripts/smoke-test.sh`（用 repo 的 Dockerfile 建映像檔，接暫存 PostgreSQL，以 production 設定跑起來再探測），把它印出的摘要表貼到 PR（貼成 PR 留言也可以）。跑不起來就在 PR 裡寫明沒跑和原因，不要默默略過。這個 repo 是公開的，貼出去的只寫結果，不要帶內部討論或使用者的原話。
 3. **資料安全檢查**：會不會誤刪資料、影響範圍有沒有限制在該限制的地方。
 
 合併前一律先問使用者（對應 `my-dev-grid-skills` 三層判斷的第 2 層），就算 CI 全過也一樣。部署後看一次 Cloud Logging，確認沒有新錯誤。
