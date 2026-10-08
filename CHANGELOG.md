@@ -4,6 +4,12 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [Unreleased]
+
+### 安全性
+
+- Google／LINE 登入改用 PKCE（S256）：導向授權頁時帶 `code_challenge`，callback 換 token 時送出存在 session 的 `code_verifier`，授權碼在中途外洩也無法單獨換到 token；session 模式（`/auth/*`）與 token 模式（`/auth/token/*`）都適用（#103）。
+
 ## [1.0.1] - 2026-10-06
 
 ### 修正
