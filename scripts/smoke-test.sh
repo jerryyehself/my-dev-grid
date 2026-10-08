@@ -25,7 +25,7 @@
 #
 # Optional env vars:
 #   SMOKE_DB_MODE          auto（預設）| docker | local
-#                          auto 先試 `docker run postgres:16-alpine`，拉不到
+#                          auto 先試 `docker run postgres:18-alpine`，拉不到
 #                          映像檔才退回本機 PostgreSQL cluster（pg_createcluster）
 #   SMOKE_SUMMARY_FILE     另外把摘要表寫進這個檔案
 #   SMOKE_KEEP=1           結束時不清理（容器、worktree、暫存目錄都留著，除錯用）
@@ -48,7 +48,7 @@ SMOKE_KEEP="${SMOKE_KEEP:-}"
 SMOKE_SUMMARY_FILE="${SMOKE_SUMMARY_FILE:-}"
 SMOKE_EXPECTED_REMOTE="${SMOKE_EXPECTED_REMOTE-jerryyehself/my-dev-grid}"
 CCR_CA="/root/.ccr/ca-bundle.crt"
-PG_IMAGE="postgres:16-alpine"
+PG_IMAGE="postgres:18-alpine"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && git rev-parse --show-toplevel)"
 

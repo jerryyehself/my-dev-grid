@@ -54,7 +54,7 @@ gcloud artifacts repositories create my-dev-grid \
 
 ```bash
 gcloud sql instances create my-dev-grid-db \
-  --database-version=POSTGRES_16 \
+  --database-version=POSTGRES_18 \
   --tier=db-f1-micro \
   --region=asia-east1 \
   --storage-size=10GB \
