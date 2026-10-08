@@ -86,9 +86,11 @@ php.net 對 `log_limit` 的說明：「Log limit for the logged lines which allo
 2. 刻意製造一個例外（例如暫時在測試環境加一條丟例外的路由），確認：Logs Explorer 有該筆 `ERROR` 日誌、`message` 是 `PHP Fatal error:  Uncaught …`；Error Reporting（Console → Error Reporting）出現含堆疊的錯誤群組。
 3. 用回應的 `X-Request-Id` 在 Logs Explorer 篩出該請求的所有日誌。
 
-### 2. 5xx 比例告警
+### 2. 通知管道
 
-先建立通知管道（email 範例；`<EMAIL>` 換成你的信箱）：
+建兩個：email，加上手機推播（Google Cloud 行動應用程式，不用寫程式就有手機通知）。
+
+Email（`<EMAIL>` 換成你的信箱）：
 
 ```bash
 gcloud beta monitoring channels create \
@@ -99,7 +101,31 @@ gcloud beta monitoring channels create \
 # 記下輸出的 name：projects/<PROJECT_ID>/notificationChannels/<ID>
 ```
 
-把下面存成 `5xx-alert.json`（`<SERVICE_NAME>` 是 Cloud Run 服務名稱＝repo variable `CLOUD_RUN_SERVICE`；`<CHANNEL_NAME>` 是上一步的 name）：
+手機推播：在手機安裝 Google Cloud app 並登入同一個帳號，之後在 Monitoring → Alerting → Edit notification channels 的「Mobile Devices」就會出現這支手機，建立告警時可以一起勾選。官方支援的管道類型見〈Notification channel types〉<https://cloud.google.com/monitoring/support/notification-options>；LINE 不在其中（LINE Notify 已於 2025-03-31 終止服務，要改走 Messaging API 並自建轉發，目前沒有做）。
+
+### 3. 存活檢查（uptime check）
+
+每 10 分鐘從 3 個地區打一次 `/up`（Laravel 內建的健康檢查路由，見 `bootstrap/app.php`）。`--regions` 至少要 3 個；每月約 3 × 6 × 24 × 30 ≈ 13,000 次，在每個專案每月 100 萬次的免費額度內（Cloud Monitoring 價目頁，取用日期 2026-10-08：<https://cloud.google.com/stackdriver/pricing>）。
+
+```bash
+gcloud monitoring uptime create my-dev-grid-api-up \
+  --resource-type=uptime-url \
+  --resource-labels=host=<CLOUD_RUN_HOST>,project_id=<PROJECT_ID> \
+  --protocol=https --path=/up \
+  --period=10 --timeout=30 \
+  --regions=asia-pacific,usa-oregon,europe \
+  --project=<PROJECT_ID>
+```
+
+`<CLOUD_RUN_HOST>` 是服務網址去掉 `https://`（`gcloud run services describe <SERVICE_NAME> --region=asia-east1 --format='value(status.url)'`）。
+
+再替它建告警：主控台 Monitoring → Uptime checks → 點這個檢查 → Create alert → 通知管道勾上一步的 email 與手機。條件建議「失敗地區數 ≥ 2」，**不要設成 1 個地區失敗就通知**：服務 `min-instances=0`，冷啟動偶發的 502（#91）會讓單一地區的單次檢查失敗，門檻太低會變成誤報。
+
+`--period`、`--regions` 的可用值以 `gcloud monitoring uptime create --help` 為準（`--period` 可選 1、5、10、15 分鐘）。告警目前不收費：價目頁寫明 "Starting no sooner than September 1, 2027, Cloud Monitoring will begin charging for alerting"。
+
+### 4. 5xx 比例告警
+
+通知管道用第 2 步建立的。把下面存成 `5xx-alert.json`（`<SERVICE_NAME>` 是 Cloud Run 服務名稱＝repo variable `CLOUD_RUN_SERVICE`；`<CHANNEL_NAME>` 是第 2 步 email 管道的 name）：
 
 ```json
 {
@@ -138,10 +164,10 @@ gcloud alpha monitoring policies create --policy-from-file=5xx-alert.json --proj
 
 驗收「告警實際觸發過一次」：在測試環境或暫時的路由讓服務連續回 500，等一個 `duration` 後確認收到通知，再還原。
 
-### 3. 選用：Sentry
+### 5. 選用：Sentry
 
 Cloud Error Reporting 已涵蓋「有堆疊的例外」。若之後想要 release 追蹤、前端錯誤、使用者影響數等，再評估 Sentry 的 Laravel SDK（`sentry/sentry-laravel`，需要建立 Sentry 帳號與專案、把 DSN 放進 Secret Manager）。目前沒有安裝。
 
-### 4. 排查 #91
+### 6. 排查 #91
 
 用上述工具重現與查詢 #91，需要正式環境的 Cloud Logging 權限；結果寫成事故報告。
