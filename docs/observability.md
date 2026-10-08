@@ -119,7 +119,7 @@ gcloud monitoring uptime create my-dev-grid-api-up \
 
 `<CLOUD_RUN_HOST>` 是服務網址去掉 `https://`（`gcloud run services describe <SERVICE_NAME> --region=asia-east1 --format='value(status.url)'`）。
 
-再替它建告警：主控台 Monitoring → Uptime checks → 點這個檢查 → Create alert → 通知管道勾上一步的 email 與手機。條件建議「失敗地區數 ≥ 2」，**不要設成 1 個地區失敗就通知**：服務 `min-instances=0`，冷啟動偶發的 502（#91）會讓單一地區的單次檢查失敗，門檻太低會變成誤報。
+再替它建告警：主控台 Monitoring → Uptime checks → 點這個檢查 → Create alert → 通知管道勾第 2 步的 email 與手機。條件建議「失敗地區數 ≥ 2」，**不要設成 1 個地區失敗就通知**：服務 `min-instances=0`，冷啟動偶發的 502（#91）會讓單一地區的單次檢查失敗，門檻太低會變成誤報。
 
 `--period`、`--regions` 的可用值以 `gcloud monitoring uptime create --help` 為準（`--period` 可選 1、5、10、15 分鐘）。告警目前不收費：價目頁寫明 "Starting no sooner than September 1, 2027, Cloud Monitoring will begin charging for alerting"。
 
