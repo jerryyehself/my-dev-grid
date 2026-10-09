@@ -32,7 +32,7 @@ class UpdateRelationRequest extends FormRequest
             'call_number' => 'nullable|numeric',
             'name' => [
                 'required',
-                Rule::unique('relations')->ignore($this->relation->id),
+                Rule::unique('relations')->ignore($this->relation?->id),
             ],
             'note' => 'max:255',
             // 同 StoreRelationRequest。這裡多傳 $this->relation 進去,因為「目標已經指向

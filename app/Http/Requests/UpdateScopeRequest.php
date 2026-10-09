@@ -40,7 +40,7 @@ class UpdateScopeRequest extends FormRequest
                 // 同一個分類號底下 call_number 不可重複。分類號現在從父層取,
                 // 不再讀呼叫端傳來的 class_number。
                 Rule::unique('scopes')
-                    ->ignore($this->scope->id)
+                    ->ignore($this->scope?->id)
                     ->where(fn ($query) => $query->where(
                         'class_number',
                         Scope::find($this->parent_class)?->class_number
@@ -49,7 +49,7 @@ class UpdateScopeRequest extends FormRequest
             'name' => [
                 'bail',
                 'required',
-                Rule::unique('scopes', 'name')->ignore($this->scope->id),
+                Rule::unique('scopes', 'name')->ignore($this->scope?->id),
             ],
             'comment' => 'max:100',
             'note' => 'max:255',

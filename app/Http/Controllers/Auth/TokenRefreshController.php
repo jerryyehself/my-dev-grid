@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Exceptions\RefreshTokenRejectedException;
 use App\Http\Controllers\Auth\Concerns\IssuesFrontendTokens;
 use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
 use App\Service\RefreshTokenFamilies;
 use App\Service\RefreshTokenOutcome;
+use Dedoc\Scramble\Attributes\Response;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,19 +44,21 @@ class TokenRefreshController extends Controller
      *   前端收到 409 會稍等再用（新的）cookie 重試一次。
      * - 其他（無效、過期、重放→家族已撤銷、超過 90 天上限）→ 401＋清 cookie。
      */
+    #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
+    #[Response(401, 'refresh token 無效、過期、已被撤銷，或超過 90 天上限；同時清除 refresh cookie。')]
     public function refresh(Request $request, RefreshTokenFamilies $families): JsonResponse
     {
         $value = RefreshTokenCookie::read($request);
 
         if ($value === null) {
-            return $this->rejectRefresh();
+            $this->rejectRefresh();
         }
 
         [$outcome, $tokens] = $families->rotate($value);
 
         return match ($outcome) {
             RefreshTokenOutcome::Rotated => $this->tokenPairResponse($tokens),
-            RefreshTokenOutcome::ConcurrentReplay => response()->json(['message' => '登入狀態剛更新過，請重試。'], 409),
+            RefreshTokenOutcome::ConcurrentReplay => abort(409, '登入狀態剛更新過，請重試。'),
             default => $this->rejectRefresh(),
         };
     }
@@ -64,6 +69,7 @@ class TokenRefreshController extends Controller
      * token，就能用 curl 自己填 Origin 打這支，換成 30 天的 refresh token。
      * 換發時把回呼那支 token 撤銷，回呼 token 只能用一次。
      */
+    #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
     public function session(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -71,7 +77,7 @@ class TokenRefreshController extends Controller
 
         if (! $current instanceof PersonalAccessToken
             || $current->name !== TokenSocialAuthController::CALLBACK_TOKEN_NAME) {
-            return response()->json(['message' => '這個 token 不能用來建立登入狀態。'], 403);
+            abort(403, '這個 token 不能用來建立登入狀態。');
         }
 
         // 「單次使用」要用刪除的筆數判斷，不能只看 auth:sanctum 驗證時 token 還在：
@@ -90,16 +96,14 @@ class TokenRefreshController extends Controller
         });
 
         if ($tokens === null) {
-            return response()->json(['message' => 'Unauthenticated.'], 401);
+            throw new AuthenticationException;
         }
 
         return $this->tokenPairResponse($tokens);
     }
 
-    private function rejectRefresh(): JsonResponse
+    private function rejectRefresh(): never
     {
-        return response()
-            ->json(['message' => '登入已過期，請重新登入。'], 401)
-            ->withCookie(RefreshTokenCookie::forget());
+        throw new RefreshTokenRejectedException;
     }
 }

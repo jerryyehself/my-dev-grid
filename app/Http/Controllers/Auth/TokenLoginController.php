@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\Concerns\IssuesFrontendTokens;
 use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
 use App\Service\RefreshTokenFamilies;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +32,7 @@ class TokenLoginController extends Controller
 {
     use IssuesFrontendTokens;
 
+    #[Response(200, '登入成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([
