@@ -490,12 +490,14 @@ BASE="http://127.0.0.1:$APP_PORT"
 READY=0
 for _ in $(seq 1 60); do
   if [ "$(docker inspect -f '{{.State.Running}}' "$APP_CONTAINER" 2>/dev/null)" != "true" ]; then break; fi
-  code="$(curl -s --noproxy '*' --max-time 3 -o /dev/null -w '%{http_code}' "$BASE/api/scopes" 2>/dev/null || true)"
-  if [ -n "$code" ] && [ "$code" != "000" ]; then READY=1; break; fi
+  # 要等 /up（Laravel 健康檢查，經過 php-fpm）回 200 才算準備好：nginx 會比 php-fpm
+  # 早幾百毫秒起來，只看「有回應」會在 php-fpm 還沒 listen 時拿到 502。
+  code="$(curl -s --noproxy '*' --max-time 3 -o /dev/null -w '%{http_code}' "$BASE/up" 2>/dev/null || true)"
+  if [ "$code" = 200 ]; then READY=1; break; fi
   sleep 1
 done
-[ "$READY" = 1 ] || die "啟動容器" "60 秒內沒有回應 HTTP（容器可能已退出）"
-record pass "啟動容器並回應 HTTP" "$BASE（--network host）"
+[ "$READY" = 1 ] || die "啟動容器" "60 秒內 /up 沒有回 200（容器可能已退出，或 php-fpm 沒起來）"
+record pass "啟動容器，/up 回 200" "$BASE（--network host）"
 
 # ---------------------------------------------------------------------------
 echo "==> 5. HTTP 探測"
