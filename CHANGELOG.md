@@ -24,6 +24,11 @@
 - 未帶 `Accept: application/json` 的未登入請求回 401，不再是 500（#98）。
 - 不存在的 `/api/*` 路徑回 404，不再回 200 的網頁（#98）。
 
+### 安全性
+
+- Google／LINE 登入改用 PKCE（S256）：導向授權頁時帶 `code_challenge`，callback 換 token 時送出存在 session 的 `code_verifier`，授權碼在中途外洩也無法單獨換到 token；session 模式（`/auth/*`）與 token 模式（`/auth/token/*`）都適用（#103）。
+- nginx 存取紀錄不再記錄 query string，只記路徑，避免 OAuth callback 的 `code`／`state` 等網址參數寫進 Cloud Logging（#103）。
+
 ## [1.0.1] - 2026-10-06
 
 ### 修正
