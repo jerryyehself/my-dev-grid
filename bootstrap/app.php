@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsureFrontendOrigin;
 use App\Http\RefreshTokenCookie;
 use Illuminate\Foundation\Application;
@@ -15,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // 每個請求一個 request id：最外層的全域 middleware，連 404、429 的請求也有。
+        // 見 AssignRequestId 與 docs/observability.md。
+        $middleware->prepend(AssignRequestId::class);
+
         // Sanctum SPA session-cookie 模式（不是 API token 模式）：
         // frontend（Triple 後台，resources/js）跟這個 Laravel app 同源，
         // 官方文件（Laravel 13 / Sanctum 4.x）指定用這個 helper 方法，

@@ -70,7 +70,17 @@ RUN { \
 # variables (APP_KEY, DB_*, secrets from Secret Manager, ...) before PHP-FPM
 # workers start. Cloud Run has no other way to hand Laravel its config, so
 # this MUST stay disabled.
+#
+# `log_limit`: with catch_workers_output php-fpm relays worker stderr and, by
+# default, wraps any line longer than 1024 characters into several lines. The
+# app logs one JSON object per line (App\Logging\CloudLoggingFormatter) and an
+# exception stack trace is far longer than 1024 characters, so a wrapped line
+# would no longer parse as JSON. The formatter caps `message` at 30000 bytes
+# (JSON escaping at worst doubles that), which keeps a whole line under this
+# limit.
 RUN { \
+        echo '[global]'; \
+        echo 'log_limit = 65536'; \
         echo '[www]'; \
         echo 'clear_env = no'; \
         echo 'catch_workers_output = yes'; \

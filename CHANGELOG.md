@@ -4,6 +4,14 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [Unreleased]
+
+對外 API 行為不變，內部變更；版本號與日期在上線時才填，屬修訂號（D-117）。
+
+### 新增
+
+- 可觀測性：正式環境日誌改為單行 JSON（`LOG_CHANNEL=cloud_run`），含 `severity`、`request_id`，並帶 `logging.googleapis.com/trace` 與出錯時的 `httpRequest`，Cloud Logging 可用 `jsonPayload.request_id` 篩出單一請求；每個回應帶 `X-Request-Id` 標頭。未處理的例外以 Error Reporting 認得的 PHP 堆疊格式記錄，不需第三方 SDK。說明與剩餘的手動步驟（5xx 告警）見 `docs/observability.md`（#97）。
+
 ## [1.0.1] - 2026-10-06
 
 ### 修正
