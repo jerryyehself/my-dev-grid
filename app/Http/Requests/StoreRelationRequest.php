@@ -5,9 +5,7 @@ namespace App\Http\Requests;
 use App\Rules\ReverseIsAvailable;
 use App\Rules\ReverseIsSwapped;
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 class StoreRelationRequest extends FormRequest
 {
@@ -38,14 +36,5 @@ class StoreRelationRequest extends FormRequest
             // 再建 B 並把 reverse_id 指向 A,雙向會自動補齊。
             'reverse_id' => ['nullable', 'exists:relations,id', new ReverseIsAvailable, new ReverseIsSwapped],
         ];
-    }
-
-    protected function failedValidation(Validator $validator)
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'errors' => $validator->errors(),
-            ], 422)
-        );
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+use App\Logging\CloudLoggingFormatter;
+use App\Logging\RequestLogProcessor;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -103,6 +105,24 @@ return [
             ],
             'formatter' => env('LOG_STDERR_FORMATTER'),
             'processors' => [PsrLogMessageProcessor::class],
+        ],
+
+        // Cloud Run 專用：一筆日誌一行 JSON，寫到 stderr，Cloud Logging 會解析成
+        // jsonPayload（severity、httpRequest、trace 等欄位的對應見 CloudLoggingFormatter）。
+        // 本機不要用這個，LOG_CHANNEL 維持 .env.example 的 stack／single，保持人看得懂的格式。
+        // GOOGLE_CLOUD_PROJECT 用來組 `projects/PROJECT_ID/traces/TRACE_ID`；沒設就不輸出 trace 欄位。
+        'cloud_run' => [
+            'driver' => 'monolog',
+            'level' => env('LOG_LEVEL', 'debug'),
+            'handler' => StreamHandler::class,
+            'handler_with' => [
+                'stream' => 'php://stderr',
+            ],
+            'formatter' => CloudLoggingFormatter::class,
+            'formatter_with' => [
+                'projectId' => env('GOOGLE_CLOUD_PROJECT'),
+            ],
+            'processors' => [PsrLogMessageProcessor::class, RequestLogProcessor::class],
         ],
 
         'syslog' => [

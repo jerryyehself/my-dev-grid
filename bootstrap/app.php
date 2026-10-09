@@ -1,11 +1,15 @@
 <?php
 
+use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsureFrontendOrigin;
+use App\Http\ProblemDetails;
 use App\Http\RefreshTokenCookie;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // 每個請求一個 request id：最外層的全域 middleware，連 404、429 的請求也有。
+        // 見 AssignRequestId 與 docs/observability.md。
+        $middleware->prepend(AssignRequestId::class);
+
         // Sanctum SPA session-cookie 模式（不是 API token 模式）：
         // frontend（Triple 後台，resources/js）跟這個 Laravel app 同源，
         // 官方文件（Laravel 13 / Sanctum 4.x）指定用這個 helper 方法，
@@ -63,11 +71,38 @@ return Application::configure(basePath: dirname(__DIR__))
         // 不需要再加密一層；列進 except，不管走哪條路徑讀寫的都是同一個原始值。
         $middleware->encryptCookies(except: [RefreshTokenCookie::NAME]);
 
+        // 未登入時不導向任何頁面，一律回 401。Laravel 預設會在請求沒帶
+        // `Accept: application/json` 時導去名為 `login` 的路由，但這個 app 沒有這條路由
+        // （登入頁在前端），結果是 route() 丟例外、回 500——前端的 DELETE 不帶 Accept，
+        // access token 過期時拿到的會是 500 而不是觸發換發的 401。
+        $middleware->redirectGuestsTo(null);
+
         // 會讀寫 refresh cookie 的端點要求 Origin＝FRONTEND_URL，見 EnsureFrontendOrigin。
         $middleware->alias([
             'frontend.origin' => EnsureFrontendOrigin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // API 的錯誤一律回 JSON，不看 Accept header（理由見 ProblemDetails::wanted）。
+        $exceptions->shouldRenderJsonWhen(
+            fn (Request $request) => ProblemDetails::wanted($request)
+        );
+
+        // 例外變成回應之後的最後一關（Laravel 官方文件：Error Handling →
+        // Customizing the Exception Response → `respond()`）。所有路徑都會經過這裡：
+        // Laravel 內建的轉換（驗證 422、未登入 401、無權限 403、查無資料 404、429、500）、
+        // 例外自己的 render()（RelationLockedException）、HttpResponseException。
+        // 所以只要在這裡把 JSON 錯誤回應改成 RFC 9457 problem details，不用每種例外各寫一份。
         //
+        // 500 不會帶出 stack trace：APP_DEBUG=false 時 Laravel 只放 "Server Error"，
+        // 這裡沿用它的內容、只加上 problem details 欄位。
+        $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
+            if ($response instanceof JsonResponse
+                && $response->getStatusCode() >= 400
+                && ProblemDetails::wanted($request)) {
+                return ProblemDetails::fromJsonResponse($response, $request);
+            }
+
+            return $response;
+        });
     })->create();

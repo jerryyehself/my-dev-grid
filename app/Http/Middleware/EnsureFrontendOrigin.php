@@ -28,7 +28,7 @@ class EnsureFrontendOrigin
         $origin = (string) $request->headers->get('Origin', '');
 
         if ($expected === '' || $origin !== $expected) {
-            return response()->json(['message' => '不允許的來源。'], 403);
+            abort(403, '不允許的來源。');
         }
 
         return $next($request);
