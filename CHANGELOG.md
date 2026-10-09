@@ -6,8 +6,11 @@
 
 ## [Unreleased]
 
+版本號與日期在上線時才填；有向下相容的新功能，屬次版號（D-117）。
+
 ### 新增
 
+- 可觀測性：正式環境日誌改為單行 JSON（`LOG_CHANNEL=cloud_run`），含 `severity`、`request_id`，並帶 `logging.googleapis.com/trace` 與出錯時的 `httpRequest`，Cloud Logging 可用 `jsonPayload.request_id` 篩出單一請求；每個回應帶 `X-Request-Id` 標頭。未處理的例外以 Error Reporting 認得的 PHP 堆疊格式記錄，不需第三方 SDK。說明與剩餘的手動步驟（5xx 告警）見 `docs/observability.md`（#97）。
 - API 文件：`/docs/api`（文件頁）與 `/docs/api.json`（OpenAPI 3.1）公開，不需要登入。由 Scramble 依路由、FormRequest、Resource 自動產生，另外補上 Sanctum bearer token 與 refresh cookie 兩種驗證方式、`/api/graph` 等手動組成的回應形狀、錯誤格式與 429。OAuth 跳轉端點不在文件裡（#98）。
 - API 的分頁做法寫進文件：五種資源清單一次回傳全部，只有 `GET /api/relations/{id}/edges` 分頁（#98）。
 
