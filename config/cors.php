@@ -26,8 +26,8 @@ return [
     |
     | `exposed_headers` 放 `X-Request-Id`（T-26 / D-128）：跨 origin 的 fetch 預設
     | 只讀得到 CORS-safelisted 回應標頭，沒列在 Access-Control-Expose-Headers 的
-    | 標頭，前端 JS 即使回應真的帶了也拿不到。前端要把 request id 附在錯誤回報／
-    | 畫面上，讓使用者回報時能對上後端日誌，就必須先在這裡公開它。
+    | 標頭，前端 JS 即使回應真的帶了也拿不到。前端在 API 錯誤時把 request id 印到
+    | console（不顯示在畫面上），回報問題時能對上後端日誌，就必須先在這裡公開它。
     |
     */
 
