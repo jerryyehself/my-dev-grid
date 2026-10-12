@@ -6,6 +6,7 @@ use App\Exceptions\RefreshTokenRejectedException;
 use App\Http\Controllers\Auth\Concerns\IssuesFrontendTokens;
 use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
+use App\Logging\SecurityLog;
 use App\Service\RefreshTokenFamilies;
 use App\Service\RefreshTokenOutcome;
 use Dedoc\Scramble\Attributes\Response;
@@ -56,6 +57,13 @@ class TokenRefreshController extends Controller
 
         [$outcome, $tokens] = $families->rotate($value);
 
+        // 重放（authn_token_reuse）、超過上限（session_expired）在 RefreshTokenFamilies 裡記；
+        // 寬限期內的併發換發（409）是正常情況，不記。沒帶 cookie 的請求也不記：前端每次
+        // 開機都會打一次 refresh，沒登入過的訪客每一頁都會是這種情況，不是登入嘗試。
+        if ($outcome === RefreshTokenOutcome::Invalid) {
+            SecurityLog::loginFailed('refresh_token', 'token', 'invalid_refresh_token');
+        }
+
         return match ($outcome) {
             RefreshTokenOutcome::Rotated => $this->tokenPairResponse($tokens),
             RefreshTokenOutcome::ConcurrentReplay => abort(409, '登入狀態剛更新過，請重試。'),
@@ -96,6 +104,12 @@ class TokenRefreshController extends Controller
         });
 
         if ($tokens === null) {
+            // 兩個請求同時拿同一支回呼 token 來換（例如前端重複送出），後到的那個
+            SecurityLog::loginFailed('oauth_callback_token', 'token', 'callback_token_already_used', [
+                'user_id' => $user->getKey(),
+                'access_token_id' => $current->getKey(),
+            ]);
+
             throw new AuthenticationException;
         }
 

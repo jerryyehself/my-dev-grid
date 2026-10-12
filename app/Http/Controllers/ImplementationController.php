@@ -49,10 +49,10 @@ class ImplementationController extends Controller
         $implementation = Implementation::create(Arr::except($data, ['documentations', 'techniques']));
 
         if (isset($data['documentations'])) {
-            $implementation->documentations()->sync($this->pivotSyncData($data['documentations']));
+            $this->syncPivot($implementation->documentations(), $data['documentations']);
         }
         if (isset($data['techniques'])) {
-            $implementation->techniques()->sync($this->pivotSyncData($data['techniques']));
+            $this->syncPivot($implementation->techniques(), $data['techniques']);
         }
 
         return response()->json([
@@ -82,10 +82,10 @@ class ImplementationController extends Controller
         $isUpdated = $implementation->update(Arr::except($data, ['documentations', 'techniques']));
 
         if (isset($data['documentations'])) {
-            $implementation->documentations()->sync($this->pivotSyncData($data['documentations']));
+            $this->syncPivot($implementation->documentations(), $data['documentations']);
         }
         if (isset($data['techniques'])) {
-            $implementation->techniques()->sync($this->pivotSyncData($data['techniques']));
+            $this->syncPivot($implementation->techniques(), $data['techniques']);
         }
 
         return response()->json([

@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Logging\SecurityEvent;
+use App\Logging\SecurityLog;
 use App\Models\OauthIdentity;
 use App\Service\SocialiteDriver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * my-dev-grid-front 版的 OAuth 登入回呼——跟 SocialAuthController 平行存在，
@@ -44,22 +46,26 @@ class TokenSocialAuthController extends Controller
     {
         abort_unless(in_array($provider, self::ALLOWED_PROVIDERS, true), 404);
 
-        $socialiteUser = SocialiteDriver::for($provider)
-            ->redirectUrl(route('auth.token.social.callback', $provider))
-            ->user();
+        try {
+            $socialiteUser = SocialiteDriver::for($provider)
+                ->redirectUrl(route('auth.token.social.callback', $provider))
+                ->user();
+        } catch (Throwable $e) {
+            // 同 SocialAuthController::callback：記一筆再照原樣丟出去
+            SecurityLog::oauthLoginFailed($provider, 'token', $e, $request);
+
+            throw $e;
+        }
 
         $identity = OauthIdentity::where('provider', $provider)
             ->where('provider_user_id', $socialiteUser->getId())
             ->first();
 
         if (! $identity) {
-            // 同 SocialAuthController::callback 的雞生蛋問題與隱私考量，
-            // 不再重複寫一次，見那支的註解。
-            Log::info('OAuth 登入遭拒（token 模式）：找不到對應的 oauth_identities 綁定', [
-                'provider' => $provider,
-                'provider_user_id' => $socialiteUser->getId(),
-                'provider_email' => $socialiteUser->getEmail(),
-                'provider_name' => $socialiteUser->getName(),
+            // 同 SocialAuthController::callback 的雞生蛋問題與隱私考量
+            // （只記 provider_user_id），不再重複寫一次，見那支的註解。
+            SecurityLog::loginFailed($provider, 'token', 'identity_not_bound', [
+                'provider_user_id' => (string) $socialiteUser->getId(),
             ]);
 
             return redirect(config('app.frontend_url').'/?auth_error=not_authorized');
@@ -72,11 +78,20 @@ class TokenSocialAuthController extends Controller
         //
         // 壽命跟一般 access token 一樣（sanctum.expiration，預設 15 分鐘），不是
         // 更短：舊版前端（還沒接 session 端點）直接拿這支當登入 token 用。
-        $token = $identity->user->createToken(
+        $newToken = $identity->user->createToken(
             self::CALLBACK_TOKEN_NAME,
             ['*'],
             now()->addMinutes((int) config('sanctum.expiration')),
-        )->plainTextToken;
+        );
+        $token = $newToken->plainTextToken;
+
+        SecurityLog::loginSucceeded($identity->user_id, $provider, 'token');
+        SecurityLog::write(SecurityEvent::TokenCreated, "使用者 {$identity->user_id} 的 OAuth 回呼 token", [
+            'user_id' => $identity->user_id,
+            'reason' => 'oauth_callback',
+            'access_token_id' => $newToken->accessToken->getKey(),
+            'abilities' => $newToken->accessToken->abilities,
+        ]);
 
         // Token 放在 URL fragment（#token=...），不是 query string：fragment
         // 不會被送到任何伺服器（包含前端自己的 hosting），瀏覽器也不會把它

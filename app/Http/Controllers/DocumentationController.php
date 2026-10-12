@@ -45,10 +45,10 @@ class DocumentationController extends Controller
         $documentation = Documentation::create(Arr::except($data, ['techniques', 'implementations']));
 
         if (isset($data['techniques'])) {
-            $documentation->techniques()->sync($this->pivotSyncData($data['techniques']));
+            $this->syncPivot($documentation->techniques(), $data['techniques']);
         }
         if (isset($data['implementations'])) {
-            $documentation->implementations()->sync($this->pivotSyncData($data['implementations']));
+            $this->syncPivot($documentation->implementations(), $data['implementations']);
         }
 
         return response()->json([
@@ -81,10 +81,10 @@ class DocumentationController extends Controller
         $isUpdated = $documentation->update(Arr::except($data, ['techniques', 'implementations']));
 
         if (isset($data['techniques'])) {
-            $documentation->techniques()->sync($this->pivotSyncData($data['techniques']));
+            $this->syncPivot($documentation->techniques(), $data['techniques']);
         }
         if (isset($data['implementations'])) {
-            $documentation->implementations()->sync($this->pivotSyncData($data['implementations']));
+            $this->syncPivot($documentation->implementations(), $data['implementations']);
         }
 
         return response()->json([

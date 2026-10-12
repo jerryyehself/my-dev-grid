@@ -5,13 +5,14 @@ namespace Tests\Feature;
 use App\Models\OauthIdentity;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
+use Tests\Concerns\CapturesSecurityEvents;
 use Tests\TestCase;
 
 class SocialAuthControllerTest extends TestCase
 {
+    use CapturesSecurityEvents;
     use RefreshDatabase;
 
     public function test_redirect_rejects_unknown_provider()
@@ -70,7 +71,7 @@ class SocialAuthControllerTest extends TestCase
 
     public function test_callback_rejects_unknown_oauth_identity_without_auto_registration()
     {
-        Log::spy();
+        $this->captureLogs();
 
         Socialite::fake('google', SocialiteUser::fake([
             'id' => 'google-unknown-999',
@@ -88,10 +89,15 @@ class SocialAuthControllerTest extends TestCase
         // provider id/email 只能出現在 log，不能出現在 HTTP 回應裡。
         $this->assertStringNotContainsString('google-unknown-999', $response->getContent() ?: '');
         $this->assertStringNotContainsString('stranger@example.com', $response->getContent() ?: '');
-        Log::shouldHaveReceived('info')
-            ->withArgs(fn ($message, $context) => $context['provider_user_id'] === 'google-unknown-999'
-                && $context['provider_email'] === 'stranger@example.com')
-            ->once();
+        // 綁定只需要 provider_user_id；陌生人的 email、姓名不寫進日誌（issue #103）
+        $this->assertSecurityEvent('authn_login_fail', [
+            'auth_method' => 'google',
+            'auth_mode' => 'session',
+            'reason' => 'identity_not_bound',
+            'provider_user_id' => 'google-unknown-999',
+        ], 'warning');
+        $this->assertNotLogged('stranger@example.com');
+        $this->assertNotLogged('Stranger');
     }
 
     public function test_callback_rejects_unknown_identity_for_line_provider_too()

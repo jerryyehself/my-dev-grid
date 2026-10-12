@@ -2,6 +2,8 @@
 
 namespace App\Service;
 
+use App\Logging\SecurityEvent;
+use App\Logging\SecurityLog;
 use App\Models\RefreshToken;
 use App\Models\User;
 use D076\SanctumRefreshTokens\DTOs\TokensDTO;
@@ -9,7 +11,6 @@ use D076\SanctumRefreshTokens\Enums\TokenType;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -52,6 +53,7 @@ class RefreshTokenFamilies
     public function issue(User $user, ?string $familyId = null, ?Carbon $familyStartedAt = null): TokensDTO
     {
         $now = now();
+        $isNewFamily = $familyId === null;
         $familyId ??= (string) Str::uuid();
         $familyStartedAt ??= $now->copy();
 
@@ -82,6 +84,15 @@ class RefreshTokenFamilies
             'expires_at' => $refreshExpiresAt,
             'family_id' => $familyId,
             'family_started_at' => $familyStartedAt,
+        ]);
+
+        SecurityLog::write(SecurityEvent::TokenCreated, "使用者 {$user->getKey()} 的 access＋refresh token", [
+            'user_id' => $user->getKey(),
+            'reason' => $isNewFamily ? 'login' : 'rotation',
+            'family_id' => $familyId,
+            'refresh_token_id' => $refresh->getKey(),
+            'access_token_id' => $access->accessToken->getKey(),
+            'abilities' => ['*'],
         ]);
 
         return new TokensDTO(
@@ -129,12 +140,13 @@ class RefreshTokenFamilies
                     return [RefreshTokenOutcome::ConcurrentReplay, null];
                 }
 
-                $this->revokeFamilyOf($token);
-                Log::warning('refresh token 重放：整個家族已撤銷', [
+                SecurityLog::write(SecurityEvent::TokenReuse, "使用者 {$token->tokenable_id} 已用掉的 refresh token 被重放，撤銷整個家族", [
                     'user_id' => $token->tokenable_id,
                     'family_id' => $token->family_id,
                     'refresh_token_id' => $token->getKey(),
+                    'source_ip' => SecurityLog::sourceIp(),
                 ]);
+                $this->revokeFamilyOf($token, 'reuse');
 
                 return [RefreshTokenOutcome::ReuseDetected, null];
             }
@@ -154,7 +166,12 @@ class RefreshTokenFamilies
         // 上限先於單支到期檢查：最後一支的到期時間被截在上限上，過了上限要清掉整個家族
         $startedAt = $token->family_started_at ?? $token->created_at;
         if (! $this->familyEndsAt($startedAt)->isFuture()) {
-            $this->revokeFamilyOf($token);
+            SecurityLog::write(SecurityEvent::SessionExpired, "使用者 {$token->tokenable_id} 的登入超過絕對上限", [
+                'user_id' => $token->tokenable_id,
+                'reason' => 'max_lifetime',
+                'family_id' => $token->family_id,
+            ]);
+            $this->revokeFamilyOf($token, 'max_lifetime');
 
             return [RefreshTokenOutcome::SessionCapReached, null];
         }
@@ -188,10 +205,12 @@ class RefreshTokenFamilies
      * 登出用：撤銷 cookie 裡那支 refresh token 所屬的家族（不管它是否已用掉、過期），
      * 以及綁定這支 access token 的家族，最後刪掉這支 access token 本身。
      * 秘密不符的 cookie 不會動到任何東西。
+     *
+     * @return int|string|null 認得出是誰的登入就回傳那個使用者的 id（給 session_logout 日誌用）
      */
-    public function revokeForLogout(?string $cookieValue, ?PersonalAccessToken $accessToken): void
+    public function revokeForLogout(?string $cookieValue, ?PersonalAccessToken $accessToken): int|string|null
     {
-        DB::transaction(function () use ($cookieValue, $accessToken) {
+        return DB::transaction(function () use ($cookieValue, $accessToken) {
             $tokens = collect();
 
             if ($cookieValue !== null && ($match = $this->findMatching($cookieValue)) !== null) {
@@ -209,10 +228,12 @@ class RefreshTokenFamilies
                 ->sortBy(fn (RefreshToken $t) => $t->family_id ?? '')
                 ->each(function (RefreshToken $t) {
                     $this->lockFamily($t);
-                    $this->revokeFamilyOf($t);
+                    $this->revokeFamilyOf($t, 'logout');
                 });
 
             $accessToken?->delete();
+
+            return $accessToken?->tokenable_id ?? $tokens->first()?->tokenable_id;
         });
     }
 
@@ -241,8 +262,10 @@ class RefreshTokenFamilies
     /**
      * 撤銷整個家族：先刪它們綁定的 access token，再刪 refresh token。
      * 兩個 DELETE 都是新的 statement，會包含等鎖期間別人 commit 的新資料列。
+     *
+     * @param  string  $reason  logout、reuse、max_lifetime（authn_token_revoked 日誌的 reason）
      */
-    private function revokeFamilyOf(RefreshToken $token): void
+    private function revokeFamilyOf(RefreshToken $token, string $reason): void
     {
         $family = $token->family_id !== null
             ? fn () => RefreshToken::query()->where('family_id', $token->family_id)
@@ -251,7 +274,15 @@ class RefreshTokenFamilies
         PersonalAccessToken::query()
             ->whereIn('id', $family()->whereNotNull('access_token_id')->select('access_token_id'))
             ->delete();
-        $family()->delete();
+        $revoked = $family()->delete();
+
+        SecurityLog::write(SecurityEvent::TokenRevoked, "使用者 {$token->tokenable_id} 的 refresh token 家族已撤銷：{$reason}", [
+            'user_id' => $token->tokenable_id,
+            'reason' => $reason,
+            'family_id' => $token->family_id,
+            'refresh_token_id' => $token->family_id === null ? $token->getKey() : null,
+            'refresh_tokens_revoked' => $revoked,
+        ]);
     }
 
     private function familyEndsAt(Carbon $startedAt): Carbon
