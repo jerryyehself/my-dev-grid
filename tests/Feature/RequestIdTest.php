@@ -91,6 +91,25 @@ class RequestIdTest extends TestCase
         $this->assertMatchesRegularExpression('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $id);
     }
 
+    public function test_cors_response_from_the_frontend_origin_exposes_the_request_id_header(): void
+    {
+        // 跨 origin 的 fetch 只讀得到 CORS-safelisted 標頭；X-Request-Id 要列在
+        // Access-Control-Expose-Headers，前端 JS 才拿得到（T-26 / D-128）。
+        // allowed_origins 讀 env('FRONTEND_URL')；沒有 .env 的環境（例如乾淨 checkout）是空的，
+        // 這裡明確指定，測試才不依賴 .env。
+        $origin = 'http://localhost:5173';
+        config(['cors.allowed_origins' => [$origin]]);
+        $this->registerRoutesBeforeSpaCatchAll([
+            Route::get('/api/_test/ping', fn () => response()->json(['ok' => true])),
+        ]);
+
+        $response = $this->getJson('/api/_test/ping', ['Origin' => $origin]);
+
+        $response->assertHeader('Access-Control-Allow-Origin', $origin);
+        $response->assertHeader('Access-Control-Expose-Headers', 'X-Request-Id');
+        $response->assertHeader('X-Request-Id');
+    }
+
     public function test_each_request_gets_a_different_generated_id(): void
     {
         $first = $this->getJson('/up')->headers->get('X-Request-Id');

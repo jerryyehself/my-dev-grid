@@ -24,6 +24,11 @@ return [
     | /api/auth/refresh、/api/auth/session。Triple 後台的 cookie 模式是同源請求，
     | 本來就不受 CORS 管。
     |
+    | `exposed_headers` 放 `X-Request-Id`（T-26 / D-128）：跨 origin 的 fetch 預設
+    | 只讀得到 CORS-safelisted 回應標頭，沒列在 Access-Control-Expose-Headers 的
+    | 標頭，前端 JS 即使回應真的帶了也拿不到。前端要把 request id 附在錯誤回報／
+    | 畫面上，讓使用者回報時能對上後端日誌，就必須先在這裡公開它。
+    |
     */
 
     'paths' => ['api/*'],
@@ -36,7 +41,7 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => ['X-Request-Id'],
 
     'max_age' => 0,
 
