@@ -24,7 +24,8 @@ use Throwable;
  *   這裡改成具名欄位（`user_id`、`reason`…），Cloud Logging 才能逐欄篩選
  *
  * 不記：密碼、access／refresh token 的值、OAuth `code`／`state`、session id、金鑰、請求內容。
- * 使用者識別只記內部的 `user_id`；`source_ip` 只出現在「失敗／被擋」類事件。理由與完整的
+ * 使用者識別只記內部的 `user_id`（OAuth 帳號沒綁定時另記建綁定需要的 `provider_user_id`）；
+ * `source_ip` 只出現在「失敗／被擋」類事件。理由與完整的
  * 事件表見 docs/observability.md「安全與稽核事件」。
  */
 final class SecurityLog
