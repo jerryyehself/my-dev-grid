@@ -42,7 +42,7 @@
 - 部署管線：`.github/workflows/deploy-cloud-run.yml`、`Dockerfile`、`docker/`、Secret Manager／環境變數
 
 這些改動開 PR 前，PR 說明裡要寫：
-1. **回滾方式**：具體指令，不是「必要時回滾」。程式碼退版用 `gcloud run services update-traffic <服務名> --region=asia-east1 --to-revisions=<上一個 revision>=100`。**修好之後要切回 `gcloud run services update-traffic <服務名> --region=asia-east1 --to-latest`**，否則流量會一直釘在舊 revision，之後部署的新版本不會接到流量（見 `docs/zero-downtime-migrations.md` §6.1）；資料庫退版要看 migration 的 `down()` 能不能在不掉資料的情況下還原，不能的話要寫明補救方式。
+1. **回滾方式**：具體指令，不是「必要時回滾」。程式碼退版用 `gcloud run services update-traffic <服務名> --region=asia-east1 --to-revisions=<上一個 revision>=100`。退版會維持到下一次部署成功：workflow 檢查通過後會自己把流量切到新 revision，修好的 PR 部署完就恢復，不用手動切回 `--to-latest`；修好之前要擋住其他 PR 的部署，先 `gh workflow disable deploy-cloud-run.yml`。**部署失敗（新 revision 沒通過檢查）時流量沒動，不用退版，也不要手動跑 `--to-latest`**——沒過檢查的 revision 還是 LATEST，會把流量切給它（見 `docs/zero-downtime-migrations.md` §6.1）；資料庫退版要看 migration 的 `down()` 能不能在不掉資料的情況下還原，不能的話要寫明補救方式。
 2. **驗證範圍**：CI 的 PHPUnit（sqlite 與 pgsql 兩種都要過），加上針對這次改動的手動確認步驟。動到部署管線（`Dockerfile`、`docker/`、workflow、環境變數）、日誌／middleware／`bootstrap/app.php`／`config/`，或 `composer.lock` 相依套件的 PR，請求合併前要先跑 `scripts/smoke-test.sh`（用 repo 的 Dockerfile 建映像檔，接暫存 PostgreSQL，以 production 設定跑起來再探測），把它印出的摘要表貼到 PR（貼成 PR 留言也可以）。跑不起來就在 PR 裡寫明沒跑和原因，不要默默略過。這個 repo 是公開的，貼出去的只寫結果，不要帶內部討論或使用者的原話。
 3. **資料安全檢查**：會不會誤刪資料、影響範圍有沒有限制在該限制的地方。
 
@@ -50,7 +50,7 @@
 
 ## 資料庫結構變更的順序
 
-部署流程是「先用 Cloud Run Job 跑 `php artisan migrate --force`，再部署新版程式」，所以 **migration 跑完到新版上線之間，舊版程式還在用新的資料庫結構接流量**。因此：
+部署流程是「先用 Cloud Run Job 跑 `php artisan migrate --force`，再部署新版程式（先不接流量，檢查通過才切）」，所以 **migration 跑完到新版上線之間，舊版程式還在用新的資料庫結構接流量**。因此：
 
 - **只做向下相容的新增**：加欄位（可為 null 或有預設值）、加資料表、加索引。舊版程式看不到新欄位也能正常運作。
 - **刪除或改名欄位，不要跟改程式放在同一次部署**。順序是：

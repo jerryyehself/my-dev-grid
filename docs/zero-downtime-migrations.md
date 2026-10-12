@@ -19,21 +19,23 @@
 
 1. 建置映像檔、推上 Artifact Registry
 2. **Run database migrations**：用新映像檔更新 Cloud Run Job，執行 `php artisan migrate --force`，`--wait` 等它跑完
-3. **Deploy to Cloud Run**：部署新 revision，就緒後切流量
-4. **Update GitHub sync job**：讓每天同步 GitHub 的 Job 也換成新映像檔
+3. **Deploy new revision (no traffic)**：部署新 revision，但先不接流量（`--no-traffic --tag`，#107）
+4. **Probe candidate revision**：對 tag 專用網址檢查 `/up`、`/api/scopes`、`/api/<不存在的路徑>`；沒過的話 workflow 停在這裡，流量留在舊 revision
+5. **Switch traffic to new revision**：`gcloud run services update-traffic --to-latest`，100% 切到新 revision
+6. **Update GitHub sync job**：讓每天同步 GitHub 的 Job 也換成新映像檔
 
 會用到這個資料庫的程式有三份，換到新版本的時間點都不一樣：
 
 | 時段 | 資料庫結構 | 服務（Cloud Run revision） | 每天同步的 Job |
 | --- | --- | --- | --- |
 | 第 2 步之前 | 舊 | 舊 | 舊 |
-| 第 2 步結束 → 第 3 步切流量 | **新** | **舊** | 舊 |
-| 第 3 步切流量的過程 | 新 | **新舊兩版同時接請求** | 舊 |
-| 第 4 步之後 | 新 | 新 | 新 |
+| 第 2 步結束 → 第 5 步切流量 | **新** | **舊**（第 3、4 步的新 revision 只接檢查的請求） | 舊 |
+| 第 5 步切流量的過程 | 新 | **新舊兩版同時接請求** | 舊 |
+| 第 6 步之後 | 新 | 新 | 新 |
 
-- **舊程式跑在新結構上**：migration 那步結束到部署那步結束，2026-10-04、10-06 三次成功的部署都是 16～20 秒〔實測：GitHub Actions step 時間〕。但這段時間沒有上限：2026-10-02 run [36956715462](https://github.com/jerryyehself/my-dev-grid/actions/runs/36956715462) migration 成功、部署失敗，舊版就一直跑在新結構上，直到下一次部署成功〔實測〕。
-- **切流量的時候兩版並存**：〔引用〕Cloud Run 文件：「In flight requests won't be dropped and may be directed to either a new revision or a previous revision during the transition period.」（[Rollbacks, gradual rollouts, and traffic migration](https://cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration)）。舊實例關閉前，「requests already being processed are given time to complete」（[Container runtime contract](https://cloud.google.com/run/docs/container-contract)）。workflow 用 `deploy-cloudrun` action，`no_traffic` 預設 `false`，新 revision 就緒後拿到流量（[action README](https://github.com/google-github-actions/deploy-cloudrun/blob/v2/README.md)）〔引用〕。
-- **同步 Job 最後才換**：上面查的三次成功部署，第 4 步都沒有真的執行（2026-10-06 03:03 那次標記 `skipped`，另外兩次耗時 0 秒）〔實測〕，看起來是 `CLOUD_RUN_SYNC_JOB` 沒設〔推論〕。如果 Job 其實存在，它會一直跑某個舊映像檔，結構也要讓它能跑〔推論〕。repo 變數這邊看不到，所以〔未驗證〕。
+- **舊程式跑在新結構上**：migration 那步結束到部署那步結束，2026-10-04、10-06 三次成功的部署都是 16～20 秒〔實測：GitHub Actions step 時間〕。改成先檢查再切流量（#107）之後，這段時間再加上第 4 步的檢查：正常是幾秒，碰到冷啟動要重試 `/up` 時最多約 1～2 分鐘〔推論，來自 workflow 的重試次數〕。但這段時間沒有上限：2026-10-02 run [36956715462](https://github.com/jerryyehself/my-dev-grid/actions/runs/36956715462) migration 成功、部署失敗，舊版就一直跑在新結構上，直到下一次部署成功〔實測〕。第 4 步檢查沒過也一樣：migration 已經跑完，舊版繼續跑在新結構上，直到下一次部署成功〔推論〕。
+- **切流量的時候兩版並存**：〔引用〕Cloud Run 文件：「In flight requests won't be dropped and may be directed to either a new revision or a previous revision during the transition period.」（[Rollbacks, gradual rollouts, and traffic migration](https://cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration)）。舊實例關閉前，「requests already being processed are given time to complete」（[Container runtime contract](https://cloud.google.com/run/docs/container-contract)）。workflow 用 `deploy-cloudrun` action 帶 `no_traffic: true` 和 `tag`，action 會原樣轉成 `gcloud run deploy --no-traffic --tag`（[action README](https://github.com/google-github-actions/deploy-cloudrun/blob/v2/README.md)）〔引用〕；新 revision 檢查通過後，第 5 步才一次把 100% 流量切過去，兩版並存發生在這一步〔推論，來自 workflow〕。
+- **同步 Job 最後才換**：上面查的三次成功部署，同步 Job 那步（現在的第 6 步）都沒有真的執行（2026-10-06 03:03 那次標記 `skipped`，另外兩次耗時 0 秒）〔實測〕，看起來是 `CLOUD_RUN_SYNC_JOB` 沒設〔推論〕。如果 Job 其實存在，它會一直跑某個舊映像檔，結構也要讓它能跑〔推論〕。repo 變數這邊看不到，所以〔未驗證〕。
 - **連續合併會跳過中間的部署**：workflow 的 `concurrency` 一個 group 只留一個排隊中的 run。〔引用〕GitHub 文件：「By default, any existing pending job or workflow in the same concurrency group will be canceled and the new queued job or workflow will take its place.」（[Control the concurrency of workflows and jobs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)）。所以分次部署的第 1 步和第 2 步如果合併得太近，第 1 步可能根本沒部署，第 2 步的 migration 就會在**第 0 版**程式還在跑的時候執行〔推論〕。
 
 **結論**：每一支 migration 都要讓「上一版程式」和「這一版程式」在新結構上都能正常跑。一次部署只能做一步。
@@ -327,13 +329,22 @@ gcloud run services update-traffic my-dev-grid-api --region=asia-east1 --to-revi
 ```
 
 - 照 §3 分次部署的話，每一步的結構都跟上一版程式相容，所以程式退版是安全的〔推論〕。這也是分次部署的主要目的：**程式可以退版，結構不用跟著退**。
-- **退版之後，後續部署都不會拿到流量，要手動切回來**。〔引用〕「If you split traffic between multiple revisions or assigned traffic to a previous revision, all subsequent deployments use that traffic split pattern going forward. To return to just using the latest revision without traffic splitting, send all traffic to the latest revision.」（[Rollbacks, gradual rollouts, and traffic migration](https://cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration)）。workflow 的 `deploy-cloudrun` 沒設 `revision_traffic`，所以不會自動改回去〔推論〕。修好之後要跑：
+- **退版會維持到下一次部署成功為止**（#107 起）。〔引用〕Cloud Run 本身的規則是「If you split traffic between multiple revisions or assigned traffic to a previous revision, all subsequent deployments use that traffic split pattern going forward.」（[Rollbacks, gradual rollouts, and traffic migration](https://cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration)），但 workflow 每次都是 `--no-traffic` 部署、檢查通過後自己跑 `update-traffic --to-latest`，不管服務原本的流量是不是固定在舊 revision〔推論，來自 workflow〕。所以：
+  - 修好的 PR 合併、部署成功，流量就自己切到新版，**不用再手動切回 `--to-latest`**（#107 之前要，現在不用）。
+  - 反過來，退版之後**任何**合併到 `main` 的 PR、或手動執行 workflow，都會把流量切到 `main` 的最新版，包括還帶著那個問題的版本（檢查只看 `/up`、`/api/scopes`、404，抓不到所有問題）。修好之前要擋住部署，先停用 workflow，修好再打開：
+
+    ```bash
+    gh workflow disable deploy-cloud-run.yml --repo jerryyehself/my-dev-grid
+    gh workflow enable deploy-cloud-run.yml --repo jerryyehself/my-dev-grid
+    ```
+
+- **部署失敗時不用退版**：第 4 步檢查沒過，流量根本沒動，還在原本的 revision；workflow 會把那次的 tag 移掉。那個 revision 本身還在（0% 流量），看它的日誌：
 
   ```bash
-  gcloud run services update-traffic my-dev-grid-api --region=asia-east1 --to-latest
+  gcloud logging read 'resource.type=cloud_run_revision AND resource.labels.revision_name=<revision>' --freshness=1h --limit=50
   ```
 
-  還沒切回 latest 之前合併的 PR，migration 照樣會執行，但接流量的還是那個被固定住的舊 revision。這時候 §1 的「舊程式跑在新結構上」會一直持續〔推論〕。
+- **部署失敗之後不要手動跑 `--to-latest`**：沒通過檢查的 revision 還是服務的 LATEST（`status.latestReadyRevisionName`），`--to-latest` 會把流量切給它〔推論〕。手動調流量一律用 `--to-revisions=<revision>=100`，先用上面的 `revisions list` 確認名字。
 
 ### 6.2 結構退版：往前修
 
@@ -366,7 +377,7 @@ gcloud run services update-traffic my-dev-grid-api --region=asia-east1 --to-revi
 - [ ] 原生 SQL 有用 `pgsql` 判斷包起來，CI 的 SQLite 和 PostgreSQL 都綠？（§5.3）
 - [ ] 回填的值保留了原本的意思？（§3.4：null 代表草稿，不能填 1）PR 寫了執行前後的筆數？
 - [ ] 會刪資料的話，先做了 on-demand 備份？（§6.3）
-- [ ] PR 說明寫了回滾指令（`CLAUDE.md` 高風險改動），包括切回 `--to-latest`？（§6.1）
+- [ ] PR 說明寫了回滾指令（`CLAUDE.md` 高風險改動）？退版到修好之前，要不要先停用部署 workflow？（§6.1）
 - [ ] 改到 `implementations`、`techniques` 或 pivot 表的話，避開 03:17 的同步？（§4.2）
 
 ---
