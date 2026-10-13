@@ -62,7 +62,7 @@ return [
     | Token 模式 OAuth 回呼（TokenSocialAuthController::callback）登入成功後
     | 要把使用者導回哪個網址、CORS 要放行哪個 origin，都是這個值——不是這個
     | Laravel app 自己的網址（那是上面的 'url'）。決策見
-    | my-dev-grid-skills/docs/decision-register.md D-56。
+    | D-56。
     |
     */
 

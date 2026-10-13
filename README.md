@@ -47,7 +47,7 @@ php artisan test                        # 全套測試
 
 ## 前端
 
-[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)（Vue 3 SPA，部署在 Cloudflare，網址 `jerrylib.com`，正式公開前用 Cloudflare Access 鎖住）是這個 API 的公開網站，也是現在的正式管理介面：文章、`Scope`（階層分類號）、`Relation`（述詞）都在那邊新增/編輯。舊的內嵌 Vue 後台 Triple（`resources/js`，session cookie 登入）還在，但只是還沒被移除（D-48，見 `my-dev-grid-skills/docs/decision-register.md`），不是主要維護目標，也沒有 Triple 沒有而 `my-dev-grid-front` 有的資料——兩邊管的都只是 `Scope`／`Relation`。
+[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)（Vue 3 SPA，部署在 Cloudflare，網址 `jerrylib.com`，正式公開前用 Cloudflare Access 鎖住）是這個 API 的公開網站，也是現在的正式管理介面：文章、`Scope`（階層分類號）、`Relation`（述詞）都在那邊新增/編輯。舊的內嵌 Vue 後台 Triple（`resources/js`，session cookie 登入）還在，但只是還沒被移除（D-48），不是主要維護目標，也沒有 Triple 沒有而 `my-dev-grid-front` 有的資料——兩邊管的都只是 `Scope`／`Relation`。
 
 ## API
 
@@ -66,13 +66,13 @@ php artisan test                        # 全套測試
 
 ### 認證
 
-`my-dev-grid-front` 用 Sanctum **API token**，不是 session cookie（D-56，`decision-register.md`）：
+`my-dev-grid-front` 用 Sanctum **API token**，不是 session cookie（D-56）：
 
 - 帳號密碼：`POST /api/auth/login`／`POST /api/auth/logout`，`GET /api/user` 確認登入狀態。
 - Google／LINE：`GET /auth/token/{provider}/redirect` → callback（`TokenSocialAuthController`）登入後，帶著短效 token 導回前端的 `/auth/callback`，前端再用它打 `POST /api/auth/session` 換成正式的一組。LINE 只申請 `openid profile`：套件預設會帶 `email`，但頻道沒有申請 email 權限，會回 `INVALID_SCOPE`。
 - 重新整理後維持登入：access token 只活 15 分鐘（`SANCTUM_ACCESS_TOKEN_EXPIRATION`），另外發一支 30 天的 refresh token（`SANCTUM_REFRESH_TOKEN_EXPIRATION`，套件 `d076/sanctum-refresh-tokens`），放在 API 網域的 `__Host-mdg_refresh` cookie（HttpOnly、Secure、SameSite=None、Partitioned）。前端開機時打 `POST /api/auth/refresh` 換回登入狀態，每次換發都會換掉 refresh token（單次使用）；用過的 refresh token 被重放會撤銷同一次登入的所有 token（`App\Service\RefreshTokenFamilies`），一次登入最長 90 天（`SANCTUM_REFRESH_TOKEN_MAX_LIFETIME`）。登出不要求有效的 access token，refresh cookie 也能撤銷。refresh／session／logout 只接受 `Origin` 等於 `FRONTEND_URL` 的請求。為什麼 OAuth 回呼不能直接設 cookie，見 `TokenRefreshController` 的類別註解。
 
-跨 origin 的 SPA 要用 cookie 模式，前後端得共用同一個根網域。前端在 `jerrylib.com`，後端目前用 Cloud Run 的 `*.run.app` 網址；要等後端也掛上 `api.jerrylib.com` 這類子網域，才重新評估要不要換成 cookie 模式（`management-debt-ledger.md`）。
+跨 origin 的 SPA 要用 cookie 模式，前後端得共用同一個根網域。前端在 `jerrylib.com`，後端目前用 Cloud Run 的 `*.run.app` 網址；要等後端也掛上 `api.jerrylib.com` 這類子網域，才重新評估要不要換成 cookie 模式（目前記成低優先度技術債）。
 
 Triple 是同源的內嵌後台，繼續用它原本的 session cookie（`SessionAuthController`，社群登入走 `/auth/{provider}/*`）。兩套認證刻意不共用同一支 controller。
 

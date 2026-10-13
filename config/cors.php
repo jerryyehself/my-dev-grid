@@ -9,7 +9,7 @@ return [
     |
     | 這個 app 之前沒有 config/cors.php——Triple 後台跟這個 Laravel app 同源，
     | 從來沒有真的跨網域打過這個 API，所以沒人發現這個檔案根本不存在。
-    | `my-dev-grid-front` 是跨 origin 的（decision-register.md D-49/D-56），
+    | `my-dev-grid-front` 是跨 origin 的（D-49/D-56），
     | 沒有這份設定，瀏覽器會直接擋下它打 /api/* 的請求，跟登入模式選哪個無關。
     |
     | `supports_credentials` 2026-10-03 起改成 true：my-dev-grid-front 平常的
@@ -24,7 +24,7 @@ return [
     | /api/auth/refresh、/api/auth/session。Triple 後台的 cookie 模式是同源請求，
     | 本來就不受 CORS 管。
     |
-    | `exposed_headers` 放 `X-Request-Id`（T-26 / D-128）：跨 origin 的 fetch 預設
+    | `exposed_headers` 放 `X-Request-Id`（D-128）：跨 origin 的 fetch 預設
     | 只讀得到 CORS-safelisted 回應標頭，沒列在 Access-Control-Expose-Headers 的
     | 標頭，前端 JS 即使回應真的帶了也拿不到。前端在 API 錯誤時把 request id 印到
     | console（不顯示在畫面上），回報問題時能對上後端日誌，就必須先在這裡公開它。

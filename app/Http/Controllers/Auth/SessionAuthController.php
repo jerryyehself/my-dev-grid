@@ -14,7 +14,7 @@ class SessionAuthController extends Controller
 {
     /**
      * email+password 備援登入（Google/LINE 帳號沒有時的救援手段，
-     * 見 decision-register.md D-34）。
+     * 見 D-34）。
      */
     public function login(Request $request): JsonResponse
     {

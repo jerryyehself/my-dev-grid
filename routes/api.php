@@ -19,7 +19,7 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 // my-dev-grid-front 版的 email+password 登入/登出，發 Sanctum API token，
-// 不是 session（decision-register.md D-56）。OAuth 版在 routes/web.php
+// 不是 session（D-56）。OAuth 版在 routes/web.php
 // （Socialite 需要 session 支援 state 防偽，這裡的 'api' middleware group
 // 沒有 session）。跟 Triple 用的 /auth/login、/auth/logout（routes/web.php，
 // SessionAuthController）刻意不共用，見 TokenLoginController 的類別註解。

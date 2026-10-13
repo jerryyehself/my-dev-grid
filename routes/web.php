@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Route;
 // `projects.create` 與 `projects.edit`，但 TechniqueController 根本沒有
 // create()/edit() 方法，所以 GET /projects/create 一被打到就是 500。
 
-// 登入/登出（Google/LINE OAuth + email+password 備援，見 decision-register.md
+// 登入/登出（Google/LINE OAuth + email+password 備援，見
 // D-34）。一定要放在下面的萬用 catch-all 之前——排在它後面的路由都是死碼。
 //
 // 這裡刻意不對 {provider} 加 ->whereIn(...) 路由層級限制：這個專案的
@@ -47,7 +47,7 @@ Route::post('/auth/login', [SessionAuthController::class, 'login'])
 Route::post('/auth/logout', [SessionAuthController::class, 'logout'])->name('auth.logout');
 
 // my-dev-grid-front（跨 origin SPA）版的 OAuth 登入——發 Sanctum API token，
-// 不是 session（decision-register.md D-56）。放在 web.php 而不是 api.php，
+// 不是 session（D-56）。放在 web.php 而不是 api.php，
 // 是因為 Socialite 的 state 防偽驗證需要 session 支援，api.php 走的是
 // 無 session 的 stateless 'api' middleware group；email/password 登入
 // 跟登出不需要 Socialite，所以那兩支在 routes/api.php（見該檔案）。

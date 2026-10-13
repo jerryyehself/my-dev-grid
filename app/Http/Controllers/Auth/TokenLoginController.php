@@ -17,7 +17,7 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * my-dev-grid-front（跨 origin SPA）的 email+password 登入/登出，發 Sanctum
- * API token，不是 session（decision-register.md D-56）。跟
+ * API token，不是 session（D-56）。跟
  * SessionAuthController 是同一組 v1 需求（D-34）的兩個獨立實作：
  * SessionAuthController 服務同源的 Triple 後台（session cookie），這支服務
  * 跨 origin 的 my-dev-grid-front（bearer token）。刻意不共用同一支

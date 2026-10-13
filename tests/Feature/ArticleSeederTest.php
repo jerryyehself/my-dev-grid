@@ -111,6 +111,10 @@ class ArticleSeederTest extends TestCase
             $this->assertStringNotContainsString('求職', $article->body);
             $this->assertStringNotContainsString('履歷', $article->body);
             $this->assertStringNotContainsString('薪', $article->body);
+            // 私有 repo 的指標與對話敘述不進公開文章（public-repo-content）
+            foreach (['daily-claude-summary', 'management-debt-ledger', 'decision-register', 'my-dev-grid-skills', 'roles/', '使用者提到'] as $needle) {
+                $this->assertStringNotContainsString($needle, $article->body, "{$article->title}: {$needle}");
+            }
         }
     }
 }
