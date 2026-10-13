@@ -1,4 +1,4 @@
-> 這份文件整理的是一段**教育性問答**，起點是使用者提到「以前最多學到 jQuery，這塊比較不熟」，針對 `my-dev-grid-front` 現況延伸出的一連串問題。**全程沒有異動任何程式碼**，純粹是建立概念用的參考筆記。專案現況：`my-dev-grid-front` 是 Vue 3 + Vite 的純 SPA（`createWebHistory`，沒有 SSR），部署在 GCP Cloud Run。
+> 這份文件整理的是一段**教育性問答**，針對 `my-dev-grid-front` 現況延伸出的一連串前端建置工具與認證模式問題。**全程沒有異動任何程式碼**，純粹是建立概念用的參考筆記。專案現況：`my-dev-grid-front` 是 Vue 3 + Vite 的純 SPA（`createWebHistory`，沒有 SSR），部署在 GCP Cloud Run。
 
 ## 一、Laravel Sanctum 兩種認證模式——token 跟 cookie 到底差在哪
 
@@ -25,9 +25,9 @@
 
 cookie 模式要多設定：CORS 的 `supports_credentials`、`SANCTUM_STATEFUL_DOMAINS`、`SESSION_DOMAIN` 前面加點涵蓋子網域、前端 `fetch`/axios 開 `withCredentials`。token 模式相對單純：後端發 token、前端存起來、每個請求手動加 header——這也是這個專案最後選它的原因之一，不只是網域限制逼的，本身也比較好上手。
 
-### 5. 這個專案最後的決定（`decision-register.md` D-56，2026-09-22）
+### 5. 這個專案最後的決定（D-56，2026-09-22）
 
-**先用 API token 模式**，`statefulApi()` 從跨 origin 認證路徑上拿掉，D-34（登入/授權）直接照這個基礎往下做。SPA cookie 模式沒有被否決，是被記成一筆**低優先度、不影響現在進度的技術債**（見 `management-debt-ledger.md`「Sanctum cookie 模式／自訂網域」列）：等之後真的買了自訂網域、前後端也都遷到同一個根網域下，才需要重新評估要不要換成 cookie 模式——換的理由會是想降低 token 儲存的 XSS 曝險，不是 token 模式本身有已知的功能缺陷。
+**先用 API token 模式**，`statefulApi()` 從跨 origin 認證路徑上拿掉，D-34（登入/授權）直接照這個基礎往下做。SPA cookie 模式沒有被否決，是被記成一筆**低優先度、不影響現在進度的技術債**：等之後真的買了自訂網域、前後端也都遷到同一個根網域下，才需要重新評估要不要換成 cookie 模式——換的理由會是想降低 token 儲存的 XSS 曝險，不是 token 模式本身有已知的功能缺陷。
 
 ## 二、前端能不能掛 GitHub Pages？
 
@@ -85,4 +85,4 @@ Cloudflare Pages 這點對高流量靜態站特別有吸引力，因為另外兩
 
 ---
 
-**這輪討論後續衍生出一個真的專案決定**：Sanctum 認證模式定案為 API token（`decision-register.md` D-56），D-34 因此解除阻塞；SPA cookie 模式改記成低優先度技術債，等之後買自訂網域再重新評估。其餘部分（webpack/Vite/Next/Nuxt/build 概念）純粹建立概念，沒有異動任何專案決定——目前的 Vue 3 + Vite 純 SPA 架構、部署在 Cloud Run 的選擇，不需要因為那部分討論改動任何東西。
+**這輪問答後續衍生出一個真的專案決定**：Sanctum 認證模式定案為 API token（D-56），D-34 因此解除阻塞；SPA cookie 模式改記成低優先度技術債，等之後買自訂網域再重新評估。其餘部分（webpack/Vite/Next/Nuxt/build 概念）純粹建立概念，沒有異動任何專案決定——目前的 Vue 3 + Vite 純 SPA 架構、部署在 Cloud Run 的選擇，不需要因為那部分討論改動任何東西。

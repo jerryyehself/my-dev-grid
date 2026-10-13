@@ -95,9 +95,8 @@ class TokenSocialAuthController extends Controller
 
         // Token 放在 URL fragment（#token=...），不是 query string：fragment
         // 不會被送到任何伺服器（包含前端自己的 hosting），瀏覽器也不會把它
-        // 記進 Referer 或存取紀錄——這是 2026-09-22 討論 token 儲存風險時
-        // 查證過的傳遞路徑慣例（前端拿到後存哪裡是另一件事，見
-        // daily-claude-summary/reports/frontend-build-tooling-qa.md）。
+        // 記進 Referer 或存取紀錄——這是傳遞 token 的
+        // 慣例做法（前端拿到後存哪裡是另一件事，由前端自己決定）。
         return redirect(config('app.frontend_url')."/auth/callback#token={$token}");
     }
 }

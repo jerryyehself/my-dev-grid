@@ -14,7 +14,7 @@ use Throwable;
 class SocialAuthController extends Controller
 {
     /**
-     * v1 範圍（decision-register.md D-34）只開放這兩個 OAuth provider，
+     * v1 範圍（D-34）只開放這兩個 OAuth provider，
      * 其他值一律視為無效路由（404），不要交給 Socialite 憑空 driver。
      */
     private const ALLOWED_PROVIDERS = ['google', 'line'];
@@ -32,7 +32,7 @@ class SocialAuthController extends Controller
     /**
      * Provider 授權完導回來的 callback。
      *
-     * 這是封閉系統（v1 範圍只做登入，不開放註冊，見 decision-register.md
+     * 這是封閉系統（v1 範圍只做登入，不開放註冊，見
      * D-34）：找得到既有的 oauth_identities 綁定就登入，找不到就直接拒絕，
      * 不會自動幫使用者建立帳號或綁定。
      */
@@ -61,8 +61,8 @@ class SocialAuthController extends Controller
             // 預期中的雞生蛋問題。解法是把 provider 給的使用者 id 寫進
             // application log，讓專案owner 事後自己用
             // `php artisan tinker` 手動建一筆 oauth_identities row 把自己
-            // 的 provider 帳號綁到既有的 users row 上。詳細步驟見
-            // my-dev-grid-skills 的 roles/backend/2026-09-08.md 交接文件。
+            // 的 provider 帳號綁到既有的 users row 上。日誌事件 identity_not_bound
+            // 帶哪些欄位，見 docs/observability.md。
             //
             // 絕對不能把這些值放進 HTTP 回應本身——這是任何人都能打到的
             // 公開 callback 端點，provider id 屬於半敏感資訊，外洩等於告訴

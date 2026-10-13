@@ -8,7 +8,7 @@ use Illuminate\Database\Seeder;
 use RuntimeException;
 
 /**
- * 把 daily-claude-summary 的 4 份報告填成已發布的文章（Documentation，scope = post）。
+ * 把隨專案附帶的 4 份 Markdown 文章（fixtures/articles/）填成已發布的文章（Documentation，scope = post）。
  *
  * 不在 DatabaseSeeder 的預設串裡：這是「內容」不是「基礎資料」，`migrate:fresh --seed`
  * 不該順便把站長的文章灌進每一個環境（本機、CI、測試）。需要時手動跑：
@@ -26,9 +26,9 @@ use RuntimeException;
  * body 是 Markdown 原文（D-46），標題另存 title 欄位，所以 fixture 檔已去掉開頭的 H1；
  * summary／intro 沒有獨立欄位，靠 body 的格式帶（D-57），不用另外填。
  *
- * fixture 是從 daily-claude-summary 的 reports/ 複製進來的（不在執行時抓），因為這些內容
- * 會公開，複製時已做過一輪隱私檢查：帳號層級識別字（Cloudflare 子網域、Zero Trust team name）
- * 換成示意值，求職相關的敘述移除。之後要更新內容，重新複製後也要重做同一輪檢查。
+ * fixture 是隨 repo 附帶的 Markdown 檔（不在執行時抓），因為這些內容
+ * 會公開，收進來時已做過一輪隱私檢查：帳號層級識別字（Cloudflare 子網域、Zero Trust team name）
+ * 換成示意值，求職相關的敘述移除。之後要更新內容，改完 fixture 也要重做同一輪檢查（`ArticleSeederTest` 擋掉其中一部分）。
  */
 class ArticleSeeder extends Seeder
 {

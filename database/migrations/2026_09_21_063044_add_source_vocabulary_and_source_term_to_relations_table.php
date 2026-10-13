@@ -18,8 +18,7 @@ use Illuminate\Support\Facades\Schema;
  * **這個欄位記錄的是事實（抄自哪裡），不是意圖（我認為它該不該被淘汰）**——
  * 這正是 issue #59（棄用機制）卡住的地方沒辦法做到的事：對一個借來的述詞，
  * 「我當初定義錯了」這個解釋大部分被排除掉，因為定義本來就不是本專案下的；
- * 對一個自創的述詞，這個解釋仍然成立。細節與查證見
- * `management-debt-ledger.md` 這一列與 #59 那一列。
+ * 對一個自創的述詞，這個解釋仍然成立。細節見 issue #59。
  */
 return new class extends Migration
 {

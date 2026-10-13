@@ -60,8 +60,8 @@ class Relation extends Model
     public const LOCKED_FIELDS = ['subject_id', 'object_id', 'name', 'class_number', 'call_number', 'parent_class'];
 
     /**
-     * Relation 互斥性檢查——尚未實作，研究依據記在這裡（2026-09-14），不是只留在
-     * 對話紀錄裡。待決項目：使用者要不要做「幫每個 relation 標互斥分組、儲存時
+     * Relation 互斥性檢查——尚未實作，研究依據記在這裡（2026-09-14）。
+     * 待決項目：要不要做「幫每個 relation 標互斥分組、儲存時
      * 驗證」（例如 descendantOf/accompanies/precedes 三選一，理論上不該同時成立）。
      *
      * 查過的理論依據：
