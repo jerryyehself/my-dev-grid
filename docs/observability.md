@@ -62,7 +62,94 @@ gcloud logging read 'jsonPayload.request_id="<id>"' --project=<PROJECT_ID> --fre
 
 實作：Laravel 的例外處理器記錄未處理例外時，會用 `ERROR` 等級並在 context 帶 `exception`。`CloudLoggingFormatter` 看到 `exception` 就把 `message` 換成 `PHP Fatal error:  Uncaught <(string) $exception>` 加上 `thrown in <檔案> on line <行號>`（跟 PHP 自己印 uncaught exception 的格式相同），同時把堆疊放進單行 JSON（換行跳脫為 `\n`）。`ERROR` 以上才會被 Error Reporting 收；`WARNING` 以下即使帶例外也不會。
 
-Laravel 預設不回報的例外（驗證失敗、404、未登入、`abort(4xx)` 等）不會產生日誌，所以也不會出現在 Error Reporting。
+Laravel 預設不回報的例外（驗證失敗、404、未登入、`abort(4xx)` 等）不會產生錯誤日誌，所以也不會出現在 Error Reporting。其中 403 與 429 會另外記一筆 `WARNING` 的安全事件（沒有堆疊，見下一節）。
+
+## 安全與稽核事件
+
+登入、token、權限被拒、頻率限制、後台資料變更各記一筆（#103）。事件名稱取自 OWASP〈Logging Vocabulary Cheat Sheet〉<https://cheatsheetseries.owasp.org/cheatsheets/Logging_Vocabulary_Cheat_Sheet.html>（取用日期 2026-10-12）。這一節同時是 ASVS 5.0 16.1.1 要求的日誌清單：「Verify that an inventory exists documenting the logging performed at each layer of the application's technology stack, what events are being logged, log formats, where that logging is stored, how it is used, how access to it is controlled, and for how long logs are kept.」<https://github.com/OWASP/ASVS/blob/master/5.0/en/0x25-V16-Security-Logging-and-Error-Handling.md>
+
+### 格式與查詢
+
+事件走一般的 `Log` facade，跟其他日誌同一個 `cloud_run` channel、同一種單行 JSON，自動帶 `request_id` 與 trace。
+
+| 位置 | 內容 |
+|---|---|
+| `message` | `<事件名稱> <中文說明>`，例如 `authn_login_fail google 登入失敗（session）：identity_not_bound` |
+| `jsonPayload.context.event` | 事件名稱本身，篩選用這個 |
+| `jsonPayload.context.*` | 其他欄位（下表） |
+
+vocabulary 把參數寫成位置參數字串（例：`"event": "authn_login_fail:joebob1"`）；這裡改成具名欄位（`user_id`、`reason`…），`event` 只放名稱，Cloud Logging 才能逐欄篩選。
+
+```
+resource.type="cloud_run_revision"
+jsonPayload.context.event="authn_login_fail"
+```
+
+全部安全事件：`jsonPayload.context.event:*`。某個使用者的登入紀錄：`jsonPayload.context.event="authn_login_success" AND jsonPayload.context.user_id=1`。
+
+### 事件表
+
+等級照 vocabulary，只有 `authz_fail` 不同（見表下）。
+
+| 事件 | 等級 | 什麼時候 | 欄位 |
+|---|---|---|---|
+| `authn_login_success` | INFO | OAuth callback 找到綁定（Google、LINE；Triple 的 session 模式與前端的 token 模式）、帳密登入成功 | `user_id`、`auth_method`（`google`／`line`／`password`）、`auth_mode`（`session`／`token`） |
+| `authn_login_fail` | WARNING | 見下方「失敗原因」 | `auth_method`、`auth_mode`、`reason`、`source_ip`，依原因另有 `user_id`、`provider_user_id`、`provider_error`、`error_class`、`access_token_id` |
+| `authn_token_created` | INFO | 發 token：登入開新的 refresh token 家族（`reason=login`）、refresh 換發（`rotation`）、OAuth 回呼的短效 token（`oauth_callback`） | `user_id`、`reason`、`family_id`、`refresh_token_id`、`access_token_id`、`abilities` |
+| `authn_token_revoked` | INFO | 撤銷整個 refresh token 家族，`reason` 是 `logout`、`reuse`、`max_lifetime` | `user_id`、`reason`、`family_id`、`refresh_tokens_revoked`（刪掉幾支） |
+| `authn_token_reuse` | CRITICAL | 已用掉的 refresh token 在寬限秒數之後又被送來（視為被偷，整個家族撤銷） | `user_id`、`family_id`、`refresh_token_id`、`source_ip` |
+| `session_expired` | INFO | 換發時超過 90 天絕對上限 | `user_id`、`reason=max_lifetime`、`family_id` |
+| `session_logout` | INFO | `POST /auth/logout`（Triple）、`POST /api/auth/logout`（前端） | `auth_mode`；認得出是誰時有 `user_id`；token 模式另有 `access_token_id` |
+| `authz_fail` | WARNING | 任何 403：Origin 檢查（`EnsureFrontendOrigin`）、`abort(403)`、Policy 拒絕 | `http_method`、`route`（路由樣板）、`resource`（路徑，不含 query string）、`reason`（程式裡寫的固定訊息）、`source_ip`；已驗證的請求有 `user_id` |
+| `excess_rate_limit_exceeded` | WARNING | 任何 429 | `http_method`、`route`、`max`（limiter 上限：login 5、social-login 20、token-refresh 30、api 60）、`retry_after`、`source_ip`；已驗證的請求有 `user_id` |
+| `authz_admin` | WARNING | 已登入使用者在 HTTP 請求裡新增、修改、刪除 Scope／Relation／Documentation／Technique／Implementation，或改它們之間的 pivot | `user_id`、`action`（`create`／`update`／`delete`／`sync`）、`object`（`scope`…）、`object_id`；`update` 有 `fields`（改了哪些欄位）；`sync` 有 `relation`、`attached`、`detached`、`updated`（id 清單） |
+
+`authn_login_fail` 的 `reason`：
+
+| `reason` | 情況 |
+|---|---|
+| `identity_not_bound` | provider 帳號沒有對應的 `oauth_identities`（關閉註冊，見 `SocialAuthController`）；帶 `provider_user_id` |
+| `invalid_state` | Socialite 的 state 驗證失敗 |
+| `provider_denied` | provider 導回來時帶了 `error` 參數（例如使用者按取消的 `access_denied`）；帶 `provider_error` |
+| `provider_error` | 其他向 provider 取資料失敗的情況；帶 `error_class`（例外類別名，不含訊息） |
+| `invalid_credentials` | 帳密錯誤；帳號存在時帶 `user_id` |
+| `invalid_refresh_token` | 帶了 refresh cookie 但無效或過期 |
+| `callback_token_already_used` | 同一支 OAuth 回呼 token 被同時拿來換兩次，後到的那個 |
+
+OAuth 的三種例外（`invalid_state`、`provider_denied`、`provider_error`）記完照原樣丟出，回應跟改動前一樣是 500，也照樣有一筆 `ERROR` 日誌。
+
+刻意不記：寬限秒數內的併發換發（409，正常情況）、沒帶 cookie 的 refresh（前端每次開機都會打，沒登入過的訪客每一頁都是）、401、驗證失敗（422）。
+
+等級與 vocabulary 不同的地方：`authz_fail` vocabulary 寫 CRITICAL，這裡用 WARNING——這個 app 的 403 絕大多數是 Origin 檢查擋掉 curl、爬蟲或設定錯誤的前端，不是越權；CRITICAL 會讓之後「ERROR 以上就通知」的告警一直誤觸發。vocabulary 沒有 `session_end`：使用者自己登出用 `session_logout`，其他原因結束用 `session_expired`。
+
+### 記哪些識別資料、不記什麼
+
+不記：密碼、access／refresh token 的值、OAuth 的 `code` 與 `state`（路徑一律不含 query string）、session id、金鑰、請求內容、OAuth 例外的訊息（可能含 provider 回應片段）、後台資料的欄位值（OWASP〈Logging Cheat Sheet〉"Data to exclude"：<https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html#data-to-exclude>）。
+
+| 識別資料 | 記不記 | 理由 |
+|---|---|---|
+| `user_id`（`users.id`） | 記 | 內部主鍵，回答「誰」需要它；不記 email、姓名 |
+| token／家族 id（`access_token_id`、`refresh_token_id`、`family_id`） | 記 | 資料庫主鍵與 UUID，不是秘密：cookie 是 `{id}\|{秘密}`，只有 id 換不到任何東西，資料庫也只存秘密的 SHA-256。撤銷、重放要靠它們追到是哪一次登入 |
+| `provider_user_id`（Google `sub`、LINE userId） | 只在 `identity_not_bound` | 首次綁定唯一需要的值（專案擁有者靠它手動建 `oauth_identities`）。2026-10-12 之前這筆日誌還記了 provider 給的 email 與姓名，已移除：建綁定用不到，打到這裡的多半是跟系統無關的陌生人。要認出哪一筆是自己，看自己登入那一刻的時間，或該次回應的 `X-Request-Id` |
+| 帳密登入失敗時輸入的 email | 不記 | 可能是別人的 email；帳號存在時改記它的 `user_id` |
+| `source_ip` | 只在失敗／被擋類事件（`authn_login_fail`、`authn_token_reuse`、`authz_fail`、`excess_rate_limit_exceeded`） | 偵測暴力嘗試、判斷要不要封鎖需要 IP，事件本身要能單獨看懂（ASVS 16.2.1 "when, where, who, what"）。值跟 rate limit 的 key 相同（`AppServiceProvider::clientIp`，X-Forwarded-For 最右邊）。成功類事件不記：`user_id` 已經說明是誰，IP 也本來就在 Cloud Run 自動寫的 request log（同一個 trace）裡 |
+| User-Agent | 不記 | 在 request log 裡 |
+
+vocabulary 的隱私註記：「All fields logged after event type should be considered optional. ... logging user IP address may be useful for detection and response, but may be considered personally identifiable information when combined with other data and subject to regulation or deletion requests.」
+
+保留期限：跟其他日誌一樣在 Cloud Logging 的 `_Default` bucket。官方文件：「If you don't customize the retention period, the default is `30 days`.」（這句出自建立 user-defined bucket 的步驟；`_Default` bucket 實際設定以 `gcloud logging buckets describe _Default --location=global --project=<PROJECT_ID>` 為準），可設定範圍「between 1 day and 3650 days」，超過預設的部分另外收費。<https://docs.cloud.google.com/logging/docs/buckets>（取用日期 2026-10-12）。所以陌生人的 `provider_user_id`、IP 預設 30 天後自動刪除。
+
+### 後台稽核紀錄為什麼不存資料庫
+
+評估過 `spatie/laravel-activitylog` 與自建資料表，最後只寫日誌、不建資料表（沒有 migration）：
+
+- ASVS 5.0 16.4.3：「Verify that logs are securely transmitted to a logically separate system for analysis, detection, alerting, and escalation. The aim is to ensure that if the application is breached, the logs are not compromised.」存在 app 自己的資料庫裡，app 用的同一組資料庫帳號就能改、能刪；Cloud Logging 是另一個系統，app 的程式碼沒有修改日誌的路徑（服務帳戶在 GCP 有哪些日誌權限要另外確認，見「還需要專案擁有者手動做的事」第 7 步）。
+- 不加相依套件、不加資料表、每次寫入不多一個 INSERT。
+- 代價：預設只留 30 天；只記欄位名稱、不記值（Markdown 內文可能很長，整行超過 php-fpm 的 `log_limit` 會被拆成多行，JSON 就壞了）；要看改成什麼值，靠資料庫本身或備份。
+- 只記「已登入使用者在 HTTP 請求裡的變更」。seeder、`snapshot:github-repos` 這類指令沒有登入使用者，不記（一次上百筆的系統批次寫入）；`php artisan tinker` 手動改的也不會記。
+- pivot 的 `sync()` 不觸發 model 事件，由 `SyncsPivotRelations::syncPivot()` 另外記。`updated` 是 sync 重寫過 pivot 欄位的既有關聯：sync 對既有關聯一律下 UPDATE，值沒變也列在裡面。
+
+需要更長的保留期限時，把安全事件導到另一個 bucket（第 7 步），不用改程式。
 
 ## 相關設定在哪
 
@@ -71,6 +158,7 @@ Laravel 預設不回報的例外（驗證失敗、404、未登入、`abort(4xx)`
 | channel、formatter、processor | `config/logging.php` 的 `cloud_run` |
 | request id | `app/Http/Middleware/AssignRequestId.php`，在 `bootstrap/app.php` 以 `prepend` 掛成最外層全域 middleware |
 | JSON 格式 | `app/Logging/CloudLoggingFormatter.php`、`app/Logging/RequestLogProcessor.php` |
+| 安全與稽核事件 | 名稱與等級 `app/Logging/SecurityEvent.php`、寫法 `app/Logging/SecurityLog.php`；403／429 在 `bootstrap/app.php` 的 `respond()`；後台稽核 `app/Logging/AdminAudit.php`（`AppServiceProvider::boot` 掛 observer，pivot 在 `app/Traits/SyncsPivotRelations.php`） |
 | `LOG_CHANNEL=cloud_run`、`GOOGLE_CLOUD_PROJECT` | `.github/workflows/deploy-cloud-run.yml`（服務；兩個 Job 也用 `cloud_run`）、`.env.production.example` |
 | php-fpm `log_limit` | `Dockerfile`。php-fpm 預設把超過 1024 字元的 worker 輸出折成多行，會讓單行 JSON 失效；`message` 另外在 30000 位元組截斷，確保一行在上限內 |
 
@@ -171,3 +259,24 @@ Cloud Error Reporting 已涵蓋「有堆疊的例外」。若之後想要 releas
 ### 6. 排查 #91
 
 用上述工具重現與查詢 #91，需要正式環境的 Cloud Logging 權限；結果寫成事故報告。
+
+### 7. 安全事件：保留期限、權限、告警（選用）
+
+以下指令**沒有在實際專案執行過**（推論），旗標以 `gcloud logging ... --help` 為準。
+
+1. 確認 `_Default` bucket 目前保留幾天：`gcloud logging buckets describe _Default --location=global --project=<PROJECT_ID>`。
+2. 要讓安全事件留得比一般日誌久（例如一年），另建一個 bucket 並用 sink 只把安全事件導過去，一般日誌維持 30 天：
+
+   ```bash
+   gcloud logging buckets create security-audit \
+     --location=global --retention-days=400 --project=<PROJECT_ID>
+
+   gcloud logging sinks create security-audit \
+     logging.googleapis.com/projects/<PROJECT_ID>/locations/global/buckets/security-audit \
+     --log-filter='resource.type="cloud_run_revision" AND jsonPayload.context.event:*' \
+     --project=<PROJECT_ID>
+   ```
+
+   超過預設 30 天的部分會收保留費用（見上方「保留期限」的出處）；這個站的安全事件量很小。
+3. 確認 Cloud Run 服務帳戶在 IAM 上的角色。app 只把日誌寫到 stderr、不呼叫 Cloud Logging API，用不到任何能刪除日誌或改 bucket／sink 的權限；若服務帳戶是預設的 Compute Engine 帳戶且帶 `roles/editor`，權限比需要的大，依 ASVS 16.4.2（「Verify that logs are protected from unauthorized access and cannot be modified.」）考慮換成專用的服務帳戶。另外確認能讀 Logs Explorer 的人只有專案擁有者（安全事件裡有 IP 與 provider 使用者 id）。
+4. 選用：替 `authn_token_reuse` 建 log-based 告警（Logs Explorer 用 `jsonPayload.context.event="authn_token_reuse"` 查詢 → Create alert），通知管道用第 2 步建立的。這個事件出現代表 refresh token 很可能被偷。

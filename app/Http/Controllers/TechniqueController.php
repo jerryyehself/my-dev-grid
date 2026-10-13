@@ -42,10 +42,10 @@ class TechniqueController extends Controller
         $technique = Technique::create(Arr::except($data, ['documentations', 'implementations']));
 
         if (isset($data['documentations'])) {
-            $technique->documentations()->sync($this->pivotSyncData($data['documentations']));
+            $this->syncPivot($technique->documentations(), $data['documentations']);
         }
         if (isset($data['implementations'])) {
-            $technique->implementations()->sync($this->pivotSyncData($data['implementations']));
+            $this->syncPivot($technique->implementations(), $data['implementations']);
         }
 
         return response()->json([
@@ -75,10 +75,10 @@ class TechniqueController extends Controller
         $isUpdated = $technique->update(Arr::except($data, ['documentations', 'implementations']));
 
         if (isset($data['documentations'])) {
-            $technique->documentations()->sync($this->pivotSyncData($data['documentations']));
+            $this->syncPivot($technique->documentations(), $data['documentations']);
         }
         if (isset($data['implementations'])) {
-            $technique->implementations()->sync($this->pivotSyncData($data['implementations']));
+            $this->syncPivot($technique->implementations(), $data['implementations']);
         }
 
         return response()->json([

@@ -4,6 +4,7 @@ use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsureFrontendOrigin;
 use App\Http\ProblemDetails;
 use App\Http\RefreshTokenCookie;
+use App\Logging\SecurityLog;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -97,6 +98,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // 500 不會帶出 stack trace：APP_DEBUG=false 時 Laravel 只放 "Server Error"，
         // 這裡沿用它的內容、只加上 problem details 欄位。
         $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
+            // 403（authz_fail）、429（excess_rate_limit_exceeded）記安全事件，見 SecurityLog。
+            // 這兩種例外 Laravel 預設不 report，所以在這裡（每個例外回應都會經過）記。
+            SecurityLog::httpError($response, $e, $request);
+
             if ($response instanceof JsonResponse
                 && $response->getStatusCode() >= 400
                 && ProblemDetails::wanted($request)) {

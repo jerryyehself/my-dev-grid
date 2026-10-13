@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Logging\SecurityLog;
 use App\Models\OauthIdentity;
 use App\Service\SocialiteDriver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SocialAuthController extends Controller
 {
@@ -39,7 +40,15 @@ class SocialAuthController extends Controller
     {
         abort_unless(in_array($provider, self::ALLOWED_PROVIDERS, true), 404);
 
-        $socialiteUser = SocialiteDriver::for($provider)->user();
+        try {
+            $socialiteUser = SocialiteDriver::for($provider)->user();
+        } catch (Throwable $e) {
+            // state 不符、使用者在 provider 那邊按取消、換 token 失敗：記一筆
+            // authn_login_fail 再照原樣丟出去，回應跟改動前一樣。
+            SecurityLog::oauthLoginFailed($provider, 'session', $e, $request);
+
+            throw $e;
+        }
 
         $identity = OauthIdentity::where('provider', $provider)
             ->where('provider_user_id', $socialiteUser->getId())
@@ -49,22 +58,24 @@ class SocialAuthController extends Controller
             // 首次登入 bootstrap 問題：這個系統關閉註冊，所以「第一次」有人
             // 用這個 provider 帳號登入時（包括專案owner 自己的第一次登入），
             // oauth_identities 裡必然找不到任何一筆綁定——這不是 bug，是
-            // 預期中的雞生蛋問題。解法是把 provider 給的識別資訊寫進
+            // 預期中的雞生蛋問題。解法是把 provider 給的使用者 id 寫進
             // application log，讓專案owner 事後自己用
             // `php artisan tinker` 手動建一筆 oauth_identities row 把自己
             // 的 provider 帳號綁到既有的 users row 上。詳細步驟見
             // my-dev-grid-skills 的 roles/backend/2026-09-08.md 交接文件。
             //
             // 絕對不能把這些值放進 HTTP 回應本身——這是任何人都能打到的
-            // 公開 callback 端點，provider id/email 屬於半敏感資訊，外洩
-            // 等於告訴陌生人「這組 provider 帳號存在、剛剛嘗試登入這個
-            // 系統」，所以只寫進只有專案owner 看得到的 log，回應本身維持
-            // 一個不透露任何細節的通用「未授權」導向。
-            Log::info('OAuth 登入遭拒：找不到對應的 oauth_identities 綁定', [
-                'provider' => $provider,
-                'provider_user_id' => $socialiteUser->getId(),
-                'provider_email' => $socialiteUser->getEmail(),
-                'provider_name' => $socialiteUser->getName(),
+            // 公開 callback 端點，provider id 屬於半敏感資訊，外洩等於告訴
+            // 陌生人「這組 provider 帳號存在、剛剛嘗試登入這個系統」，所以
+            // 只寫進只有專案owner 看得到的 log，回應本身維持一個不透露任何
+            // 細節的通用「未授權」導向。
+            //
+            // 2026-10-12（issue #103）起只記 provider_user_id，不再記 provider
+            // 給的 email 跟名稱：建綁定只需要 id，打到這裡的多半是跟這個系統
+            // 無關的陌生人，他們的 email／姓名沒有理由留在日誌裡。要認出哪一筆是
+            // 自己，看自己登入那一刻的時間或回應的 X-Request-Id。
+            SecurityLog::loginFailed($provider, 'session', 'identity_not_bound', [
+                'provider_user_id' => (string) $socialiteUser->getId(),
             ]);
 
             return redirect('/?auth_error=not_authorized');
@@ -72,6 +83,8 @@ class SocialAuthController extends Controller
 
         Auth::login($identity->user);
         $request->session()->regenerate();
+
+        SecurityLog::loginSucceeded($identity->user_id, $provider, 'session');
 
         return redirect('/');
     }
