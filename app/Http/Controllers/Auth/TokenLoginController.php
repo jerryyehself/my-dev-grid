@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Auth\Concerns\IssuesFrontendTokens;
 use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
+use App\Logging\SecurityEvent;
+use App\Logging\SecurityLog;
 use App\Service\RefreshTokenFamilies;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
@@ -44,10 +46,14 @@ class TokenLoginController extends Controller
         // 不該像 SessionAuthController 那樣呼叫 session()->regenerate()，
         // 這裡本來就不该有 session 產生。
         if (! Auth::once($credentials)) {
+            SecurityLog::passwordLoginFailed($credentials['email'], 'token');
+
             throw ValidationException::withMessages([
                 'email' => ['帳號或密碼錯誤。'],
             ]);
         }
+
+        SecurityLog::loginSucceeded(Auth::id(), 'password', 'token');
 
         return $this->tokenPairResponse($this->issueTokenPair(Auth::user()));
     }
@@ -69,10 +75,14 @@ class TokenLoginController extends Controller
     {
         $current = $request->user('sanctum')?->currentAccessToken();
 
-        $families->revokeForLogout(
-            RefreshTokenCookie::read($request),
-            $current instanceof PersonalAccessToken ? $current : null,
-        );
+        $accessToken = $current instanceof PersonalAccessToken ? $current : null;
+        $userId = $families->revokeForLogout(RefreshTokenCookie::read($request), $accessToken);
+
+        SecurityLog::write(SecurityEvent::SessionLogout, $userId === null ? '沒有可撤銷的登入' : "使用者 {$userId} 登出（token）", [
+            'user_id' => $userId,
+            'auth_mode' => 'token',
+            'access_token_id' => $accessToken?->getKey(),
+        ]);
 
         return response()
             ->json(['message' => '已登出。'])

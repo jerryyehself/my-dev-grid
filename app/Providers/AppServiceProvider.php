@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Http\RefreshTokenCookie;
+use App\Logging\AdminAudit;
 use App\OpenApi\ApiSecurity;
 use App\OpenApi\ProblemDetailsResponses;
 use Dedoc\Scramble\Scramble;
@@ -41,6 +42,11 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->configureRateLimiting();
+
+        // 後台資料變更的稽核紀錄（authz_admin，issue #103），見 AdminAudit
+        foreach (AdminAudit::MODELS as $model) {
+            $model::observe(AdminAudit::class);
+        }
 
         $this->configureApiDocs();
 
