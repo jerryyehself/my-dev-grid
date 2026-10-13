@@ -119,7 +119,7 @@ gcloud monitoring uptime create my-dev-grid-api-up \
 
 `<CLOUD_RUN_HOST>` 是服務網址去掉 `https://`（`gcloud run services describe <SERVICE_NAME> --region=asia-east1 --format='value(status.url)'`）。
 
-再替它建告警：主控台 Monitoring → Uptime checks → 點這個檢查 → Create alert → 通知管道勾第 2 步的 email 與手機。條件建議「失敗地區數 ≥ 2」，**不要設成 1 個地區失敗就通知**：服務 `min-instances=0`，冷啟動偶發的 502（#91）會讓單一地區的單次檢查失敗，門檻太低會變成誤報。
+再替它建告警：主控台 Monitoring → Uptime checks → 點這個檢查 → Create alert → 通知管道勾第 2 步的 email 與手機。條件設「失敗地區數 ≥ `<FAILING_REGIONS>`」，**不要設成 1 個地區失敗就通知**：服務 `min-instances=0`，冷啟動偶發的 502（#91）會讓單一地區的單次檢查失敗，門檻太低會變成誤報。實際採用的門檻不寫在公開 repo，見下方〈告警門檻〉。
 
 `--period`、`--regions` 的可用值以 `gcloud monitoring uptime create --help` 為準（`--period` 可選 1、5、10、15 分鐘）。告警目前不收費：價目頁寫明 "Starting no sooner than September 1, 2027, Cloud Monitoring will begin charging for alerting"。
 
@@ -129,11 +129,11 @@ gcloud monitoring uptime create my-dev-grid-api-up \
 
 ```json
 {
-  "displayName": "my-dev-grid 5xx ratio > 5%",
+  "displayName": "my-dev-grid 5xx ratio",
   "combiner": "OR",
   "conditions": [
     {
-      "displayName": "5xx / all requests > 5% for 5 min",
+      "displayName": "5xx / all requests over threshold",
       "conditionThreshold": {
         "filter": "metric.type=\"run.googleapis.com/request_count\" AND resource.type=\"cloud_run_revision\" AND resource.label.service_name=\"<SERVICE_NAME>\" AND metric.label.response_code_class=\"5xx\"",
         "denominatorFilter": "metric.type=\"run.googleapis.com/request_count\" AND resource.type=\"cloud_run_revision\" AND resource.label.service_name=\"<SERVICE_NAME>\"",
@@ -144,8 +144,8 @@ gcloud monitoring uptime create my-dev-grid-api-up \
           { "alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_RATE", "crossSeriesReducer": "REDUCE_SUM" }
         ],
         "comparison": "COMPARISON_GT",
-        "thresholdValue": 0.05,
-        "duration": "300s",
+        "thresholdValue": <RATIO>,
+        "duration": "<DURATION>s",
         "trigger": { "count": 1 }
       }
     }
@@ -158,9 +158,11 @@ gcloud monitoring uptime create my-dev-grid-api-up \
 gcloud alpha monitoring policies create --policy-from-file=5xx-alert.json --project=<PROJECT_ID>
 ```
 
-等價的主控台路徑：Monitoring → Alerting → Create policy → Select a metric：Cloud Run Revision → Request Count → 篩選 `service_name`＝服務名稱、`response_code_class`＝`5xx` → 設為相對於所有請求的比例（Add ratio／denominator 不篩 `response_code_class`）→ 門檻 5%、持續 5 分鐘 → 選通知管道。
+等價的主控台路徑：Monitoring → Alerting → Create policy → Select a metric：Cloud Run Revision → Request Count → 篩選 `service_name`＝服務名稱、`response_code_class`＝`5xx` → 設為相對於所有請求的比例（Add ratio／denominator 不篩 `response_code_class`）→ 門檻 `<RATIO>`、持續 `<DURATION>` → 選通知管道。
 
-這份 JSON 與指令依 Cloud Monitoring 的 AlertPolicy 格式撰寫，**沒有在實際專案執行過**（推論）；`gcloud alpha` 指令群組若改名，以主控台建立。流量很小的服務，一次 5xx 就可能超過 5%，視情況調高門檻或拉長 `duration`。
+這份 JSON 與指令依 Cloud Monitoring 的 AlertPolicy 格式撰寫，**沒有在實際專案執行過**（推論）；`gcloud alpha` 指令群組若改名，以主控台建立。流量很小的服務，一次 5xx 就可能超過比例門檻，視情況調高門檻或拉長 `duration`。
+
+**告警門檻**：`<FAILING_REGIONS>`、`<RATIO>`、`<DURATION>` 的實際值不放在這個公開 repo——知道偵測門檻的人可以刻意壓在門檻以下。數值由專案擁有者保管（GCP 後台的告警政策本身就是準確來源）。
 
 驗收「告警實際觸發過一次」：在測試環境或暫時的路由讓服務連續回 500，等一個 `duration` 後確認收到通知，再還原。
 
