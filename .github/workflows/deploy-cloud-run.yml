@@ -5,6 +5,10 @@ name: Deploy to Cloud Run
 # service. Authenticates to Google Cloud via Workload Identity Federation —
 # no service-account JSON key is stored in GitHub.
 #
+# 新 revision 先不接流量（#107、D-131）：`--no-traffic --tag` 部署，對 tag 專用網址
+# 跑自動檢查，通過才把流量切過去；檢查沒過，job 失敗、流量留在原本的 revision。
+# 回滾方式見 docs/zero-downtime-migrations.md §6.1。
+#
 # This workflow does nothing until the repository variables below are set
 # (the job-level `if` skips it cleanly instead of failing red), and it can't
 # succeed until the GCP-side setup in docs/deployment-gcp.md is done: the
@@ -96,9 +100,11 @@ jobs:
     # variables are populated, per docs/deployment-gcp.md.
     if: vars.GCP_PROJECT_ID != '' && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
     # url 讓 repo 首頁右側的 Deployments 直接連到正式環境的服務網址。
+    # 用切流量那步查到的服務網址，不用 deploy 步驟的 output：帶 tag 部署時，
+    # deploy-cloudrun 的 url output 是 tag 專用網址，切完流量就移除了。
     environment:
       name: production
-      url: ${{ steps.deploy.outputs.url }}
+      url: ${{ steps.switch.outputs.url }}
 
     steps:
       - name: Checkout
@@ -145,7 +151,33 @@ jobs:
             --region="${{ vars.GCP_REGION }}" \
             --wait
 
-      - name: Deploy to Cloud Run
+      # tag 每次執行都不同（含 re-run 的 attempt），不會撞到上一次沒清掉的 tag。
+      # `--no-traffic` 不能用在建立新服務（gcloud 會報「--no-traffic not supported
+      # when creating a new service」），所以先查服務在不在：第一次部署（docs/deployment-gcp.md
+      # 第 8 步）照常直接接流量，那時候本來就沒有舊版可以保護，但下面的檢查一樣會跑。
+      # 用 `services list` 比對名稱而不是 `describe`：describe 失敗（權限、網路）會被誤判成
+      # 「服務不存在」，結果新版不經檢查就接流量；list 出錯會讓這步直接失敗。
+      - name: Prepare candidate tag
+        id: prep
+        env:
+          SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+          REGION: ${{ vars.GCP_REGION }}
+          TAG: run-${{ github.run_number }}-${{ github.run_attempt }}
+        run: |
+          names="$(gcloud run services list --region="$REGION" --format='value(metadata.name)')"
+          if grep -qxF -- "$SERVICE" <<<"$names"; then
+            exists=true
+          else
+            exists=false
+            echo "::notice::服務 $SERVICE 還不存在，這次是第一次部署，新 revision 會直接接流量"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "service_exists=$exists" >> "$GITHUB_OUTPUT"
+
+      # 新 revision 上線但不接流量，只能從 tag 專用網址（https://<tag>---<服務網址>）打到。
+      # deploy-cloudrun 會把 `tag`／`no_traffic` 原樣轉成 `gcloud run deploy --tag --no-traffic`；
+      # env_vars／secrets 照舊用 action 預設的 merge（--update-env-vars／--update-secrets）。
+      - name: Deploy new revision (no traffic)
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -153,6 +185,8 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           service: ${{ vars.CLOUD_RUN_SERVICE }}
           image: ${{ env.IMAGE }}
+          tag: ${{ steps.prep.outputs.tag }}
+          no_traffic: ${{ steps.prep.outputs.service_exists }}
           env_vars: |
             APP_NAME=my-dev-grid
             APP_ENV=production
@@ -191,11 +225,126 @@ jobs:
             --memory=512Mi
             --cpu=1
 
+      # 從服務的 status.traffic 找出這個 tag 對到的 revision 和網址，
+      # 不依賴 deploy-cloudrun 的 output 格式。
+      - name: Resolve candidate revision
+        id: candidate
+        env:
+          SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+          REGION: ${{ vars.GCP_REGION }}
+          TAG: ${{ steps.prep.outputs.tag }}
+        run: |
+          svc="$(gcloud run services describe "$SERVICE" --region="$REGION" --format=json)"
+          revision="$(jq -r --arg t "$TAG" '.status.traffic[]? | select(.tag == $t) | .revisionName' <<<"$svc")"
+          url="$(jq -r --arg t "$TAG" '.status.traffic[]? | select(.tag == $t) | .url' <<<"$svc")"
+          if [ -z "$revision" ] || [ -z "$url" ] || [ "$revision" = null ] || [ "$url" = null ]; then
+            echo "::error::找不到 tag $TAG 對應的 revision"
+            jq '.status.traffic' <<<"$svc"
+            exit 1
+          fi
+          echo "新 revision：$revision"
+          echo "tag 網址：$url"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      # 對 tag 網址做自動檢查，全部通過才切流量。
+      # - /up：Laravel 健康檢查，要經過 php-fpm 才回得了 200。服務設 --min-instances=0，
+      #   而且 nginx 會比 php-fpm 先開始聽（#91），第一個請求可能是 502，所以碰到
+      #   000（連不上／逾時）、502、503、504 會每 5 秒重試，最多 12 次。
+      # - /api/scopes：會查資料庫，確認新程式跑在剛 migrate 完的結構上、Cloud SQL 連得到。
+      # - /api/<不存在的路徑>：404，確認路由與錯誤處理正常（不是 500）。
+      # - 每個回應都要帶 X-Request-Id（AssignRequestId，#100）。
+      - name: Probe candidate revision
+        id: probe
+        env:
+          CANDIDATE_URL: ${{ steps.candidate.outputs.url }}
+          REVISION: ${{ steps.candidate.outputs.revision }}
+        run: |
+          work="$(mktemp -d)"
+          failures=0
+
+          # probe <路徑> <預期狀態碼> <最多嘗試次數>
+          probe() {
+            local path="$1" want="$2" attempts="$3" i tries=0 code=000
+            for ((i = 1; i <= attempts; i++)); do
+              tries=$i
+              rm -f "$work/headers" "$work/body"
+              code="$(curl -sS --max-time 15 -H 'Accept: application/json' \
+                -D "$work/headers" -o "$work/body" -w '%{http_code}' \
+                "$CANDIDATE_URL$path")" || code=000
+              case "$code" in
+                000|502|503|504) ;;
+                *) break ;;
+              esac
+              if [ "$i" -lt "$attempts" ]; then sleep 5; fi
+            done
+
+            local result=ok note="第 $tries 次"
+            if [ "$code" != "$want" ]; then
+              result=fail
+              note="實際 $code（第 $tries 次）"
+            elif ! grep -qi '^x-request-id:' "$work/headers" 2>/dev/null; then
+              result=fail
+              note="回應沒有 X-Request-Id"
+            fi
+            echo "$result  GET $path → $want  $note"
+            echo "| GET \`$path\` → $want | $result | $note |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$result" = fail ]; then
+              echo "::error::GET $path：$note"
+              head -c 2000 "$work/body" 2>/dev/null || true
+              echo
+              failures=$((failures + 1))
+            fi
+          }
+
+          {
+            echo "### 新 revision 檢查（$REVISION）"
+            echo
+            echo "| 檢查 | 結果 | 說明 |"
+            echo "| --- | --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          probe /up 200 12
+          probe /api/scopes 200 3
+          probe /api/__deploy-probe-not-found 404 3
+
+          if [ "$failures" -gt 0 ]; then
+            echo "::error::$failures 項檢查沒過，不切流量，正式環境維持原本的 revision"
+            exit 1
+          fi
+
+      # 檢查通過，把 100% 流量切到 LATEST，同一個指令把 tag 移掉
+      # （gcloud 會先改 tag 再改流量）。切完之後服務回到「LATEST 100%」的一般狀態。
+      # 切之前先確認 LATEST（latestReadyRevisionName）就是剛剛檢查過的 revision：
+      # 這段時間如果有人在 workflow 外面手動 deploy，--to-latest 會切到沒檢查過的版本。
+      - name: Switch traffic to new revision
+        id: switch
+        env:
+          SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+          REGION: ${{ vars.GCP_REGION }}
+          TAG: ${{ steps.prep.outputs.tag }}
+          REVISION: ${{ steps.candidate.outputs.revision }}
+        run: |
+          latest="$(gcloud run services describe "$SERVICE" --region="$REGION" \
+            --format='value(status.latestReadyRevisionName)')"
+          if [ "$latest" != "$REVISION" ]; then
+            echo "::error::LATEST 是 $latest，不是剛檢查過的 $REVISION，不切流量"
+            exit 1
+          fi
+          gcloud run services update-traffic "$SERVICE" \
+            --region="$REGION" \
+            --to-latest \
+            --remove-tags="$TAG"
+          url="$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "流量已切到 $REVISION（$url）" >> "$GITHUB_STEP_SUMMARY"
+
       # 每天的 GitHub 同步：Cloud Run 沒有 cron，routes/console.php 的 Laravel 排程在這裡不會跑，
       # 改由 Cloud Scheduler 每天觸發這個 Job（設定見 docs/deployment-gcp.md 第 10 步）。
       # 這一步只負責讓 Job 跟服務用同一個映像檔，不在部署時執行同步——
       # 部署不該順便改資料，同步的時間由 Cloud Scheduler 決定。
-      # 放在服務部署之後：這步失敗不會擋到服務上線，Job 只是還停在上一個映像檔。
+      # 放在切流量之後：這步失敗不會擋到服務上線，Job 只是還停在上一個映像檔；
+      # 新 revision 沒通過檢查時這步不會跑，Job 跟接流量的舊版留在同一個映像檔。
       - name: Update GitHub sync job
         if: vars.CLOUD_RUN_SYNC_JOB != ''
         run: |
@@ -210,3 +359,34 @@ jobs:
             --set-secrets="APP_KEY=APP_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest,GITHUB_TOKEN=GITHUB_TOKEN:latest" \
             --max-retries=1 \
             --task-timeout=300
+
+      # 前面任何一步失敗或被取消時，把這次的 tag 移掉，沒通過檢查的 revision 就不再有
+      # 公開的專用網址。只動 tag，不動流量：流量還在原本的 revision 上。
+      # revision 本身留著（0% 流量，不會被打到），之後要看日誌可以用它的名字查。
+      # 注意：沒通過檢查的 revision 仍然是服務的 LATEST，不要手動跑 `--to-latest`，
+      # 退版或恢復一律用 `--to-revisions`（docs/zero-downtime-migrations.md §6.1）。
+      - name: Remove candidate tag after failure
+        if: (failure() || cancelled()) && steps.prep.outputs.tag != ''
+        env:
+          SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+          REGION: ${{ vars.GCP_REGION }}
+          TAG: ${{ steps.prep.outputs.tag }}
+          REVISION: ${{ steps.candidate.outputs.revision }}
+          SWITCH_OUTCOME: ${{ steps.switch.outcome }}
+          SERVICE_EXISTED: ${{ steps.prep.outputs.service_exists }}
+        run: |
+          svc="$(gcloud run services describe "$SERVICE" --region="$REGION" --format=json)" || {
+            echo "::warning::查不到服務 $SERVICE，略過移除 tag"
+            exit 0
+          }
+          if jq -e --arg t "$TAG" '[.spec.traffic[]? | select(.tag == $t)] | length > 0' <<<"$svc" >/dev/null; then
+            gcloud run services update-traffic "$SERVICE" --region="$REGION" --remove-tags="$TAG"
+          else
+            echo "tag $TAG 不存在（部署前就失敗，或已經在切流量時移除），不用處理"
+          fi
+          echo "目前的流量分配："
+          gcloud run services describe "$SERVICE" --region="$REGION" --format=json | jq '.status.traffic'
+          # 第一次部署（服務原本不存在）沒有 --no-traffic，新 revision 一開始就接流量，不適用這句。
+          if [ -n "$REVISION" ] && [ "$SWITCH_OUTCOME" != success ] && [ "$SERVICE_EXISTED" = true ]; then
+            echo "新 revision $REVISION 沒有接到流量，正式環境維持原本的 revision" >> "$GITHUB_STEP_SUMMARY"
+          fi
