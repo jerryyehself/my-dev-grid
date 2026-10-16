@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\TokenLoginController;
 use App\Http\Controllers\Auth\TokenRefreshController;
 use App\Http\Controllers\DocumentationController;
@@ -8,19 +9,14 @@ use App\Http\Controllers\ImplementationController;
 use App\Http\Controllers\RelationController;
 use App\Http\Controllers\ScopeController;
 use App\Http\Controllers\TechniqueController;
-use Dedoc\Scramble\Attributes\Endpoint;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // 前端（SPA）開機時拿這支確認目前的登入狀態——未登入回 401，
 // 已登入回目前的 User。`auth:sanctum` 對 Triple（session cookie）跟
 // my-dev-grid-front（bearer token）一視同仁，兩種認證方式都吃。
-Route::get('/user', #[Endpoint(
-    title: '取得目前使用者',
-    description: '回傳目前登入的使用者；未登入回 401。',
-)] function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+// 用 controller 不用 closure：production 跑 route:cache，closure 上的 #[Endpoint]
+// Scramble 讀不到（見 CurrentUserController）。
+Route::get('/user', CurrentUserController::class)->middleware('auth:sanctum');
 
 // my-dev-grid-front 版的 email+password 登入/登出，發 Sanctum API token，
 // 不是 session（D-56）。OAuth 版在 routes/web.php
