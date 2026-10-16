@@ -29,6 +29,7 @@ class UpdateDocumentationRequest extends FormRequest
             'uri' => 'nullable|string',
             // 內文是 Markdown 原文,不設長度上限:Postgres 的 text 沒有上限,
             // 而一篇文章要多長是寫作的事,不該由驗證規則替作者決定
+            /** 文件內文（Markdown 原文），沒有長度上限。 */
             'body' => 'nullable|string',
             'note' => 'nullable|string',
             'status' => 'nullable|integer',

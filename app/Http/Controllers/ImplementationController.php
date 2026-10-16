@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateImplementationRequest;
 use App\Http\Resources\ImplementationResource;
 use App\Models\Implementation;
 use App\Traits\SyncsPivotRelations;
+use Dedoc\Scramble\Attributes\Endpoint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -15,12 +16,10 @@ class ImplementationController extends Controller
 {
     use SyncsPivotRelations;
 
-    /**
-     * Display a listing of the resource.
-     *
-     * Optionally filter by Scope type (e.g. `?type=12` to list only one
-     * Implementation sub-category such as "project").
-     */
+    #[Endpoint(
+        title: '列出實作',
+        description: '回傳所有實作，依標題排序，每筆含所屬分類與關聯的技術。可用 `type` 查詢參數依類型篩選。',
+    )]
     public function index(Request $request)
     {
         $implementations = Implementation::with(['scope', 'techniques'])
@@ -38,9 +37,10 @@ class ImplementationController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    #[Endpoint(
+        title: '建立實作',
+        description: '建立一項實作，並可同時指定關聯的文件與技術。需要登入並有建立權限。',
+    )]
     public function store(StoreImplementationRequest $request)
     {
         $this->authorize('create', Implementation::class);
@@ -61,9 +61,10 @@ class ImplementationController extends Controller
         ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
+    #[Endpoint(
+        title: '取得實作',
+        description: '回傳單一實作，含所屬分類、關聯的技術，以及關聯的文件（未登入時不含草稿）。',
+    )]
     public function show(Implementation $implementation)
     {
         $implementation->load(['scope', 'documentations' => fn ($query) => $query->visibleToViewer(), 'techniques']);
@@ -71,9 +72,10 @@ class ImplementationController extends Controller
         return response()->json(new ImplementationResource($implementation));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    #[Endpoint(
+        title: '更新實作',
+        description: '更新實作欄位；有帶文件或技術時一併同步關聯。需要登入並有更新權限。',
+    )]
     public function update(UpdateImplementationRequest $request, Implementation $implementation)
     {
         $this->authorize('update', $implementation);
@@ -96,9 +98,10 @@ class ImplementationController extends Controller
         ]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    #[Endpoint(
+        title: '刪除實作',
+        description: '刪除指定的實作。需要登入並有刪除權限。',
+    )]
     public function destroy(Implementation $implementation)
     {
         $this->authorize('delete', $implementation);

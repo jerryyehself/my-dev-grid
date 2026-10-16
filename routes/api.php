@@ -8,13 +8,17 @@ use App\Http\Controllers\ImplementationController;
 use App\Http\Controllers\RelationController;
 use App\Http\Controllers\ScopeController;
 use App\Http\Controllers\TechniqueController;
+use Dedoc\Scramble\Attributes\Endpoint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // 前端（SPA）開機時拿這支確認目前的登入狀態——未登入回 401，
 // 已登入回目前的 User。`auth:sanctum` 對 Triple（session cookie）跟
 // my-dev-grid-front（bearer token）一視同仁，兩種認證方式都吃。
-Route::get('/user', function (Request $request) {
+Route::get('/user', #[Endpoint(
+    title: '取得目前使用者',
+    description: '回傳目前登入的使用者；未登入回 401。',
+)] function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
