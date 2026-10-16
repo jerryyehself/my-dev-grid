@@ -52,6 +52,7 @@ class ScopeResource extends JsonResource
             'call_number' => $this->call_number,
             // 父 Scope 的 id。store/update 收的就是這個欄位,不曝光的話呼叫端
             // 要改一筆 scope 時根本拿不到現值(巢狀的 parent 只有 whenLoaded 時才有)。
+            /** 父分類的 id；頂層分類為 null。 */
             'parent_class' => $this->parent_class,
             'full_call_number' => $this->FullCallNumber,
             'comment' => $this->comment,
@@ -75,6 +76,7 @@ class ScopeResource extends JsonResource
             // 以下計數只在查詢用了 withDetailCounts() 時才出現（whenCounted）。
             // 詳情頁靠這些顯示「子類 4 / 兄弟 3 / 述詞定義 4 / 實體 20」那一排，
             // 不需要為了一個數字把整批關聯撈回來。
+            /** 子類的筆數。以下幾個筆數只有 `GET /scopes` 與 `GET /scopes/{scope}` 的回應才會附上。 */
             'children_count' => $this->whenCounted('children'),
             'siblings_count' => $this->whenCounted('siblings', fn () => $this->siblingsCountExcludingSelf()),
             'subject_of_count' => $this->whenCounted('subjectOf'),
@@ -83,6 +85,7 @@ class ScopeResource extends JsonResource
             // 屬於這個 scope 的實體。三族分開給，不要只給一個總數——
             // 一個 scope 實際上只會有其中一族（頂層三族都是 0），分開給才看得出
             // 是哪一族，也免得呼叫端自己去猜。
+            /** 屬於這個分類的文件筆數；技術、實作分別是 `techniques_count`、`implementations_count`。 */
             'documentations_count' => $this->whenCounted('documentations'),
             'techniques_count' => $this->whenCounted('techniques'),
             'implementations_count' => $this->whenCounted('implementations'),

@@ -37,6 +37,7 @@ class UpdateRelationRequest extends FormRequest
             'note' => 'max:255',
             // 同 StoreRelationRequest。這裡多傳 $this->relation 進去,因為「目標已經指向
             // 正在編輯的這一筆」跟「目標就是自己(對稱關係)」都是合法的,要認得出來。
+            /** 反向述詞的 id，可留空。必須是尚未配對的述詞，或已經指向這一條的述詞；對稱的述詞可指向自己。 */
             'reverse_id' => ['nullable', 'exists:relations,id', new ReverseIsAvailable($this->relation), new ReverseIsSwapped($this->relation)],
         ];
     }

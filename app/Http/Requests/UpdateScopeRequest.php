@@ -30,6 +30,7 @@ class UpdateScopeRequest extends FormRequest
             // 推導。原本這裡收的是字面分類號且完全沒有驗證它跟 parent_class 對不對得上,
             // 所以可以把一個父層是 Documentation(class 00) 的 scope 改成 class_number
             // = 99,製造出實際資料裡一筆都不存在的不一致(實測 16 筆全部一致)。
+            /** 父分類的 id，必須是頂層分類。類號會依父分類自動帶入，不用傳。 */
             'parent_class' => [
                 'required',
                 Rule::exists('scopes', 'id')->whereNull('parent_class'),

@@ -52,24 +52,29 @@ class RelationResource extends JsonResource
             // is_referenced,而它的反向沒被預載,於是每一列多打好幾次資料庫
             // (實測 /api/relations 因此從 20 次變成 176 次)。前端的
             // 「有沒有反向關係」checkbox 只需要名字,給最小形狀就夠。
+            /** 反向述詞的 id 與名稱；反向已被刪除時為 null。只有載入反向述詞時才會附上。 */
             'reverse' => $this->whenLoaded('reverse', fn () => $this->reverse ? [
                 'id' => $this->reverse->id,
                 'name' => $this->reverse->name,
             ] : null),
-            // 這一筆能不能改。前端要在送出之前就把鎖定欄位變成唯讀,不能等後端報錯
-            // ——尤其 RelationLockedException 目前是未處理的 500(見 issue 與規格 B2)。
+            // 這一筆能不能改。前端要在送出之前就把鎖定欄位變成唯讀，不能等後端報錯
+            // （修改被鎖住的欄位會得到 422，見 RelationLockedException）。
+            /** 這條述詞是否已被邊引用。已被引用時，`locked_fields` 列出的欄位不能再修改。 */
             'is_referenced' => $this->isReferenced(),
             // 被自己的邊鎖住,還是被反向那條的邊鎖住。畫面上要能說明理由:
-            // 「這條的反向 uses 有 84 筆邊」跟「這條自己有 84 筆邊」是兩件不同的事。
+            // 「這條的反向有邊」跟「這條自己有邊」是兩件不同的事。
+            /** 被引用的來源：`self` 是被自己的邊引用，`reverse` 是被反向述詞的邊引用；沒有被引用時為 null。 */
             'referenced_via' => $this->hasOwnReferences()
                 ? 'self'
                 : ($this->isReferenced() ? 'reverse' : null),
             // 鎖住時哪些欄位不能改。由後端給,前端不要自己寫死一份會漂移的清單。
+            /** 已被引用時不能修改的欄位名稱；沒有被引用時為空陣列。 */
             'locked_fields' => $this->isReferenced() ? Relation::LOCKED_FIELDS : [],
-            // 詳情頁那兩格數字(規格 B5)。is_referenced 只是布林,回答不了「84」這個數。
-            // 自己的邊與反向的邊分開給:uses 是 84、它的反向 used 是 0,兩者都
-            // is_referenced=true,但清單長度不同,畫面上要講的也是兩件不同的事。
-            // 邊的清單本身在 GET /api/relations/{id}/edges(分頁),不塞進這裡。
+            // 詳情頁那兩格數字。is_referenced 只是布林，回答不了「有幾筆」。
+            // 自己的邊與反向的邊分開給：一條述詞自己的邊數可以很大、它的反向是 0，
+            // 兩者都 is_referenced=true，但清單長度不同，畫面上要講的也是兩件不同的事。
+            // 邊的清單本身在 GET /api/relations/{id}/edges（分頁），不塞進這裡。
+            /** 使用這條述詞的邊數。邊的清單見 `GET /relations/{relation}/edges`。 */
             'own_edges_count' => $this->ownEdgesCount(),
             'reverse_edges_count' => $this->reverseEdgesCount(),
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),

@@ -8,7 +8,7 @@
 
 程式碼本身（變數名、函式名、檔名、資料表/欄位名）、技術術語、套件名稱、既有的英文專有名詞（例如 Laravel、Eloquent、Sanctum）維持原文，不用硬翻。
 
-**controller 的 PHPDoc 與 `#[Endpoint]` 文字會原樣公開在 API 文件（`/docs/api`，Scramble）：**每個 API action 都要有 `#[\Dedoc\Scramble\Attributes\Endpoint(title: …)]`（簡短繁體中文，寫給 API 使用者看；有補充價值時再加一句 `description`），不要留 Laravel 產生的樣板註解（"Display a listing of the resource." 之類），否則它會變成端點標題。給 API 讀者看的文字不要出現內部決策／規格編號、issue 編號、私有 repo 路徑或內部討論；開發者才需要的理由寫成 `//` 註解，不要放在 PHPDoc 的描述裡。`description` 有填時會蓋掉 PHPDoc 的描述。
+**controller 的 PHPDoc、`#[Endpoint]` 文字，以及 Resource／FormRequest 陣列 key 正上方的註解，都會原樣公開在 API 文件（`/docs/api`，Scramble）：**每個 API action 都要有 `#[\Dedoc\Scramble\Attributes\Endpoint(title: …)]`（簡短繁體中文，寫給 API 使用者看；有補充價值時再加一句 `description`），不要留 Laravel 產生的樣板註解（"Display a listing of the resource." 之類），否則它會變成端點標題。`description` 有填時會蓋掉 PHPDoc 的描述。Resource 的 `toArray()` 與 FormRequest 的 `rules()` 裡，key 正上方的註解會變成欄位說明：要給 API 讀者看的說明寫成緊貼 key 的單行 `/** … */`，開發者才需要的理由寫成它上方的 `//` 註解——key 上有 `/** */` 時，同一處的 `//` 註解不會被輸出。給 API 讀者看的文字不要出現內部決策／規格編號、issue 編號、私有 repo 路徑、內部筆數或對前端的指示。改完用 `php artisan scramble:export` 檢查輸出。
 
 **這條只管「跟使用者對話」跟這個 repo 本身的內容，不影響跨 session 協作文件的語言政策**——`my-dev-grid-skills` 裡的 `engineering-principles.md`、`SKILL.md` 這類跨專案共用文件基於 token 成本考量用英文主版，那是另一個 repo 的獨立政策，不代表可以把這個習慣帶進來，跟**使用者本人**互動時（不管是主 session 還是任何角色 session）一律用繁體中文，不要因為讀多了英文文件就跟著用英文回覆使用者。
 
