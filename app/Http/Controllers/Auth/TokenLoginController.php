@@ -8,6 +8,7 @@ use App\Http\RefreshTokenCookie;
 use App\Logging\SecurityEvent;
 use App\Logging\SecurityLog;
 use App\Service\RefreshTokenFamilies;
+use Dedoc\Scramble\Attributes\Endpoint;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,6 +35,10 @@ class TokenLoginController extends Controller
 {
     use IssuesFrontendTokens;
 
+    #[Endpoint(
+        title: '登入',
+        description: '以 email 與密碼登入，回傳 access token（有效 15 分鐘）；refresh token 另外以 httpOnly cookie 設定。帳號或密碼錯誤回 422。每個 IP 每分鐘最多 5 次。',
+    )]
     #[Response(200, '登入成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
     public function login(Request $request): JsonResponse
     {
@@ -71,6 +76,10 @@ class TokenLoginController extends Controller
      * 兩個都沒有或都無效時照樣回 200（登出是冪等的）、清 cookie。
      * Triple 走 session 的請求拿到的是 TransientToken，沒有資料庫裡的 token 可撤。
      */
+    #[Endpoint(
+        title: '登出',
+        description: '撤銷目前的登入（以 bearer token 或 refresh cookie 辨識）並清除 refresh cookie。不要求有效的 access token；沒有可撤銷的登入時同樣回 200。請求的 `Origin` 必須是前端網址。',
+    )]
     public function logout(Request $request, RefreshTokenFamilies $families): JsonResponse
     {
         $current = $request->user('sanctum')?->currentAccessToken();

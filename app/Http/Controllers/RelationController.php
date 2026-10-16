@@ -8,15 +8,17 @@ use App\Http\Resources\RelationResource;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Service\RelationEdgeQuery;
+use Dedoc\Scramble\Attributes\Endpoint;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Support\Str;
 
 class RelationController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    #[Endpoint(
+        title: '列出述詞',
+        description: '回傳所有述詞，依類號、子類號排序，每筆含父層、主體與客體分類，以及被引用的狀態。',
+    )]
     public function index()
     {
         // withReferenceCounts() 是必要的,不是最佳化:RelationResource 會吐
@@ -38,9 +40,10 @@ class RelationController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
+    #[Endpoint(
+        title: '取得述詞表單欄位',
+        description: '回傳新增述詞表單的欄位定義（標籤、型別、是否必填）；主體與客體欄位的選項是所有分類。',
+    )]
     public function create()
     {
         $scopeOptions = Scope::select('id', 'class_number', 'call_number', 'name')
@@ -102,9 +105,10 @@ class RelationController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    #[Endpoint(
+        title: '建立述詞',
+        description: '建立一條述詞；同名述詞已存在時不重複建立，回傳既有的那一筆。需要登入並有建立權限。',
+    )]
     public function store(StoreRelationRequest $request)
     {
         $this->authorize('create', Relation::class);
@@ -130,9 +134,10 @@ class RelationController extends Controller
         ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
+    #[Endpoint(
+        title: '取得述詞',
+        description: '回傳單一述詞，含父層、子述詞、反向述詞，以及它被使用的邊數與是否被引用。另附建立子述詞時可用的下一個子類號。',
+    )]
     public function show(Relation $relation)
     {
         $relation->load(['parent', 'children']);
@@ -151,16 +156,20 @@ class RelationController extends Controller
     }
 
     /**
-     * 使用這個述詞的邊,分頁(規格 B5)。
+     * 使用這個述詞的邊，分頁。
      *
-     * 為什麼是獨立端點而不是塞進 show:`usedBy` 一條就有 84 筆邊,而詳情頁要的是可以
-     * 翻頁的清單。塞進 show 等於每次開詳情頁都把全部邊撈出來,也讓 show 的回應
+     * 為什麼是獨立端點而不是塞進 show：一條述詞可能有很多筆邊，而詳情頁要的是可以
+     * 翻頁的清單。塞進 show 等於每次開詳情頁都把全部邊撈出來，也讓 show 的回應
      * 大小隨資料成長。正規化與 UNION 的細節見 RelationEdgeQuery。
      *
      * 跟 index/show 同一種公開等級——圖譜資料本來就是公開唯讀的。
      */
     // 分頁參數由 paginate() 自己讀，邊的欄位來自 RelationEdgeQuery 的 UNION 查詢，
     // Scramble 都推不出來，在這裡寫明給 OpenAPI 文件用。
+    #[Endpoint(
+        title: '列出述詞使用的邊',
+        description: '分頁列出使用這條述詞的邊（文件、技術、實作之間的連結），每筆含兩端的類型、id 與標題。公開唯讀，不需登入。',
+    )]
     #[QueryParameter('page', '頁碼，從 1 開始。', type: 'int', default: 1)]
     #[QueryParameter('per_page', '每頁筆數，預設 '.RelationEdgeQuery::DEFAULT_PER_PAGE.'，最多 '.RelationEdgeQuery::MAX_PER_PAGE.'。', type: 'int', default: RelationEdgeQuery::DEFAULT_PER_PAGE)]
     #[Response(200, 'Laravel 的 length-aware 分頁格式。', type: 'array{current_page: int, data: list<array{subject_type: "documentation"|"technique"|"implementation", subject_id: int, subject_title: string, object_type: "documentation"|"technique"|"implementation", object_id: int, object_title: string, source: string}>, first_page_url: string, from: int|null, last_page: int, last_page_url: string, links: list<array{url: string|null, label: string, active: bool}>, next_page_url: string|null, path: string, per_page: int, prev_page_url: string|null, to: int|null, total: int}')]
@@ -172,17 +181,15 @@ class RelationController extends Controller
         return response()->json($edges);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Relation $relation)
     {
         return $this->show($relation);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    #[Endpoint(
+        title: '更新述詞',
+        description: '更新述詞欄位。已被引用的述詞，被鎖住的欄位不能修改，違反時回 422。需要登入並有更新權限。',
+    )]
     public function update(UpdateRelationRequest $request, Relation $relation)
     {
         $this->authorize('update', $relation);
@@ -203,9 +210,10 @@ class RelationController extends Controller
         ]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    #[Endpoint(
+        title: '刪除述詞',
+        description: '刪除指定的述詞。需要登入並有刪除權限。',
+    )]
     public function destroy(Relation $relation)
     {
         $this->authorize('delete', $relation);

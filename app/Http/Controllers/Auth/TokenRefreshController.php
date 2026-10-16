@@ -9,6 +9,7 @@ use App\Http\RefreshTokenCookie;
 use App\Logging\SecurityLog;
 use App\Service\RefreshTokenFamilies;
 use App\Service\RefreshTokenOutcome;
+use Dedoc\Scramble\Attributes\Endpoint;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
@@ -45,6 +46,10 @@ class TokenRefreshController extends Controller
      *   前端收到 409 會稍等再用（新的）cookie 重試一次。
      * - 其他（無效、過期、重放→家族已撤銷、超過 90 天上限）→ 401＋清 cookie。
      */
+    #[Endpoint(
+        title: '換發 token',
+        description: '用 refresh cookie 換發新的 access token 與 refresh cookie，不需帶 `Authorization`。refresh token 無效、過期或已被撤銷回 401；剛被用掉不久（並發換發）回 409，稍後重試即可。請求的 `Origin` 必須是前端網址。',
+    )]
     #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
     #[Response(401, 'refresh token 無效、過期、已被撤銷，或超過 90 天上限；同時清除 refresh cookie。')]
     public function refresh(Request $request, RefreshTokenFamilies $families): JsonResponse
@@ -77,6 +82,10 @@ class TokenRefreshController extends Controller
      * token，就能用 curl 自己填 Origin 打這支，換成 30 天的 refresh token。
      * 換發時把回呼那支 token 撤銷，回呼 token 只能用一次。
      */
+    #[Endpoint(
+        title: '建立登入狀態',
+        description: '把 OAuth 登入完成後取得的短效 token（放在 `Authorization: Bearer`）換成正式的 access token，並設定 refresh cookie。這個短效 token 只能用一次；用其他 token 呼叫回 403。請求的 `Origin` 必須是前端網址。',
+    )]
     #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
     public function session(Request $request): JsonResponse
     {

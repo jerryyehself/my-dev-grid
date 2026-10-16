@@ -6,13 +6,15 @@ use App\Http\Requests\StoreScopeRequest;
 use App\Http\Requests\UpdateScopeRequest;
 use App\Http\Resources\ScopeResource;
 use App\Models\Scope;
+use Dedoc\Scramble\Attributes\Endpoint;
 use Illuminate\Support\Str;
 
 class ScopeController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    #[Endpoint(
+        title: '列出分類',
+        description: '回傳所有分類，依類號、子類號排序，每筆含父層與各項關聯的筆數。',
+    )]
     public function index()
     {
         $scopeList = Scope::with('parent')
@@ -31,9 +33,10 @@ class ScopeController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
+    #[Endpoint(
+        title: '取得分類表單欄位',
+        description: '回傳新增分類表單的欄位定義（標籤、型別、是否必填）；父類欄位的選項是所有頂層分類。',
+    )]
     public function create()
     {
         // 選項是「可以當父層的頂層 Scope」,送出的值是它們的 id——所以欄位名叫
@@ -80,9 +83,10 @@ class ScopeController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    #[Endpoint(
+        title: '建立分類',
+        description: '建立一個分類。類號由父類推導，不接受傳入；同名分類已存在時不重複建立，回傳既有的那一筆。需要登入並有建立權限。',
+    )]
     public function store(StoreScopeRequest $request)
     {
         $this->authorize('create', Scope::class);
@@ -106,9 +110,10 @@ class ScopeController extends Controller
         ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
+    #[Endpoint(
+        title: '取得分類',
+        description: '回傳單一分類，含父層、子類、同層分類與述詞，以及子類、同層分類、述詞、文件、技術、實作的筆數（不列出實體本身）。另附建立子類時可用的下一個子類號。',
+    )]
     public function show(Scope $scope)
     {
         $scope->load([
@@ -143,17 +148,15 @@ class ScopeController extends Controller
         );
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Scope $scope)
     {
         return $this->show($scope);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    #[Endpoint(
+        title: '更新分類',
+        description: '更新分類欄位。類號由父類推導，不接受傳入。需要登入並有更新權限。',
+    )]
     public function update(UpdateScopeRequest $request, Scope $scope)
     {
         $this->authorize('update', $scope);
@@ -174,9 +177,10 @@ class ScopeController extends Controller
         ]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    #[Endpoint(
+        title: '刪除分類',
+        description: '刪除指定的分類。需要登入並有刪除權限。',
+    )]
     public function destroy(Scope $scope)
     {
         $this->authorize('delete', $scope);

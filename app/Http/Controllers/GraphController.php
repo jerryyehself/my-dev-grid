@@ -10,6 +10,7 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Technique;
 use App\Models\TechniqueImplementationLink;
+use Dedoc\Scramble\Attributes\Endpoint;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -36,6 +37,10 @@ class GraphController extends Controller
      * field and always report null.
      */
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
+    #[Endpoint(
+        title: '取得知識圖譜',
+        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值。未登入時不含草稿文件，連到草稿的邊也不會出現。',
+    )]
     #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, subtype: string|null, url: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null}>}')]
     public function index()
     {
@@ -75,6 +80,10 @@ class GraphController extends Controller
      * it turns out to matter.
      */
     // 同 index()：手動組的回應，在這裡寫明形狀。找不到路徑時 found 是 false、nodes／edges 是空陣列。
+    #[Endpoint(
+        title: '查詢最短路徑',
+        description: '以 `start`、`end`（節點 id）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。找不到路徑，或起訖點是看不到的草稿時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
+    )]
     #[Response(200, type: 'array{found: bool, nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, storedDirection: "forward"|"reverse", hasDefinedReverse: bool}>}')]
     public function path(Request $request)
     {
