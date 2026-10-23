@@ -77,6 +77,12 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-progress
 
+      # 相依套件有已知漏洞就讓 CI 失敗（只跑一次，不用兩個資料庫都跑）。
+      # 停止維護的套件只回報、不擋。
+      - name: Audit Composer dependencies
+        if: matrix.db == 'sqlite'
+        run: composer audit --locked --no-interaction --abandoned=report
+
       - name: Prepare environment file
         run: |
           cp .env.example .env
