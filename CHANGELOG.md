@@ -29,6 +29,7 @@
 - Google／LINE 登入改用 PKCE（S256）：導向授權頁時帶 `code_challenge`，callback 換 token 時送出存在 session 的 `code_verifier`，授權碼在中途外洩也無法單獨換到 token；session 模式（`/auth/*`）與 token 模式（`/auth/token/*`）都適用（#103）。
 - nginx 存取紀錄不再記錄 query string，只記路徑，避免 OAuth callback 的 `code`／`state` 等網址參數寫進 Cloud Logging（#103）。
 - 重新建置映像檔，PHP 升到 8.4.27（修補 CVE-2026-109618、CVE-2026-109619）；`symfony/http-foundation`、`symfony/yaml` 升到 8.1.9（修補 CVE-2026-108082、CVE-2026-109413）。CI 加上 `composer audit`，相依套件有已知漏洞時測試會失敗。
+- 部署 workflow 改成每週二自動重建並重新部署一次（建置時一定重新拉基底映像檔），程式碼沒有改動時，PHP 與 alpine 的安全修補也會進到正式環境。
 
 ## [1.0.1] - 2026-10-06
 

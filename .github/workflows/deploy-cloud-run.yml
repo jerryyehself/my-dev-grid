@@ -72,6 +72,13 @@ on:
       - '*.md'
       - 'docs/**'
   workflow_dispatch: {}
+  # 每週重建、重新部署一次：Dockerfile 用的是浮動 tag（`php:8.4-fpm-alpine`、
+  # `node:24-alpine`），只有重建才會拉到 PHP／alpine 的安全修補。程式碼沒改時，
+  # 不靠這個排程，正式環境就會一直停在上次部署時的映像檔。
+  # 時間是週二 02:23 UTC（台灣 10:23），分鐘數刻意避開整點。
+  # GitHub 會在 repo 60 天沒有活動時停用排程，到時要手動重新啟用。
+  schedule:
+    - cron: '23 2 * * 2'
 
 # 同一時間只跑一個部署（#81）。2026-10-02 #77～#79 幾乎同時合併，三個部署同時跑，
 # #79 的 `gcloud run deploy` 撞到 Cloud Run 的版本衝突（ABORTED: Conflict）而失敗；
@@ -125,7 +132,8 @@ jobs:
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
 
       - name: Build image
-        run: docker build -t "$IMAGE" .
+        # --pull：一定重新拉基底映像檔，不用 runner 上可能殘留的舊版。
+        run: docker build --pull -t "$IMAGE" .
 
       - name: Push image
         run: docker push "$IMAGE"
