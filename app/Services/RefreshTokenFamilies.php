@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Service;
+namespace App\Services;
 
-use App\Logging\SecurityEvent;
+use App\Enums\RefreshTokenOutcome;
+use App\Enums\SecurityEvent;
 use App\Logging\SecurityLog;
 use App\Models\RefreshToken;
 use App\Models\User;

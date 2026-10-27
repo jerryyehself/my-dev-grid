@@ -8,7 +8,7 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
-use App\Service\RelationEdgeQuery;
+use App\Services\RelationEdgeQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;

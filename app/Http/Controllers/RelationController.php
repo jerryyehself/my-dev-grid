@@ -7,7 +7,7 @@ use App\Http\Requests\UpdateRelationRequest;
 use App\Http\Resources\RelationResource;
 use App\Models\Relation;
 use App\Models\Scope;
-use App\Service\RelationEdgeQuery;
+use App\Services\RelationEdgeQuery;
 use Dedoc\Scramble\Attributes\Endpoint;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response;

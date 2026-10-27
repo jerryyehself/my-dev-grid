@@ -7,7 +7,7 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
-use App\Service\SaveReposDataService;
+use App\Services\SaveReposDataService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
