@@ -484,6 +484,20 @@ if ! docker run --rm --network host "${ENV_ARGS[@]}" "$IMAGE" php artisan migrat
 fi
 record pass "php artisan migrate --force" "透過映像檔執行成功"
 
+# 部署流程在 migrate 之後跑預設資料 seeder（deploy-cloud-run.yml「Seed reference data」）。
+# 跑兩次：第二次是正式環境每次部署的情況（資料早就在），也要成功。
+if [ -f "$WT/database/seeders/ReferenceDataSeeder.php" ]; then
+  for run in 1 2; do
+    if ! docker run --rm --network host "${ENV_ARGS[@]}" "$IMAGE" php artisan db:seed --class=ReferenceDataSeeder --force >"$TMP/seed-$run.log" 2>&1; then
+      tail -20 "$TMP/seed-$run.log" | cut -c1-300
+      die "php artisan db:seed --class=ReferenceDataSeeder --force" "第 $run 次失敗（透過映像檔執行）"
+    fi
+  done
+  record pass "php artisan db:seed --class=ReferenceDataSeeder --force" "透過映像檔連跑兩次都成功"
+else
+  record skip "php artisan db:seed --class=ReferenceDataSeeder --force" "此 ref 沒有 ReferenceDataSeeder"
+fi
+
 docker run -d --name "$APP_CONTAINER" --network host "${ENV_ARGS[@]}" "$IMAGE" >/dev/null \
   || die "啟動容器" "docker run 失敗"
 BASE="http://127.0.0.1:$APP_PORT"

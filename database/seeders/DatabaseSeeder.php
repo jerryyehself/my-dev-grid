@@ -20,9 +20,7 @@ class DatabaseSeeder extends Seeder
         //     'email' => 'test@example.com',
         // ]);
 
-        $this->call([
-            ScopeSeeder::class,
-            RelationSeeder::class,
-        ]);
+        // 跟部署時跑的是同一份預設資料（見 ReferenceDataSeeder）
+        $this->call(ReferenceDataSeeder::class);
     }
 }

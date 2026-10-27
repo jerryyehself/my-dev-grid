@@ -7,7 +7,7 @@
 - `Dockerfile` — 多階段建置（Node 負責前端資源，PHP 負責應用程式），用 supervisord 同時跑 nginx 和 php-fpm，啟動時讀取 `$PORT`。
 - `docker/` — nginx 設定範本、supervisord 設定、entrypoint 腳本。
 - `.env.production.example` — 列出 Cloud Run 服務需要的每個環境變數和機密（應用程式不會讀這個檔，只是說明用）。
-- `.github/workflows/deploy-cloud-run.yml` — 建置 → 推送 → 跑 migration → 部署（先不接流量）→ 檢查 → 切流量 → 更新每天同步 GitHub 用的 Cloud Run Job，用 Workload Identity Federation 登入 GCP。
+- `.github/workflows/deploy-cloud-run.yml` — 建置 → 推送 → 跑 migration → 跑預設資料 seeder → 部署（先不接流量）→ 檢查 → 切流量 → 更新每天同步 GitHub 用的 Cloud Run Job，用 Workload Identity Federation 登入 GCP。
 
 以下全部是 GCP 主控台／CLI 上的操作，**只有你本人**能做——需要你自己的 GCP 帳單帳戶和 IAM 權限，所以都沒有自動化。以下步驟假設你已經裝好 `gcloud` CLI、登入過（`gcloud auth login`），而且有可用的帳單帳戶。文中的 `PROJECT_ID` 一律換成你自己取的專案 ID。
 
@@ -192,6 +192,7 @@ push 到 `main`，或手動執行 workflow（Actions 分頁 → "Deploy to Cloud
 
 1. 用 `Dockerfile` 建置映像檔，推送到 Artifact Registry。
 2. 用這個映像檔部署／更新 Cloud Run Job（`CLOUD_RUN_MIGRATE_JOB`），並用 `--wait` 跑完 `php artisan migrate --force`，確保新 revision 開始接流量前 schema 已經建好。不設 `CLOUD_RUN_MIGRATE_JOB` 就會跳過這步，migration 改由你自己跑。
+   接著用同一個映像檔部署／執行另一個 Cloud Run Job（名稱是 `CLOUD_RUN_MIGRATE_JOB` 加上 `-seed`，第一次部署時自動建立），跑 `php artisan db:seed --class=ReferenceDataSeeder --force`，把分類、述詞這些預設資料補進資料庫（已經存在的不動，見 `docs/conventions/data.md`）。這步失敗的話，新 revision 不會部署。不設 `CLOUD_RUN_MIGRATE_JOB` 也會一起跳過，要自己跑。
 3. 部署 Cloud Run 服務：新 revision 先不接流量（`--no-traffic --tag`），對 tag 專用網址檢查 `/up`、`/api/scopes` 回 200、`/api/<不存在的路徑>` 回 404、回應帶 `X-Request-Id`，全部通過才把 100% 流量切過去；沒通過 workflow 會失敗，流量留在原本的 revision（#107）。**第一次部署**時服務還不存在，`--no-traffic` 不能用（gcloud 不支援拿它建立新服務），workflow 會改成直接接流量，檢查一樣會跑。服務用 `--allow-unauthenticated` 部署。**登入功能上線後這個選項仍然保留**（2026-09-08 更正：本文件早期版本暗示應用程式「前面有驗證」之後就會拿掉）。它是 IAM 層級的開關，決定 Cloud Run 接不接受請求；公開的唯讀網站（`my-dev-grid-front`）和登入頁本身，都需要未登入的請求也能打到服務。拿掉它等於把整個公開網站擋在外面，而不只是保護寫入端點。寫入權限改由應用程式層控管（Sanctum session 驗證 + Policies，`PR #32`）——那才是正確、長久的位置，不是 Cloud Run 的 IAM 綁定。
 4. 設了 `CLOUD_RUN_SYNC_JOB` 的話，切完流量後用同一個映像檔建立／更新每天同步 GitHub 的 Cloud Run Job（檢查沒過就不會更新）。這步**不會**執行同步，只是讓 Job 跟服務保持同一版程式；每天叫它的排程在第 10 步設。
 
