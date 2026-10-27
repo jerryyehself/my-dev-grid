@@ -9,6 +9,9 @@ name: Release
 # 這個 workflow 只打 tag、建 Release，不部署；部署仍然是 push 到 main 時
 # 由 deploy-cloud-run.yml 負責。
 #
+# 只在 main 上跑：平常的 PR 進 develop，develop → main 的上線 PR 用 squash 合併，
+# 所以「寫上版本日期的那個 commit」就是 main 上部署的那個 commit（CLAUDE.md「分支策略」）。
+#
 # 用 GITHUB_TOKEN 建立的 tag／Release 不會再觸發其他 workflow（GitHub 刻意的
 # 防遞迴設計）。目前沒有任何 workflow 監聽 tag 或 release 事件，所以沒影響；
 # 之後如果要加，得改用 PAT 或 GitHub App token。

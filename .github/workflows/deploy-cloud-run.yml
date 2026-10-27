@@ -107,7 +107,10 @@ jobs:
     runs-on: ubuntu-latest
     # Skip cleanly (no red X) until the GCP-side setup is done and these
     # variables are populated, per docs/deployment-gcp.md.
-    if: vars.GCP_PROJECT_ID != '' && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+    # 只部署 main（CLAUDE.md「分支策略」）：`develop` 是整合分支，永遠不部署。
+    # push 已經限定 main，但手動執行（workflow_dispatch）可以選任何分支，排程則跑在
+    # 預設分支上，所以在這裡再擋一次；選了其他分支就跳過，不會部署。
+    if: github.ref == 'refs/heads/main' && vars.GCP_PROJECT_ID != '' && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
     # url 讓 repo 首頁右側的 Deployments 直接連到正式環境的服務網址。
     # 用切流量那步查到的服務網址，不用 deploy 步驟的 output：帶 tag 部署時，
     # deploy-cloudrun 的 url output 是 tag 專用網址，切完流量就移除了。
