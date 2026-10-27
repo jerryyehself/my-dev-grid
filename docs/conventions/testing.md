@@ -7,6 +7,12 @@
 - 經過 HTTP、資料庫、框架的測試放 `tests/Feature/`；不需要啟動 Laravel 的純函式測試放 `tests/Unit/`（`TechniqueLabelTest`、`CloudLoggingFormatterTest`）。
 - 測試類別叫 `<受測對象>Test`：`ScopeCountsTest`、`SaveReposDataServiceTest`。測試 migration 的叫 `<migration 描述>MigrationTest`：`FixUsesRelationDirectionMigrationTest`。
 - 測試方法用 `test_` 開頭的英文 snake_case，寫成描述行為的句子：`test_guest_gets_404_for_a_draft_and_200_for_a_published_documentation`。測試為什麼存在、守的是哪個情境，寫在類別或方法的中文 PHPDoc。
+- **每個測試方法都要加繁體中文的 `#[TestDox('…')]`**（`use PHPUnit\Framework\Attributes\TestDox;`），描述「預期的行為」，讀起來像一句話，控制在 40 字以內，從測試內容寫，不是把方法名翻成中文。這樣 `php artisan test --testdox`（或 `vendor/bin/phpunit --testdox`）的報告就是中文的行為清單。方法名維持英文，不改。
+  ```php
+  #[TestDox('新增文件時，ftp:// 網址回 422')]
+  public function test_store_rejects_ftp_url()
+  ```
+  有 `#[DataProvider]` 的測試，`#[TestDox]` 照寫在同一個方法上，PHPUnit 會把資料集名稱接在描述後面。
 - 碰到資料庫的測試 `use RefreshDatabase`。
 - 用 factory 準備資料（`Documentation::factory()->create()`），需要分類、述詞時跑 seeder（`$this->seed()`），不要寫死 id（見 [`data.md`](data.md)）。
 - 需要登入時用 `$this->actingAsOwner()`（`tests/TestCase.php`）。
