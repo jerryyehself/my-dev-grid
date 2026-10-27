@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Service;
+namespace App\Enums;
 
 /**
  * RefreshTokenFamilies::rotate() 的結果。controller 依這個決定回應：

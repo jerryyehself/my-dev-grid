@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\SecurityEvent;
 use App\Http\Controllers\Auth\Concerns\IssuesFrontendTokens;
 use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
-use App\Logging\SecurityEvent;
 use App\Logging\SecurityLog;
-use App\Service\RefreshTokenFamilies;
+use App\Services\RefreshTokenFamilies;
 use Dedoc\Scramble\Attributes\Endpoint;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;

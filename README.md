@@ -70,7 +70,7 @@ php artisan test                        # 全套測試
 
 - 帳號密碼：`POST /api/auth/login`／`POST /api/auth/logout`，`GET /api/user` 確認登入狀態。
 - Google／LINE：`GET /auth/token/{provider}/redirect` → callback（`TokenSocialAuthController`）登入後，帶著短效 token 導回前端的 `/auth/callback`，前端再用它打 `POST /api/auth/session` 換成正式的一組。LINE 只申請 `openid profile`：套件預設會帶 `email`，但頻道沒有申請 email 權限，會回 `INVALID_SCOPE`。
-- 重新整理後維持登入：access token 只活 15 分鐘（`SANCTUM_ACCESS_TOKEN_EXPIRATION`），另外發一支 30 天的 refresh token（`SANCTUM_REFRESH_TOKEN_EXPIRATION`，套件 `d076/sanctum-refresh-tokens`），放在 API 網域的 `__Host-mdg_refresh` cookie（HttpOnly、Secure、SameSite=None、Partitioned）。前端開機時打 `POST /api/auth/refresh` 換回登入狀態，每次換發都會換掉 refresh token（單次使用）；用過的 refresh token 被重放會撤銷同一次登入的所有 token（`App\Service\RefreshTokenFamilies`），一次登入最長 90 天（`SANCTUM_REFRESH_TOKEN_MAX_LIFETIME`）。登出不要求有效的 access token，refresh cookie 也能撤銷。refresh／session／logout 只接受 `Origin` 等於 `FRONTEND_URL` 的請求。為什麼 OAuth 回呼不能直接設 cookie，見 `TokenRefreshController` 的類別註解。
+- 重新整理後維持登入：access token 只活 15 分鐘（`SANCTUM_ACCESS_TOKEN_EXPIRATION`），另外發一支 30 天的 refresh token（`SANCTUM_REFRESH_TOKEN_EXPIRATION`，套件 `d076/sanctum-refresh-tokens`），放在 API 網域的 `__Host-mdg_refresh` cookie（HttpOnly、Secure、SameSite=None、Partitioned）。前端開機時打 `POST /api/auth/refresh` 換回登入狀態，每次換發都會換掉 refresh token（單次使用）；用過的 refresh token 被重放會撤銷同一次登入的所有 token（`App\Services\RefreshTokenFamilies`），一次登入最長 90 天（`SANCTUM_REFRESH_TOKEN_MAX_LIFETIME`）。登出不要求有效的 access token，refresh cookie 也能撤銷。refresh／session／logout 只接受 `Origin` 等於 `FRONTEND_URL` 的請求。為什麼 OAuth 回呼不能直接設 cookie，見 `TokenRefreshController` 的類別註解。
 
 跨 origin 的 SPA 要用 cookie 模式，前後端得共用同一個根網域。前端在 `jerrylib.com`，後端目前用 Cloud Run 的 `*.run.app` 網址；要等後端也掛上 `api.jerrylib.com` 這類子網域，才重新評估要不要換成 cookie 模式（目前記成低優先度技術債）。
 

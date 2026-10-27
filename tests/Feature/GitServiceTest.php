@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Service\GitService;
+use App\Services\GitService;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 

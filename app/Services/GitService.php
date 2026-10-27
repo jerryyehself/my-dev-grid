@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Service;
+namespace App\Services;
 
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Arr;

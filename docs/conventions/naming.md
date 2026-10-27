@@ -20,7 +20,7 @@
 - 例外以 `Exception` 結尾，名稱說明發生了什麼：`RelationLockedException`、`RefreshTokenRejectedException`。
 - trait 用動詞第三人稱，說明它替使用的類別做什麼：`SyncsPivotRelations`、`IssuesFrontendTokens`、`CapturesSecurityEvents`。
 - service 依它做的事命名，不一定要以 `Service` 結尾：`RefreshTokenFamilies`、`RelationEdgeQuery`、`SocialiteDriver`。
-- 值是固定幾種的，用 enum，case 用 StudlyCaps：`RefreshTokenOutcome::Rotated`、`SecurityEvent::LoginFail`。
+- 值是固定幾種的，用 enum，case 用 StudlyCaps：`App\Enums\RefreshTokenOutcome::Rotated`、`App\Enums\SecurityEvent::LoginFail`（放在 `app/Enums/`）。
 - 不會被繼承的工具類別加 `final`：`SecurityLog`、`AdminAudit`、`SocialiteDriver`。
 
 ## 方法、屬性、常數
@@ -55,7 +55,7 @@
 
 ## 目前已知不符的地方
 
-- 方法名用了 snake_case（PSR-1）：`App\Service\GitService` 的 `get_repos`、`clean_repo_info`、`get_languages`；`App\Service\SaveReposDataService` 的 `save_repos_data`、`save_repos_content`、`link_project_to_techniques`、`find_or_create_technique`、`link_framework_to_base_language`、`link_official_docs`、`scope_id`、`relation_id`。改名時要一起改 `SyncGitHubRepos` 指令跟測試的呼叫點。
+- 方法名用了 snake_case（PSR-1）：`App\Services\GitService` 的 `get_repos`、`clean_repo_info`、`get_languages`；`App\Services\SaveReposDataService` 的 `save_repos_data`、`save_repos_content`、`link_project_to_techniques`、`find_or_create_technique`、`link_framework_to_base_language`、`link_official_docs`、`scope_id`、`relation_id`。改名時要一起改 `SyncGitHubRepos` 指令跟測試的呼叫點。
 - 測試類別 `tests/Feature/relationCRUDTest.php` 開頭是小寫，不是 StudlyCaps（PSR-1）。改成 `RelationCRUDTest` 時，檔名要一起改。
 - `SaveReposDataService::$gitService` 存的是 repo 清單，不是 `GitService`；而且沒有型別，又是 public。
 - 回應 key 不是 snake_case 的地方：`ScopeResource`、`RelationResource` 的 `ReferenceCode`；`GET /api/graph/path` 的 `storedDirection`、`hasDefinedReverse`。這些是對外的 API，改名會讓前端壞掉，要先新增新的 key、等前端改完再拿掉舊的，不能順手改。
