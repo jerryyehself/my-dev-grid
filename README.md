@@ -84,9 +84,9 @@ Triple 是同源的內嵌後台，繼續用它原本的 session cookie（`Sessio
 
 Cloud Run ＋ Cloud SQL Postgres，`--min-instances=0` 可以縮到零。設計與實際設定見 [`docs/deployment-gcp.md`](docs/deployment-gcp.md)、[`docs/infrastructure-concepts.md`](docs/infrastructure-concepts.md)，workflow 在 `.github/workflows/deploy-cloud-run.yml`。
 
-已經部署在正式環境（服務 `my-dev-grid-api`，區域 `asia-east1`）。push 到 `main` 會觸發 workflow，依序做這幾件事：建置並推送映像檔、用 Cloud Run Job 跑 `php artisan migrate --force`、部署新版（先不接流量，對新版的專用網址自動檢查，通過才切流量）、更新每天同步 GitHub 的 Job。同一時間只跑一個部署，後到的排隊（`concurrency`）。
+已經部署在正式環境（服務 `my-dev-grid-api`，區域 `asia-east1`）。平常的 PR 合進整合分支 `develop`，不會部署；每週由 `develop` 開 PR 合併進 `main` 才上線（分支規則見 `CLAUDE.md`「分支策略」）。push 到 `main` 會觸發 workflow，依序做這幾件事：建置並推送映像檔、用 Cloud Run Job 跑 `php artisan migrate --force`、部署新版（先不接流量，對新版的專用網址自動檢查，通過才切流量）、更新每天同步 GitHub 的 Job。同一時間只跑一個部署，後到的排隊（`concurrency`）。
 
-因為 migration 跑完到新版上線之間，舊版程式還在接流量，資料庫結構變更要照 `CLAUDE.md`「資料庫結構變更的順序」分次部署。改名、刪欄位、改型別、加 NOT NULL 的分次步驟，以及 PostgreSQL 鎖、`lock_timeout`、建索引、回滾的細節，見 [`docs/zero-downtime-migrations.md`](docs/zero-downtime-migrations.md)。
+因為 migration 跑完到新版上線之間，舊版程式還在接流量，資料庫結構變更要照 `CLAUDE.md`「資料庫結構變更的順序」分次上線。改名、刪欄位、改型別、加 NOT NULL 的分次步驟，以及 PostgreSQL 鎖、`lock_timeout`、建索引、回滾的細節，見 [`docs/zero-downtime-migrations.md`](docs/zero-downtime-migrations.md)。
 
 ## 更新紀錄
 
