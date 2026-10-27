@@ -25,7 +25,10 @@ class StoreDocumentationRequest extends FormRequest
         return [
             'type' => 'required|exists:scopes,id',
             'title' => 'required|string|max:255',
-            'url' => 'nullable|url',
+            // 只收 http／https：這個欄位會被當成可點的連結輸出，不限 scheme 的話
+            // javascript:、data: 這類網址存進來，點下去就可能在瀏覽器裡執行
+            /** 外部連結，只接受 http 或 https 網址。 */
+            'url' => 'nullable|url:http,https',
             'uri' => 'nullable|string',
             // 內文是 Markdown 原文,不設長度上限:Postgres 的 text 沒有上限,
             // 而一篇文章要多長是寫作的事,不該由驗證規則替作者決定

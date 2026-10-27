@@ -27,7 +27,10 @@ class StoreImplementationRequest extends FormRequest
             'title' => 'required|string|max:255',
             'sub_title' => 'nullable|string|max:255',
             'description' => 'nullable|string|max:255',
-            'url' => 'nullable|url',
+            // 只收 http／https：這個欄位會被當成可點的連結輸出，不限 scheme 的話
+            // javascript:、data: 這類網址存進來，點下去就可能在瀏覽器裡執行
+            /** 外部連結，只接受 http 或 https 網址。 */
+            'url' => 'nullable|url:http,https',
             'git_repo_id' => 'nullable|string|max:255',
             'git_repo_created_at' => 'nullable|date',
             'is_visible' => 'nullable|boolean',
