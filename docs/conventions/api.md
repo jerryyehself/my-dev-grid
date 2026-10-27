@@ -42,8 +42,8 @@ controller 的 PHPDoc、`#[Endpoint]` 文字，以及 Resource 與 FormRequest �
   )]
   public function show(Documentation $documentation)
   ```
-- 不要留 Laravel 產生的樣板註解（"Display a listing of the resource." 之類），不然它會變成端點標題。
-- Resource 的 `toArray()` 與 FormRequest 的 `rules()` 裡，key 正上方的註解會變成欄位說明。給 API 讀者看的說明，寫成緊貼 key 的單行 `/** … */`；只有開發者需要知道的理由，寫成它上方的 `//` 註解。key 上有 `/** */` 時，同一處的 `//` 註解不會被輸出。
+- 不要留 Laravel 產生的樣板註解（"Display a listing of the resource." 之類），不然它會變成端點標題。註解的整體寫法見 [`comments.md`](comments.md)。
+- Resource 的 `toArray()` 與 FormRequest 的 `rules()` 裡，key 正上方的註解會變成欄位說明。給 API 讀者看的說明，寫成緊貼 key 的單行 `/** … */`；只有開發者需要知道的理由，寫成它上方的 `//` 註解。key 上有 `/** */` 時，同一處的 `//` 註解不會被輸出；反過來，key 上只有 `//`、沒有 `/** */` 時，`//` 的內容會被當成欄位說明公開，FormRequest 的類別 docblock 也會變成請求本文的說明。完整的寫法與範本見 [`comments.md`](comments.md)。
   ```php
   // app/Http/Requests/StoreDocumentationRequest.php
   // 內文是 Markdown 原文，不設長度上限：…（給開發者）
