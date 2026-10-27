@@ -1,8 +1,8 @@
 name: Deploy to Cloud Run
 
 # Builds the Dockerfile, pushes it to Artifact Registry, runs pending
-# migrations as a Cloud Run Job, then deploys the image to the Cloud Run
-# service. Authenticates to Google Cloud via Workload Identity Federation —
+# migrations and then the reference-data seeder (ReferenceDataSeeder) as
+# Cloud Run Jobs, then deploys the image to the Cloud Run service. Authenticates to Google Cloud via Workload Identity Federation —
 # no service-account JSON key is stored in GitHub.
 #
 # 新 revision 先不接流量（#107、D-131）：`--no-traffic --tag` 部署，對 tag 專用網址
@@ -47,7 +47,9 @@ name: Deploy to Cloud Run
 #   CLOUD_RUN_MIGRATE_JOB          Cloud Run Job name that runs
 #                                   `php artisan migrate --force` against
 #                                   this image; the migration step is
-#                                   skipped when this isn't set
+#                                   skipped when this isn't set. 跑預設資料
+#                                   seeder 的 Job 叫 `<這個名稱>-seed`，自動建立，
+#                                   沒設這個變數也一起跳過
 #   CLOUD_RUN_SYNC_JOB             跑 `php artisan github:sync-repos`（每天的
 #                                   GitHub 同步）的 Cloud Run Job 名稱。這個
 #                                   workflow 只負責讓 Job 跟服務用同一個映像檔；
@@ -156,6 +158,35 @@ jobs:
             --max-retries=0 \
             --task-timeout=600
           gcloud run jobs execute "${{ vars.CLOUD_RUN_MIGRATE_JOB }}" \
+            --region="${{ vars.GCP_REGION }}" \
+            --wait
+
+      # 預設資料（分類、述詞）只放在 seeder：migration 跑完接著跑 ReferenceDataSeeder，
+      # 新加的預設資料跟著這次部署進正式環境，不用另外寫 migration（docs/conventions/data.md）。
+      # - 跟 migration 一樣用 Cloud Run Job＋`--wait`，Job 名稱是 migration Job 加 `-seed`，
+      #   第一次部署時由 `jobs deploy` 自動建立。沒設 CLOUD_RUN_MIGRATE_JOB 就跟 migration 一起跳過。
+      # - seeder 可以重跑：已經存在的不更新、後台刪掉的不建回來；整串在一個 transaction 裡，
+      #   失敗就整個退回。
+      # - 這步失敗，後面的步驟都不會跑：新 revision 不會部署，流量留在原本的 revision。
+      #   跟 migration 一樣，這時舊版程式已經在讀新加的預設資料，所以預設資料也只能新增、
+      #   要讓舊版程式讀得懂。
+      - name: Seed reference data
+        if: vars.CLOUD_RUN_MIGRATE_JOB != ''
+        env:
+          SEED_JOB: ${{ vars.CLOUD_RUN_MIGRATE_JOB }}-seed
+        run: |
+          gcloud run jobs deploy "$SEED_JOB" \
+            --region="${{ vars.GCP_REGION }}" \
+            --image="$IMAGE" \
+            --command=php \
+            --args=artisan,db:seed,--class=ReferenceDataSeeder,--force \
+            --service-account="${{ vars.CLOUD_RUN_SERVICE_ACCOUNT }}" \
+            --set-cloudsql-instances="${{ vars.CLOUD_SQL_CONNECTION_NAME }}" \
+            --set-env-vars="APP_ENV=production,LOG_CHANNEL=cloud_run,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_PORT=5432,DB_DATABASE=${{ vars.DB_DATABASE }},DB_USERNAME=${{ vars.DB_USERNAME }}" \
+            --set-secrets="APP_KEY=APP_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest" \
+            --max-retries=0 \
+            --task-timeout=300
+          gcloud run jobs execute "$SEED_JOB" \
             --region="${{ vars.GCP_REGION }}" \
             --wait
 
@@ -366,7 +397,7 @@ jobs:
       # 每天的 GitHub 同步：Cloud Run 沒有 cron，routes/console.php 的 Laravel 排程在這裡不會跑，
       # 改由 Cloud Scheduler 每天觸發這個 Job（設定見 docs/deployment-gcp.md 第 10 步）。
       # 這一步只負責讓 Job 跟服務用同一個映像檔，不在部署時執行同步——
-      # 部署不該順便改資料，同步的時間由 Cloud Scheduler 決定。
+      # 部署只補程式附帶的預設資料（上面的 seeder），不順便抓外部資料，同步的時間由 Cloud Scheduler 決定。
       # 放在切流量之後：這步失敗不會擋到服務上線，Job 只是還停在上一個映像檔；
       # 新 revision 沒通過檢查時這步不會跑，Job 跟接流量的舊版留在同一個映像檔。
       - name: Update GitHub sync job

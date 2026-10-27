@@ -31,17 +31,16 @@ class RelationSeeder extends Seeder
             ['20', '10', 'uses', 'SPDX 2.3 DEPENDS_ON (A depends on B) — an Implementation uses a Technique. Close in spirit to PROV-O prov:used (Activity used Entity).', 'spdx', 'DEPENDS_ON'],
         ];
 
-        $reverseSeed = [
+        $reversePairs = [
             ['specs', 'specifiedBy'],
             ['documents', 'documentedBy'],
-            ['specifiedBy', 'specs'],
             ['usedBy', 'uses'],
-            ['documentedBy', 'documents'],
-            ['uses', 'usedBy'],
         ];
 
         // 可重複執行（2026-10-02）：每一筆都經過 relation()，以 name 為鍵「沒有才建」，
-        // 反向配對也只補還沒配對的。原本全部用 create()，正式環境跑第二次就整份重複。
+        // 反向配對只在這次有新建的時候設（見 pairReverse()）。原本全部用 create()，
+        // 正式環境跑第二次就整份重複。部署時會自動跑（ReferenceDataSeeder），所以重跑
+        // 不能動到後台改過的任何東西。
 
         // 一次撈出所有 scopes 並依 is_scope_lead 分組
         $scopes = Scope::all();
@@ -50,12 +49,13 @@ class RelationSeeder extends Seeder
         // $nonLeadScopes = $scopes->whereNotNull('parent_class');
 
         // 建立固定關聯資料
+        $seeded = [];
         foreach ($seeds as [$from, $to, $name, $note, $sourceVocabulary, $sourceTerm]) {
 
             $subject = $leadScopes->firstWhere('class_number', $from);
             $object = $leadScopes->firstWhere('class_number', $to);
 
-            $this->relation([
+            $seeded[$name] = $this->relation([
                 'subject_id' => $subject->id,
                 'object_id' => $object->id,
                 'class_number' => $subject->class_number[0].$object->class_number[0],
@@ -66,10 +66,8 @@ class RelationSeeder extends Seeder
             ]);
         }
 
-        foreach ($reverseSeed as [$subject, $reverse]) {
-            $reverseId = Relation::where('name', $reverse)->value('id');
-            // 只補還沒配對的：重跑時不蓋掉後台改過的反向關係（見 relation() 的說明）
-            Relation::where('name', $subject)->whereNull('reverse_id')->update(['reverse_id' => $reverseId]);
+        foreach ($reversePairs as [$name, $reverse]) {
+            $this->pairReverse($seeded[$name], $seeded[$reverse]);
         }
 
         // 「assisted-by」/「assists」跟「uses」/「usedBy」同一組 class_number，
@@ -96,7 +94,7 @@ class RelationSeeder extends Seeder
             $subject = $leadScopes->firstWhere('class_number', $from);
             $object = $leadScopes->firstWhere('class_number', $to);
 
-            $this->relation([
+            $seeded[$name] = $this->relation([
                 'subject_id' => $subject->id,
                 'object_id' => $object->id,
                 'class_number' => $subject->class_number[0].$object->class_number[0],
@@ -108,10 +106,7 @@ class RelationSeeder extends Seeder
             ]);
         }
 
-        $reverseId = Relation::where('name', 'assists')->value('id');
-        Relation::where('name', 'assisted-by')->whereNull('reverse_id')->update(['reverse_id' => $reverseId]);
-        $reverseId = Relation::where('name', 'assisted-by')->value('id');
-        Relation::where('name', 'assists')->whereNull('reverse_id')->update(['reverse_id' => $reverseId]);
+        $this->pairReverse($seeded['assisted-by'], $seeded['assists']);
 
         // dcterms:requires / dcterms:isRequiredBy (Dublin Core) — same-type
         // dependency, used via entity_relations (e.g. a Technique that
@@ -276,12 +271,24 @@ class RelationSeeder extends Seeder
     }
 
     /**
-     * 兩邊都還沒配對時才設反向關係（對稱關係傳同一筆兩次）。另一邊由
-     * Relation::syncReverse()（saved 事件）自動補成雙向。重跑時兩邊早已配對，
-     * 不會改動；後台改過的配對也不會被蓋回去。
+     * 設反向關係（對稱關係傳同一筆兩次），另一邊由 Relation::syncReverse()（saved 事件）
+     * 自動補成雙向。三個條件都成立才設：
+     *
+     * - 至少一邊是這次新建的：兩邊都早就存在，代表配對狀態是之前定下來的，包括在後台
+     *   取消的配對（反向關係清成 null），重跑不能把它配回去。
+     * - 兩邊都沒被刪除：不把新建的述詞配給後台刪掉的那一筆。
+     * - 兩邊都還沒配對：不搶走別筆的反向關係。
      */
     private function pairReverse(Relation $relation, Relation $reverse): void
     {
+        if (! $relation->wasRecentlyCreated && ! $reverse->wasRecentlyCreated) {
+            return;
+        }
+
+        if ($relation->trashed() || $reverse->trashed()) {
+            return;
+        }
+
         if (is_null($relation->reverse_id) && is_null($reverse->reverse_id)) {
             $relation->update(['reverse_id' => $reverse->id]);
         }

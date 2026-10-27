@@ -19,6 +19,7 @@
 
 1. 建置映像檔、推上 Artifact Registry
 2. **Run database migrations**：用新映像檔更新 Cloud Run Job，執行 `php artisan migrate --force`，`--wait` 等它跑完
+   - 接著 **Seed reference data**：同樣用 Cloud Run Job 跑 `php artisan db:seed --class=ReferenceDataSeeder --force`，補上新加的預設資料（分類、述詞）；失敗的話後面的步驟都不跑。下表把它算在第 2 步裡：舊版程式從這時候起也讀得到新的預設資料
 3. **Deploy new revision (no traffic)**：部署新 revision，但先不接流量（`--no-traffic --tag`，#107）
 4. **Probe candidate revision**：對 tag 專用網址檢查 `/up`、`/api/scopes`、`/api/<不存在的路徑>`；沒過的話 workflow 停在這裡，流量留在舊 revision
 5. **Switch traffic to new revision**：`gcloud run services update-traffic --to-latest`，100% 切到新 revision
