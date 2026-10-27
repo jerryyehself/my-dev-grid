@@ -116,7 +116,8 @@ RUN composer run-script post-autoload-dump \
 COPY docker/nginx.conf.template /etc/nginx/templates/nginx.conf.template
 COPY docker/supervisord.conf /etc/supervisord.conf
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY docker/wait-for-php-fpm.sh /usr/local/bin/wait-for-php-fpm.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/wait-for-php-fpm.sh
 
 # Cloud Run sets $PORT (defaults to 8080) and expects the container to
 # listen on it; 8080 also matches `docker run -p 8080:8080` for local testing.
