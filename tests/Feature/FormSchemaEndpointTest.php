@@ -7,14 +7,11 @@ use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
- * Triple 後台的新增/編輯表單,欄位、型別與選項全部由後端這兩支端點決定
- * (`resources/js/stores/useFormsStore.js` 開機時打一次)。
+ * 新增/編輯表單的欄位定義端點:欄位、型別與選項全部由後端這兩支決定。
  *
  * 這支測試存在的理由很具體:PR #55 把 routes/web.php 的 Route::resources 當成死碼
- * 移除,而 useFormsStore 呼叫的是**不帶 /api 前綴**的 `/scopes/create`——當時判斷
- * 「Triple 全部打 /api/*」用的 grep 只找含 `/api` 的字串,所以看不到這個呼叫點,
- * 測試也沒有任何一支覆蓋它。結果是 /scopes/create 靜默地開始回傳 SPA 殼頁面,
- * Triple 的表單整個壞掉,而 CI 全綠。
+ * 移除,而當時的後台(Triple,已移除)呼叫的是**不帶 /api 前綴**的 `/scopes/create`,
+ * 測試也沒有任何一支覆蓋它。結果是表單整個壞掉,而 CI 全綠。
  */
 class FormSchemaEndpointTest extends TestCase
 {

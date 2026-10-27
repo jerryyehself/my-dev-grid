@@ -15,7 +15,7 @@ use Tests\TestCase;
 
 /**
  * Google／LINE 登入的 PKCE（issue #103），兩種登入模式都測：
- * Triple 的 session 模式（/auth/*，SocialAuthController）跟
+ * session 模式（/auth/*，SocialAuthController）跟
  * my-dev-grid-front 的 token 模式（/auth/token/*，TokenSocialAuthController）。
  *
  * 不用 Socialite::fake()：fake 的 redirect() 回固定網址、user() 直接回假使用者，

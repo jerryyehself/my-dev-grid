@@ -34,7 +34,7 @@ class Documentation extends Model
      *
      * 讀取端點（index/show、/api/graph、述詞底下的邊）完全公開、沒有掛 auth middleware，
      * 所以要自己看請求有沒有帶登入態。`auth('sanctum')` 同時認 Bearer token
-     * （my-dev-grid-front）與同源 session（Triple）。門檻跟寫入的 DocumentationPolicy
+     * （my-dev-grid-front）與同源 session。門檻跟寫入的 DocumentationPolicy
      * 一樣：有登入就行。
      *
      * 2026-09-30 之前沒有這道檢查：草稿的標題與內文從公開的 `/api/documentations`、

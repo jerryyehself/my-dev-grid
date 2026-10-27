@@ -20,10 +20,10 @@ use Laravel\Sanctum\PersonalAccessToken;
  * my-dev-grid-front（跨 origin SPA）的 email+password 登入/登出，發 Sanctum
  * API token，不是 session（D-56）。跟
  * SessionAuthController 是同一組 v1 需求（D-34）的兩個獨立實作：
- * SessionAuthController 服務同源的 Triple 後台（session cookie），這支服務
- * 跨 origin 的 my-dev-grid-front（bearer token）。刻意不共用同一支
- * controller——Triple 還沒被移除（D-48 卡在本體論 CRUD 搬到前端之前），
- * 改動它現有的登入方式沒有任何好處，純粹增加讓它跟著壞掉的風險。
+ * SessionAuthController 走同源 session cookie（原本服務內嵌的 Triple 後台，
+ * 後台已移除，D-48），這支服務跨 origin 的 my-dev-grid-front（bearer token）。
+ * 刻意不共用同一支 controller：兩種模式的回應與狀態完全不同，合在一起只會讓
+ * 改其中一邊時順帶弄壞另一邊。
  *
  * 2026-10-03 起登入改發「短效 access token＋長效 refresh token」一組
  * （d076/sanctum-refresh-tokens）：access token 照舊放在 JSON 的 `token`，
@@ -74,7 +74,7 @@ class TokenLoginController extends Controller
      * Origin 檢查（frontend.origin）照舊，跨站請求打不到這裡。
      *
      * 兩個都沒有或都無效時照樣回 200（登出是冪等的）、清 cookie。
-     * Triple 走 session 的請求拿到的是 TransientToken，沒有資料庫裡的 token 可撤。
+     * 走 session 的請求拿到的是 TransientToken，沒有資料庫裡的 token 可撤。
      */
     #[Endpoint(
         title: '登出',

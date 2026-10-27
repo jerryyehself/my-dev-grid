@@ -147,9 +147,8 @@ class RelationController extends Controller
         $relation->loadCount(Relation::LINK_RELATIONS)
             ->load(['reverse' => fn ($query) => $query->withCount(Relation::LINK_RELATIONS)]);
 
-        // withFormHints()：只有這支端點算 new_child_call_number。Triple 的
-        // fetchCallNumberByClass() 打的就是這裡。清單頁不開，那是 N+1 的來源
-        // （見 RelationResource 的註解）。
+        // withFormHints()：只有這支端點算 new_child_call_number（預填新增表單的
+        // 子類號用）。清單頁不開，那是 N+1 的來源（見 RelationResource 的註解）。
         return response()->json(
             (new RelationResource($relation))->withFormHints()
         );
@@ -198,7 +197,7 @@ class RelationController extends Controller
 
         // RelationLockedException 不在這裡攔。它自己有 render()，會回一個
         // 以「被鎖住的欄位名」為 key 的 422——原本這裡攔下來組的 `errors.locked`
-        // 對不上 Triple 任何一個輸入欄位的 key，訊息因此渲染不到畫面上。
+        // 對不上表單任何一個輸入欄位的 key，訊息因此渲染不到畫面上。
         // 詳見 App\Exceptions\RelationLockedException 的註解。
         $isUpdated = $relation->update($validatedData);
 

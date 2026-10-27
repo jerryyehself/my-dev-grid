@@ -21,7 +21,7 @@ return [
     |
     | 開了 credentials，allowed_origins 就絕對不能是 `*`（規範也不允許）——
     | 這裡維持只放行 FRONTEND_URL 一個 origin。`api/*` 已經涵蓋新的
-    | /api/auth/refresh、/api/auth/session。Triple 後台的 cookie 模式是同源請求，
+    | /api/auth/refresh、/api/auth/session。session cookie 模式（/auth/*）是同源請求，
     | 本來就不受 CORS 管。
     |
     | `exposed_headers` 放 `X-Request-Id`（D-128）：跨 origin 的 fetch 預設
