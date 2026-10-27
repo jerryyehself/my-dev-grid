@@ -130,4 +130,42 @@ class UrlSchemeValidationTest extends TestCase
         $this->json($method, $uri, [...$payload, 'url' => 'http://example.com/'])
             ->assertSuccessful();
     }
+
+    /**
+     * 文件的 `uri` 欄位規則跟 `url` 相同。
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function documentationEndpointAndRejectedUrlProvider(): array
+    {
+        $cases = [];
+        foreach (['store documentation', 'update documentation'] as $endpoint) {
+            foreach (self::rejectedUrlProvider() as $urlLabel => [$url]) {
+                $cases["{$endpoint} / {$urlLabel}"] = [$endpoint, $url];
+            }
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('documentationEndpointAndRejectedUrlProvider')]
+    public function test_documentation_uri_rejects_non_http_scheme(string $endpoint, string $url): void
+    {
+        $this->actingAsOwner();
+        [$method, $uri, $payload] = $this->endpoint($endpoint);
+
+        $this->json($method, $uri, [...$payload, 'uri' => $url])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('uri');
+    }
+
+    public function test_documentation_uri_accepts_https(): void
+    {
+        $this->actingAsOwner();
+        [$method, $uri, $payload] = $this->endpoint('store documentation');
+
+        $this->json($method, $uri, [...$payload, 'uri' => 'https://stackoverflow.com/questions/1'])
+            ->assertSuccessful()
+            ->assertJsonFragment(['uri' => 'https://stackoverflow.com/questions/1']);
+    }
 }
