@@ -17,10 +17,8 @@ name: Tests
 # actually deployed to is exactly the gap that let that bug through
 # silently green.
 #
-# Deliberately does NOT run `pint --test` here — there is known pre-existing
-# style debt in the codebase and enabling lint enforcement now would make
-# this workflow red from its first run. Adding a lint job is a separate,
-# later decision.
+# Also checks code style with `pint --test` (Laravel preset, PSR-12), once
+# per run on the SQLite leg.
 
 on:
   push:
@@ -82,6 +80,11 @@ jobs:
       - name: Audit Composer dependencies
         if: matrix.db == 'sqlite'
         run: composer audit --locked --no-interaction --abandoned=report
+
+      # 程式碼風格不符 Pint（Laravel 預設，PSR-12）就讓 CI 失敗；只跑一次。
+      - name: Check code style (Pint)
+        if: matrix.db == 'sqlite'
+        run: vendor/bin/pint --test
 
       - name: Prepare environment file
         run: |
