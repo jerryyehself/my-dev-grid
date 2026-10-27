@@ -4,20 +4,24 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
-## [Unreleased]
-
-版本號與日期在上線時才填；有向下相容的新功能，屬次版號（D-117）。
+## [1.1.0] - 2026-10-27
 
 ### 新增
 
 - 可觀測性：正式環境日誌改為單行 JSON（`LOG_CHANNEL=cloud_run`），含 `severity`、`request_id`，並帶 `logging.googleapis.com/trace` 與出錯時的 `httpRequest`，Cloud Logging 可用 `jsonPayload.request_id` 篩出單一請求；每個回應帶 `X-Request-Id` 標頭。未處理的例外以 Error Reporting 認得的 PHP 堆疊格式記錄，不需第三方 SDK。說明與剩餘的手動步驟（5xx 告警）見 `docs/observability.md`（#97）。
 - API 文件：`/docs/api`（文件頁）與 `/docs/api.json`（OpenAPI 3.1）公開，不需要登入。由 Scramble 依路由、FormRequest、Resource 自動產生，另外補上 Sanctum bearer token 與 refresh cookie 兩種驗證方式、`/api/graph` 等手動組成的回應形狀、錯誤格式與 429。OAuth 跳轉端點不在文件裡（#98）。
 - API 的分頁做法寫進文件：五種資源清單一次回傳全部，只有 `GET /api/relations/{id}/edges` 分頁（#98）。
+- API 文件：35 個端點都有中文標題與說明，欄位說明改寫給 API 使用者；`GET /api/user` 改為 invokable controller，正式環境的文件才讀得到它的標題（#116, #117）。
+- 安全與稽核事件日誌：登入成功／失敗、token 建立／撤銷／重放、登出、403、429、後台資料變更，以單行 JSON 寫入既有的 Cloud Logging，事件名稱在 `jsonPayload.context.event`。不記 token、密碼、OAuth `code`／`state` 與後台欄位值（#111）。
+- CORS 公開 `X-Request-Id` 標頭，前端跨網域也讀得到 request id（#110）。
 
 ### 變更
 
 - API 的 4xx／5xx 回應改為 RFC 9457 problem details（`application/problem+json`，含 `type`、`title`、`status`、`detail`、`instance`），向下相容：`message` 與 422 的 `errors` 保留原值，狀態碼不變。500 不含例外內容。`POST /api/scopes`、`POST /api/relations` 的 422 現在也有 `message`（#98）。
 - `/api` 底下的錯誤一律回 JSON，不再看 `Accept` header（#98）。
+- 文件與實作的 `url`、文件的 `uri` 只接受 http／https 網址，`javascript:`、`data:`、`ftp://` 等其他 scheme 回 422；`uri` 原本不檢查格式（#120）。
+- OAuth 帳號未綁定時，日誌不再記 provider 回傳的 email 與姓名，只記 provider 的使用者 id（#111）。
+- 部署改為新 revision 先不接流量，檢查 `/up`、`/api/scopes`、404 格式與 `X-Request-Id` 都通過才切換流量；沒過則流量不動（#109）。
 
 ### 修正
 
@@ -28,8 +32,9 @@
 
 - Google／LINE 登入改用 PKCE（S256）：導向授權頁時帶 `code_challenge`，callback 換 token 時送出存在 session 的 `code_verifier`，授權碼在中途外洩也無法單獨換到 token；session 模式（`/auth/*`）與 token 模式（`/auth/token/*`）都適用（#103）。
 - nginx 存取紀錄不再記錄 query string，只記路徑，避免 OAuth callback 的 `code`／`state` 等網址參數寫進 Cloud Logging（#103）。
-- 重新建置映像檔，PHP 升到 8.4.27（修補 CVE-2026-109618、CVE-2026-109619）；`symfony/http-foundation`、`symfony/yaml` 升到 8.1.9（修補 CVE-2026-108082、CVE-2026-109413）。CI 加上 `composer audit`，相依套件有已知漏洞時測試會失敗。
-- 部署 workflow 改成每週二自動重建並重新部署一次（建置時一定重新拉基底映像檔），程式碼沒有改動時，PHP 與 alpine 的安全修補也會進到正式環境。
+- 重新建置映像檔，PHP 升到 8.4.27（修補 CVE-2026-109618、CVE-2026-109619）；`symfony/http-foundation`、`symfony/yaml` 升到 8.1.9（修補 CVE-2026-108082、CVE-2026-109413）。CI 加上 `composer audit`，相依套件有已知漏洞時測試會失敗（#118）。
+- 部署 workflow 改成每週二自動重建並重新部署一次（建置時一定重新拉基底映像檔），程式碼沒有改動時，PHP 與 alpine 的安全修補也會進到正式環境（#119）。
+- `url`、`uri` 欄位限定 http／https，不讓 `javascript:` 這類網址存進會被輸出成連結的欄位（#120）。
 
 ## [1.0.1] - 2026-10-06
 
@@ -94,5 +99,6 @@ GitHub 同步
 - CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
+[1.1.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.0
 [1.0.1]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.0.1
 [1.0.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.0.0
