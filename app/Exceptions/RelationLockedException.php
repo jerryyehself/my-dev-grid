@@ -20,8 +20,7 @@ use RuntimeException;
  * - 而 `updating` 這個 model event 是全域的，不是 controller 專屬的——只要有人
  *   呼叫 `$relation->update()` 就會觸發。
  *
- * 所以正確的位置是例外本身，一次處理完所有路徑（engineering-principles 的
- * 「fix bugs at the shared root cause so every symptom resolves together」）。
+ * 所以正確的位置是例外本身，一次處理完所有路徑：在共同的根源修，所有症狀一起解決。
  */
 class RelationLockedException extends RuntimeException
 {

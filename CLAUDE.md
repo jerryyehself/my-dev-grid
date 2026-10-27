@@ -8,22 +8,13 @@
 
 程式碼本身（變數名、函式名、檔名、資料表/欄位名）、技術術語、套件名稱、既有的英文專有名詞（例如 Laravel、Eloquent、Sanctum）維持原文，不用硬翻。
 
-**controller 的 PHPDoc、`#[Endpoint]` 文字，以及 Resource／FormRequest 陣列 key 正上方的註解，都會原樣公開在 API 文件（`/docs/api`，Scramble）：**每個 API action 都要有 `#[\Dedoc\Scramble\Attributes\Endpoint(title: …)]`（簡短繁體中文，寫給 API 使用者看；有補充價值時再加一句 `description`），不要留 Laravel 產生的樣板註解（"Display a listing of the resource." 之類），否則它會變成端點標題。`description` 有填時會蓋掉 PHPDoc 的描述。Resource 的 `toArray()` 與 FormRequest 的 `rules()` 裡，key 正上方的註解會變成欄位說明：要給 API 讀者看的說明寫成緊貼 key 的單行 `/** … */`，開發者才需要的理由寫成它上方的 `//` 註解——key 上有 `/** */` 時，同一處的 `//` 註解不會被輸出。給 API 讀者看的文字不要出現內部決策／規格編號、issue 編號、私有 repo 路徑、內部筆數或對前端的指示。改完用 `php artisan scramble:export` 檢查輸出。API 路由要指到 controller 方法，不要寫 closure：production 會跑 `route:cache`，closure 會被序列化，Scramble 讀不到它身上的 `#[Endpoint]`，標題就掉了（檢查時要先 `php artisan route:cache` 再 export，結束後 `route:clear`）。
+**controller 的 PHPDoc、`#[Endpoint]` 文字，以及 Resource／FormRequest 陣列 key 正上方的註解，都會原樣公開在 API 文件（`/docs/api`）**，寫法見 [`docs/conventions/api.md`](docs/conventions/api.md)「API 文件（Scramble）」。
 
-**這條只管「跟使用者對話」跟這個 repo 本身的內容，不影響跨 session 協作文件的語言政策**——`my-dev-grid-skills` 裡的 `engineering-principles.md`、`SKILL.md` 這類跨專案共用文件基於 token 成本考量用英文主版，那是另一個 repo 的獨立政策，不代表可以把這個習慣帶進來，跟**使用者本人**互動時（不管是主 session 還是任何角色 session）一律用繁體中文，不要因為讀多了英文文件就跟著用英文回覆使用者。
+**這條只管「跟使用者對話」跟這個 repo 本身的內容。**跟使用者本人互動時一律用繁體中文，不要因為讀多了英文文件就跟著用英文回覆使用者。
 
-# 資料填充慣例（2026-09-10 使用者確認）
+# 程式慣例
 
-需要用程式碼把資料填進資料庫時，預設寫成 **Seeder**（`database/seeders/`），不要用 migration：
-
-- **Migration** 是一次性、不可逆的結構/資料修正紀錄，正常情況下每支只會被執行一次（例如
-  `..._reclassify_vue3_topic_from_packagetool_to_framework.php` 這種單次錯誤分類回填）。
-- **Seeder** 用在**可能需要重複執行/重新套用**的資料填充——例如 relation 預設資料
-  （`RelationSeeder`）、GitHub repo 快照（`GitHubReposSnapshotSeeder`）——可以隨時用
-  `php artisan db:seed --class=X` 手動重跑，不會綁進 migration 歷史、也不會被
-  `php artisan migrate`（例如部署流程）自動觸發。
-
-之後任何「幫我把 XX 資料填進去」這類討論，預設照這個慣例寫成 seeder，不用每次重新問。
+檔案結構、命名、API、資料（migration／seeder、結構變更的順序）、測試、安全、開 issue 的規則寫在 [`docs/conventions/`](docs/conventions/README.md)，Claude、Codex、人都照同一份。新增或搬動檔案前先讀 `structure.md` 與 `naming.md`；要把資料填進資料庫、或改資料庫結構前先讀 `data.md`。
 
 # Git commit/push 授權（2026-09-12 使用者確認）
 
@@ -48,19 +39,8 @@
 2. **驗證範圍**：CI 的 PHPUnit（sqlite 與 pgsql 兩種都要過），加上針對這次改動的手動確認步驟。動到部署管線（`Dockerfile`、`docker/`、workflow、環境變數）、日誌／middleware／`bootstrap/app.php`／`config/`，或 `composer.lock` 相依套件的 PR，請求合併前要先跑 `scripts/smoke-test.sh`（用 repo 的 Dockerfile 建映像檔，接暫存 PostgreSQL，以 production 設定跑起來再探測），把它印出的摘要表貼到 PR（貼成 PR 留言也可以）。跑不起來就在 PR 裡寫明沒跑和原因，不要默默略過。這個 repo 是公開的，貼出去的只寫結果，不要帶內部討論或使用者的原話。
 3. **資料安全檢查**：會不會誤刪資料、影響範圍有沒有限制在該限制的地方。
 
-合併前一律先問使用者（對應 `my-dev-grid-skills` 三層判斷的第 2 層），就算 CI 全過也一樣。部署後看一次 Cloud Logging，確認沒有新錯誤。
+合併前一律先問使用者，就算 CI 全過也一樣。部署後看一次 Cloud Logging，確認沒有新錯誤。
 
 ## 資料庫結構變更的順序
 
-部署流程是「先用 Cloud Run Job 跑 `php artisan migrate --force`，再部署新版程式（先不接流量，檢查通過才切）」，所以 **migration 跑完到新版上線之間，舊版程式還在用新的資料庫結構接流量**。因此：
-
-- **只做向下相容的新增**：加欄位（可為 null 或有預設值）、加資料表、加索引。舊版程式看不到新欄位也能正常運作。
-- **刪除或改名欄位，不要跟改程式放在同一次部署**。順序是：
-  1. 加新結構
-  2. 回填資料（寫成 migration 或 seeder，依上面「資料填充慣例」判斷）
-  3. 程式改讀新結構（另一次部署）
-  4. 確認沒問題後，再用另一次部署刪掉舊欄位
-- **回填或刪除資料的 migration**：PR 裡記錄執行前後的筆數，說明怎麼確認影響範圍正確；大量改寫資料時，先用查詢確認筆數再動手。
-- **正式環境第一次跑會刪資料的 migration 前**，先確認 Cloud SQL 有開自動備份——`docs/deployment-gcp.md` 建立 instance 的指令帶了 `--no-backup`。
-
-以上是精簡規則。分次部署的範例、PostgreSQL 的鎖與 `lock_timeout`、用 `online()` 建索引、回滾做法、合併前檢查清單，見 [`docs/zero-downtime-migrations.md`](docs/zero-downtime-migrations.md)。
+migration 跑完到新版上線之間，舊版程式還在用新的資料庫結構接流量，所以只做向下相容的新增，刪除或改名欄位要分次部署。規則見 [`docs/conventions/data.md`](docs/conventions/data.md)，分次部署的範例、PostgreSQL 的鎖、回滾做法與合併前檢查清單見 [`docs/zero-downtime-migrations.md`](docs/zero-downtime-migrations.md)。
