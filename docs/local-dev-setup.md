@@ -1,6 +1,6 @@
 # 本地開發環境重建
 
-拉到最新 `main` 之後，怎麼讓本地環境（含資料庫內容）跟上最新狀態。這份文件講「操作步驟」，不重複解釋各個 seeder/migration 為什麼這樣設計——那些理由留在對應的程式碼註解、commit message、PR 裡。
+拉到最新 `develop`（開發中的最新版；`main` 是已經上線的版本）之後，怎麼讓本地環境（含資料庫內容）跟上最新狀態。這份文件講「操作步驟」，不重複解釋各個 seeder/migration 為什麼這樣設計——那些理由留在對應的程式碼註解、commit message、PR 裡。
 
 ## 1. 安裝依賴、準備 `.env`（首次設置，或 `vendor/`／`.env` 不存在時）
 
@@ -18,7 +18,7 @@ php artisan key:generate
 php artisan migrate:fresh --seed
 ```
 
-會清空重跑所有 migration（含最新的資料回填 migration），再跑 `DatabaseSeeder`（＝ `ScopeSeeder` ＋ `RelationSeeder`）。跑完之後，本地資料庫裡 `Scope`／`Relation` 的分類架構、`comment`／`note` 內容就是 `main` 上最新的版本。
+會清空重跑所有 migration（含最新的資料回填 migration），再跑 `DatabaseSeeder`（＝ `ScopeSeeder` ＋ `RelationSeeder`）。跑完之後，本地資料庫裡 `Scope`／`Relation` 的分類架構、`comment`／`note` 內容就是 `develop` 上最新的版本。
 
 **⚠️ 已知限制**：`ScopeSeeder`／`RelationSeeder` 用的是 `Scope::create()`／`Relation::create()`（不是 `firstOrCreate`），不是為了「重複執行安全」設計的。本地資料庫已經 seed 過、裡面已經有資料時，直接再跑 `db:seed` 會插入重複列，不會覆蓋更新。想乾淨拿到最新內容，安全做法就是上面的 `migrate:fresh --seed`——會整個清空重建，本地如果有不想丟的手動測試資料，先自行備份。
 

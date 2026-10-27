@@ -19,7 +19,7 @@
 #   ./scripts/smoke-test.sh [git-ref]
 #
 #   git-ref   要測的 commit／分支／tag，預設是目前的 HEAD
-#             （例如 origin/main、origin/feat/some-branch）
+#             （例如 origin/develop、origin/main、origin/feat/some-branch）
 #
 # 需要：docker、git、curl、python3；沒有 docker 但有 dockerd 會自己啟動。
 #

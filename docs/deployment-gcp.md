@@ -188,7 +188,7 @@ workflow 指定了 `environment: production`。如果這個 repo 有用名為 `p
 
 ## 8. 第一次部署
 
-push 到 `main`，或手動執行 workflow（Actions 分頁 → "Deploy to Cloud Run" → Run workflow）。它會：
+push 到 `main`，或手動執行 workflow（Actions 分頁 → "Deploy to Cloud Run" → Run workflow，分支選 `main`；選其他分支會跳過，`develop` 永遠不部署）。它會：
 
 1. 用 `Dockerfile` 建置映像檔，推送到 Artifact Registry。
 2. 用這個映像檔部署／更新 Cloud Run Job（`CLOUD_RUN_MIGRATE_JOB`），並用 `--wait` 跑完 `php artisan migrate --force`，確保新 revision 開始接流量前 schema 已經建好。不設 `CLOUD_RUN_MIGRATE_JOB` 就會跳過這步，migration 改由你自己跑。

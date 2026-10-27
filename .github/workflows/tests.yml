@@ -1,9 +1,11 @@
 name: Tests
 
 # Runs the PHPUnit/Pest suite (`composer test`, i.e. `php artisan test`) on
-# every push to main and every pull request targeting main, so regressions
-# are caught before merge instead of relying on someone running the suite
-# by hand afterwards.
+# every push to main/develop and every pull request targeting main/develop,
+# so regressions are caught before merge instead of relying on someone
+# running the suite by hand afterwards. Feature PRs target `develop` (the
+# integration branch); `develop` -> `main` is the release PR, and only
+# `main` deploys (see CLAUDE.md「分支策略」).
 #
 # Runs against BOTH SQLite (local dev's default, `DB_CONNECTION=sqlite` in
 # `.env.example`) AND Postgres (production's actual `DB_CONNECTION=pgsql`,
@@ -22,9 +24,9 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 permissions:
   contents: read

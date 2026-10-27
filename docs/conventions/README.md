@@ -15,7 +15,7 @@
 
 已經成文、不在這裡的規則：
 
-- 語言、Git 授權、高風險改動與 PR 說明要寫的東西：`CLAUDE.md`
+- 語言、Git 授權、分支策略（PR 對 `develop`、每週上線到 `main`）、高風險改動與 PR 說明要寫的東西：`CLAUDE.md`
 - 分次部署、PostgreSQL 鎖、回滾的細節：[`docs/zero-downtime-migrations.md`](../zero-downtime-migrations.md)
 - 日誌欄位與安全事件表：[`docs/observability.md`](../observability.md)
 - 部署：[`docs/deployment-gcp.md`](../deployment-gcp.md)
