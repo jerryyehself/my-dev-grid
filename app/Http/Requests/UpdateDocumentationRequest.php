@@ -7,19 +7,13 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateDocumentationRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
+        // 授權由 controller 的 $this->authorize() 交給 Policy，這裡不重複判斷。
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, ValidationRule|array<mixed>|string>
-     */
+    /** @return array<string, ValidationRule|array<mixed>|string> */
     public function rules(): array
     {
         return [

@@ -22,8 +22,6 @@ return new class extends Migration
     ];
 
     /**
-     * Run the migrations.
-     *
      * 就地把先前被 SaveReposDataService 誤歸類到 packagetool scope、但其實
      * 是 framework/library 的 Technique row 改成 framework scope——只更新
      * 既有 row 的 `type` 欄位，不刪除重建，讓 row id 保持不變，這樣
@@ -67,8 +65,6 @@ return new class extends Migration
     }
 
     /**
-     * Reverse the migrations.
-     *
      * 刻意不做反向回滾：回滾之後沒辦法區分「本來就是這支 migration 改的」
      * 跟「migration 跑完之後才由正常同步流程新建的 framework technique」，
      * 硬回滾反而可能把後者也錯誤打回 packagetool。真的需要撤銷的話用上面

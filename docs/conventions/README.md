@@ -8,6 +8,7 @@
 | [`naming.md`](naming.md)       | 類別、方法、資料表、欄位、路由、指令怎麼命名；程式碼風格（PSR／Pint）    |
 | [`api.md`](api.md)             | 路由、回應形狀、錯誤格式、API 文件（Scramble）的寫法                     |
 | [`data.md`](data.md)           | migration 與 seeder 的分工、資料修正、零停機的順序                       |
+| [`comments.md`](comments.md)   | 註解與 PHPDoc：什麼時候寫、怎麼寫、哪些會公開到 API 文件，附複製用範本  |
 | [`testing.md`](testing.md)     | 測試格式與「好的測試」                                                   |
 | [`security.md`](security.md)   | 授權、輸入驗證、網址、草稿可見性、憑證與日誌                             |
 | [`issues.md`](issues.md)       | 開 issue：段落、大小、標籤、不能寫的內容                                 |

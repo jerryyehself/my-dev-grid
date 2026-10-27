@@ -9,9 +9,6 @@ use Illuminate\Support\Arr;
 
 class RelationSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
 
