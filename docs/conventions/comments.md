@@ -259,7 +259,7 @@ class <Name>Exception extends RuntimeException
 
 ## 目前已知不符的地方
 
-- 英文的說明文字（要換成中文）：`App\Service\GitService`、`App\Service\SaveReposDataService`、`App\Http\Controllers\GraphController`、`App\Traits\SetCURIEAttribute`、`App\Traits\SyncsPivotRelations`、`App\Models\Relation`、`App\Models\EntityRelation` 與三個 `*Link` model、`App\Exceptions\RelationLockedException` 的類別 docblock、`App\Console\Commands\SnapshotGitHubRepos`、`database/seeders` 底下的 `GitHubReposSnapshotSeeder`、`RelationSeeder`。
+- 英文的說明文字（要換成中文）：`App\Services\GitService`、`App\Services\SaveReposDataService`、`App\Http\Controllers\GraphController`、`App\Traits\SetCURIEAttribute`、`App\Traits\SyncsPivotRelations`、`App\Models\Relation`、`App\Models\EntityRelation` 與三個 `*Link` model、`App\Exceptions\RelationLockedException` 的類別 docblock、`App\Console\Commands\SnapshotGitHubRepos`、`database/seeders` 底下的 `GitHubReposSnapshotSeeder`、`RelationSeeder`。
 - 部分舊註解用半形標點（`,`、`:`、`(`）寫中文，例如 `StoreScopeRequest` 的 `parent_class`。
 - 英文例外訊息：`RelationLockedException::__construct()` 的訊息是英文，`render()` 才是中文（見 [`api.md`](api.md)「錯誤」）。
 - `SaveReposDataService` 的類別 docblock 帶了 `NOTE(2026-09-07)` 的歷史說明。
