@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\SecurityEvent;
 use App\Http\Controllers\Controller;
-use App\Logging\SecurityEvent;
 use App\Logging\SecurityLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

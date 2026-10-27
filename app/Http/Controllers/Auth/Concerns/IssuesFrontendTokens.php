@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Auth\Concerns;
 
 use App\Http\RefreshTokenCookie;
 use App\Models\User;
-use App\Service\RefreshTokenFamilies;
+use App\Services\RefreshTokenFamilies;
 use D076\SanctumRefreshTokens\DTOs\TokensDTO;
 use Illuminate\Http\JsonResponse;
 
@@ -16,7 +16,7 @@ use Illuminate\Http\JsonResponse;
 trait IssuesFrontendTokens
 {
     /**
-     * 新的一次登入：開一個新的 refresh token 家族（見 App\Service\RefreshTokenFamilies）。
+     * 新的一次登入：開一個新的 refresh token 家族（見 App\Services\RefreshTokenFamilies）。
      */
     protected function issueTokenPair(User $user): TokensDTO
     {

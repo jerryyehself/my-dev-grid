@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * 三個欄位都 nullable、沒有回填：migrate Job 會在新版程式接流量之前跑，
  * 舊版程式不讀這幾個欄位，照常運作；新版程式把 family_id 是 null 的舊資料列
- * 當成「自己一個家族、從 created_at 起算」（見 App\Service\RefreshTokenFamilies）。
+ * 當成「自己一個家族、從 created_at 起算」（見 App\Services\RefreshTokenFamilies）。
  */
 return new class extends Migration
 {

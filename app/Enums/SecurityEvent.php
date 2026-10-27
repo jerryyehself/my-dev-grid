@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Logging;
+namespace App\Enums;
 
 use Psr\Log\LogLevel;
 

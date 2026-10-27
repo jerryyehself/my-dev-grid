@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Service\GitService;
+use App\Services\GitService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 

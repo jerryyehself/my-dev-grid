@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\RefreshTokenOutcome;
 use App\Exceptions\RefreshTokenRejectedException;
 use App\Http\Controllers\Auth\Concerns\IssuesFrontendTokens;
 use App\Http\Controllers\Controller;
 use App\Http\RefreshTokenCookie;
 use App\Logging\SecurityLog;
-use App\Service\RefreshTokenFamilies;
-use App\Service\RefreshTokenOutcome;
+use App\Services\RefreshTokenFamilies;
 use Dedoc\Scramble\Attributes\Endpoint;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Auth\AuthenticationException;
@@ -38,7 +38,7 @@ class TokenRefreshController extends Controller
 
     /**
      * 不帶 Authorization header，只看 refresh cookie。換發、重放偵測、90 天上限都在
-     * App\Service\RefreshTokenFamilies::rotate()，這裡只把結果對應成回應：
+     * App\Services\RefreshTokenFamilies::rotate()，這裡只把結果對應成回應：
      *
      * - 換發成功 → 200＋新 cookie（包含寬限秒數內、從剛換出來的那支接著換發的情況）。
      * - 同一支剛被用掉、它換出來的那支也用掉了（寬限秒數內）→ 409，不動 cookie：

@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Service\SaveReposDataService;
+use App\Services\SaveReposDataService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
 use RuntimeException;

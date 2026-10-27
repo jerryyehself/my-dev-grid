@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\SecurityEvent;
 use App\Http\Controllers\Controller;
-use App\Logging\SecurityEvent;
 use App\Logging\SecurityLog;
 use App\Models\OauthIdentity;
-use App\Service\SocialiteDriver;
+use App\Services\SocialiteDriver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Throwable;

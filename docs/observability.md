@@ -158,7 +158,7 @@ vocabulary 的隱私註記：「All fields logged after event type should be con
 | channel、formatter、processor | `config/logging.php` 的 `cloud_run` |
 | request id | `app/Http/Middleware/AssignRequestId.php`，在 `bootstrap/app.php` 以 `prepend` 掛成最外層全域 middleware |
 | JSON 格式 | `app/Logging/CloudLoggingFormatter.php`、`app/Logging/RequestLogProcessor.php` |
-| 安全與稽核事件 | 名稱與等級 `app/Logging/SecurityEvent.php`、寫法 `app/Logging/SecurityLog.php`；403／429 在 `bootstrap/app.php` 的 `respond()`；後台稽核 `app/Logging/AdminAudit.php`（`AppServiceProvider::boot` 掛 observer，pivot 在 `app/Traits/SyncsPivotRelations.php`） |
+| 安全與稽核事件 | 名稱與等級 `app/Enums/SecurityEvent.php`、寫法 `app/Logging/SecurityLog.php`；403／429 在 `bootstrap/app.php` 的 `respond()`；後台稽核 `app/Logging/AdminAudit.php`（`AppServiceProvider::boot` 掛 observer，pivot 在 `app/Traits/SyncsPivotRelations.php`） |
 | `LOG_CHANNEL=cloud_run`、`GOOGLE_CLOUD_PROJECT` | `.github/workflows/deploy-cloud-run.yml`（服務；兩個 Job 也用 `cloud_run`）、`.env.production.example` |
 | php-fpm `log_limit` | `Dockerfile`。php-fpm 預設把超過 1024 字元的 worker 輸出折成多行，會讓單行 JSON 失效；`message` 另外在 30000 位元組截斷，確保一行在上限內 |
 

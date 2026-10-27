@@ -7,7 +7,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * personal_refresh_tokens 的 model，多了家族欄位的型別轉換
- * （見 2026_10_03_120000 那支 migration 跟 App\Service\RefreshTokenFamilies）。
+ * （見 2026_10_03_120000 那支 migration 跟 App\Services\RefreshTokenFamilies）。
  *
  * 跟套件的 PersonalRefreshToken 同一張表。刻意只用 query builder 的批次
  * update／delete，不呼叫單筆 model 的 delete()——套件掛在 PersonalRefreshToken

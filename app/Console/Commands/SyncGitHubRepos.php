@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Service\SaveReposDataService;
+use App\Services\SaveReposDataService;
 use Illuminate\Console\Command;
 
 class SyncGitHubRepos extends Command
