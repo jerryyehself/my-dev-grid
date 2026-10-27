@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\RefreshTokenOutcome;
 use App\Enums\SecurityEvent;
 use App\Logging\SecurityLog;
 use App\Models\RefreshToken;
