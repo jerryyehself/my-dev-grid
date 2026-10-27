@@ -10,6 +10,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -50,6 +51,7 @@ class SocialitePkceTest extends TestCase
     }
 
     #[DataProvider('loginModeAndProviderProvider')]
+    #[TestDox('導向授權頁時送出 S256 code_challenge')]
     public function test_redirect_sends_s256_code_challenge_derived_from_session_verifier(string $prefix, string $provider)
     {
         $response = $this->get("{$prefix}/{$provider}/redirect");
@@ -73,6 +75,7 @@ class SocialitePkceTest extends TestCase
     }
 
     #[DataProvider('loginModeAndProviderProvider')]
+    #[TestDox('回呼時把 session 的 code_verifier 送給 token 端點')]
     public function test_callback_sends_session_code_verifier_to_token_endpoint(string $prefix, string $provider)
     {
         $user = User::factory()->create();
@@ -114,6 +117,7 @@ class SocialitePkceTest extends TestCase
      * 授權頁當時也沒收到 code_challenge，provider 那邊不會要求 verifier。
      */
     #[DataProvider('loginModeAndProviderProvider')]
+    #[TestDox('登入在啟用 PKCE 前開始時，回呼不帶 code_verifier')]
     public function test_callback_omits_code_verifier_when_login_started_before_pkce(string $prefix, string $provider)
     {
         $history = $this->fakeProviderHttp($provider);

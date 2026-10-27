@@ -2,6 +2,7 @@
 
 namespace App\Logging;
 
+use App\Enums\SecurityEvent;
 use App\Models\Documentation;
 use App\Models\Implementation;
 use App\Models\Relation;

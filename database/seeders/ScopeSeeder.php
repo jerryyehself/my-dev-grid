@@ -7,9 +7,6 @@ use Illuminate\Database\Seeder;
 
 class ScopeSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         // parent_class 過去是寫死的數字字面值（例如 '1'、'5'、'10'），假設
@@ -160,8 +157,6 @@ class ScopeSeeder extends Seeder
             'name' => 'picture',
             'comment' => '`Implementation` 底下的子分類，對應圖像／視覺類產出物，跟 `work`、`project`、`problem` 並列 Implementation 的四種型態。',
         ]);
-
-        // Scope::factory()->count(10)->create();
     }
 
     /**

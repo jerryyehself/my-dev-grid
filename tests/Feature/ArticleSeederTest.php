@@ -7,6 +7,7 @@ use App\Models\Scope;
 use Database\Seeders\ArticleSeeder;
 use Database\Seeders\ScopeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -24,6 +25,7 @@ class ArticleSeederTest extends TestCase
         'my-dev-grid-front 部署到 Cloudflare 的完整流程',
     ];
 
+    #[TestDox('重複執行 seeder 仍只有 4 篇已發布文章')]
     public function test_running_twice_yields_exactly_four_published_articles()
     {
         $this->seed(ScopeSeeder::class);
@@ -38,6 +40,7 @@ class ArticleSeederTest extends TestCase
         $this->assertSame(4, Documentation::where('type', $postId)->count());
     }
 
+    #[TestDox('文章不需登入即可從公開 API 看到')]
     public function test_articles_are_visible_via_the_public_api_without_auth()
     {
         $this->seed(ScopeSeeder::class);
@@ -60,6 +63,7 @@ class ArticleSeederTest extends TestCase
         }
     }
 
+    #[TestDox('重跑 seeder 會覆寫內文而非重複建立')]
     public function test_rerun_overwrites_body_instead_of_duplicating()
     {
         $this->seed(ScopeSeeder::class);
@@ -73,6 +77,7 @@ class ArticleSeederTest extends TestCase
         $this->assertNotSame('被手動改過', Documentation::where('title', self::TITLES[0])->value('body'));
     }
 
+    #[TestDox('已軟刪除的文章不會被重跑 seeder 復活')]
     public function test_soft_deleted_article_is_not_resurrected()
     {
         $this->seed(ScopeSeeder::class);
@@ -86,6 +91,7 @@ class ArticleSeederTest extends TestCase
         $this->assertSame(4, Documentation::withTrashed()->count());
     }
 
+    #[TestDox('缺少 post scope 時丟出明確錯誤')]
     public function test_it_throws_a_clear_error_when_the_post_scope_is_missing()
     {
         $this->expectException(RuntimeException::class);
@@ -97,6 +103,7 @@ class ArticleSeederTest extends TestCase
     /**
      * 這些內容會公開。守住隱私檢查拿掉的東西，之後重新複製 fixture 時漏掉會直接紅燈。
      */
+    #[TestDox('種入的文章內文不含敏感字串')]
     public function test_seeded_bodies_contain_no_sensitive_strings()
     {
         $this->seed(ScopeSeeder::class);

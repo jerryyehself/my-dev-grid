@@ -16,9 +16,10 @@
 | `app/Policies/`                      | 授權，一個 model 一支                                         | `DocumentationPolicy`                     |
 | `app/Rules/`                         | 自訂驗證規則                                                  | `ReverseIsAvailable`                      |
 | `app/Models/`                        | Eloquent model、連結表 model                                  | `Relation`、`DocumentationTechniqueLink`  |
-| `app/Service/`                       | 跨 controller、指令共用的商業邏輯與查詢                       | `RefreshTokenFamilies`、`RelationEdgeQuery` |
+| `app/Services/`                      | 跨 controller、指令共用的商業邏輯與查詢（含查詢物件）         | `RefreshTokenFamilies`、`RelationEdgeQuery` |
+| `app/Enums/`                         | enum（固定幾種的值）                                          | `RefreshTokenOutcome`、`SecurityEvent`    |
 | `app/Exceptions/`                    | 自訂例外（自己負責變成 HTTP 回應）                            | `RelationLockedException`                 |
-| `app/Logging/`                       | 日誌格式、安全事件、稽核紀錄                                  | `SecurityLog`、`AdminAudit`               |
+| `app/Logging/`                       | 日誌格式、稽核紀錄                                            | `SecurityLog`、`AdminAudit`               |
 | `app/OpenApi/`                       | Scramble 推不出來、要手動補的文件設定                         | `ProblemDetailsResponses`                 |
 | `app/Console/Commands/`              | artisan 指令                                                  | `SyncGitHubRepos`                         |
 | `app/Traits/`                        | 跨層共用的 trait                                              | `SyncsPivotRelations`                     |
@@ -51,7 +52,7 @@ public function store(StoreDocumentationRequest $request)
 }
 ```
 
-- 演算法、多步驟的資料處理、會被第二個地方用到的邏輯，都搬到 `app/Service/` 或 model。例子：述詞的邊怎麼查、怎麼分頁，寫在 `RelationEdgeQuery`，`RelationController::edges()` 只呼叫它。
+- 演算法、多步驟的資料處理、會被第二個地方用到的邏輯，都搬到 `app/Services/` 或 model。例子：述詞的邊怎麼查、怎麼分頁，寫在 `RelationEdgeQuery`，`RelationController::edges()` 只呼叫它。
 - 幾支 controller 共用的小段流程寫成 trait：`SyncsPivotRelations::syncPivot()`、`IssuesFrontendTokens`。
 
 ### 驗證放 FormRequest
@@ -86,7 +87,7 @@ public function store(StoreDocumentationRequest $request)
 
 ## 目前已知不符的地方
 
-- `GraphController`：最短路徑（BFS）、組節點、組邊都寫在 controller 裡，`path()` 也在 controller 裡驗證。之後要大改圖譜時，先把邏輯搬進 `app/Service/`。
+- `GraphController`：最短路徑（BFS）、組節點、組邊都寫在 controller 裡，`path()` 也在 controller 裡驗證。之後要大改圖譜時，先把邏輯搬進 `app/Services/`。
 - `ScopeController::store/update` 推出 `class_number`、`RelationController::store` 推出 `parent_class`：這是領域規則，應該放在 model 或 service。
 - `ScopeController::update` 回傳 `'data' => $scope`（原始 model），沒有經過 `ScopeResource`。
 - `CurrentUserController`、`IssuesFrontendTokens::tokenPairResponse()` 直接回傳 `User` model（現在靠 `$hidden` 擋掉密碼）。

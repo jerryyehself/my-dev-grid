@@ -5,12 +5,14 @@ namespace Tests\Feature;
 use App\Models\Scope;
 use Database\Seeders\ScopeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class ScopeCRUDTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('登入後可新增 scope，分類號由父層推導')]
     public function test_create_scope()
     {
         $this->actingAsOwner();
@@ -38,6 +40,7 @@ class ScopeCRUDTest extends TestCase
         ]);
     }
 
+    #[TestDox('新增 scope 時父層不存在回 422')]
     public function test_create_scope_rejects_unknown_parent()
     {
         $this->actingAsOwner();
@@ -53,6 +56,7 @@ class ScopeCRUDTest extends TestCase
             ->assertJsonValidationErrors('parent_class');
     }
 
+    #[TestDox('新增 scope 未登入回 401')]
     public function test_create_scope_rejects_unauthenticated_request()
     {
         $response = $this->postJson('/api/scopes', [
@@ -65,6 +69,7 @@ class ScopeCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('可檢視單一 scope')]
     public function test_view_scope()
     {
         $scope = Scope::factory()->create();
@@ -75,6 +80,7 @@ class ScopeCRUDTest extends TestCase
             ->assertJsonFragment(['id' => $scope->id]);
     }
 
+    #[TestDox('登入後可更新 scope')]
     public function test_update_scope()
     {
         $this->actingAsOwner();
@@ -104,6 +110,7 @@ class ScopeCRUDTest extends TestCase
      * Documentation(class 00) 的 scope 改成 class_number = 99,製造出實際資料裡一筆都
      * 不存在的不一致(實測 16 筆 scope 的 class_number 全部等於其父層的,0 筆例外)。
      */
+    #[TestDox('更換父層時分類號會重新推導')]
     public function test_changing_the_parent_re_derives_the_class_number()
     {
         $this->actingAsOwner();
@@ -132,6 +139,7 @@ class ScopeCRUDTest extends TestCase
     /**
      * 呼叫端硬送 class_number 一律不算數——它不是可輸入的欄位。
      */
+    #[TestDox('呼叫端送來的分類號不算數')]
     public function test_class_number_sent_by_the_client_is_ignored()
     {
         $this->actingAsOwner();
@@ -150,6 +158,7 @@ class ScopeCRUDTest extends TestCase
         $this->assertSame('88', $scope->fresh()->class_number);
     }
 
+    #[TestDox('更新 scope 未登入回 401')]
     public function test_update_scope_rejects_unauthenticated_request()
     {
         $parent = Scope::factory()->create(['class_number' => '99', 'call_number' => '00', 'parent_class' => null]);
@@ -165,6 +174,7 @@ class ScopeCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('登入後可刪除 scope（軟刪除）')]
     public function test_delete_scope()
     {
         $this->actingAsOwner();
@@ -179,6 +189,7 @@ class ScopeCRUDTest extends TestCase
         $this->assertSoftDeleted('scopes', ['id' => $scope->id]);
     }
 
+    #[TestDox('刪除 scope 未登入回 401')]
     public function test_delete_scope_rejects_unauthenticated_request()
     {
         $scope = Scope::factory()->create();
@@ -188,6 +199,7 @@ class ScopeCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('可列出所有 scope')]
     public function test_list_all_scopes()
     {
         $this->seed(ScopeSeeder::class);
@@ -201,6 +213,7 @@ class ScopeCRUDTest extends TestCase
         ]);
     }
 
+    #[TestDox('檢視 scope 時會附上同層的兄弟 scope')]
     public function test_view_scope_returns_siblings()
     {
         $parent = Scope::factory()->create([
@@ -227,6 +240,7 @@ class ScopeCRUDTest extends TestCase
         $response->assertJsonFragment(['name' => $sibling->name]);
     }
 
+    #[TestDox('沒有兄弟的 scope 回傳空陣列')]
     public function test_view_scope_without_siblings_returns_empty_array()
     {
         $parent = Scope::factory()->create([
@@ -246,6 +260,7 @@ class ScopeCRUDTest extends TestCase
         $this->assertSame([], $response->json('siblings'));
     }
 
+    #[TestDox('頂層 scope 沒有兄弟也沒有父層')]
     public function test_view_top_level_scope_has_no_siblings_or_parent()
     {
         Scope::factory()->create([

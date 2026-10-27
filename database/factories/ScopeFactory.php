@@ -10,11 +10,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class ScopeFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     protected $model = Scope::class;
 
     public function definition(): array

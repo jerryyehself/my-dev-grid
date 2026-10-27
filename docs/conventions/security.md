@@ -41,7 +41,7 @@
 
 ## 日誌
 
-- 安全事件一律透過 `App\Logging\SecurityLog` 寫，事件名稱用 `SecurityEvent` enum，不要自己呼叫 `Log::warning()` 寫安全事件。
+- 安全事件一律透過 `App\Logging\SecurityLog` 寫，事件名稱用 `App\Enums\SecurityEvent` enum，不要自己呼叫 `Log::warning()` 寫安全事件。
 - 日誌裡不能出現：密碼、access／refresh token 的值、OAuth 的 `code`／`state`、session id、金鑰、請求內容。使用者只記內部的 `user_id`。完整的事件表見 [`docs/observability.md`](../observability.md)。
 - 後台資料的變更由 `AdminAudit` observer 記錄。新增可以在後台編輯的 model 時，把它加進 `AdminAudit::MODELS`；連結表用 `syncPivot()` 同步，稽核紀錄才記得到。
 

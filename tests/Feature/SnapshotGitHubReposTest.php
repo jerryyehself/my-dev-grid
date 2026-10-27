@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Service\GitService;
+use App\Services\GitService;
 use Illuminate\Support\Facades\File;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class SnapshotGitHubReposTest extends TestCase
 {
+    #[TestDox('把取得的 repo 清單寫入指定路徑的快照檔')]
     public function test_it_writes_fetched_repos_to_the_given_path()
     {
         $path = storage_path('framework/testing/github-repos-snapshot-test.json');

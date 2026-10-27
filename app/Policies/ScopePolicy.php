@@ -7,17 +7,11 @@ use App\Models\User;
 
 class ScopePolicy
 {
-    /**
-     * Determine whether the user can view any models.
-     */
     public function viewAny(User $user): bool
     {
         return true;
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, Scope $scope): bool
     {
         return true;
@@ -28,41 +22,26 @@ class ScopePolicy
     // owner 本人」，不需要角色/擁有權那套邏輯，故意先簡化成這樣，等真的
     // 開放多人使用時才需要重新設計。
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(?User $user): bool
     {
         return $user !== null;
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(?User $user, Scope $scope): bool
     {
         return $user !== null;
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
     public function delete(?User $user, Scope $scope): bool
     {
         return $user !== null;
     }
 
-    /**
-     * Determine whether the user can restore the model.
-     */
     public function restore(User $user, Scope $scope): bool
     {
         return true;
     }
 
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
     public function forceDelete(User $user, Scope $scope): bool
     {
         return true;

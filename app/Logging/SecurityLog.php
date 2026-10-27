@@ -2,6 +2,7 @@
 
 namespace App\Logging;
 
+use App\Enums\SecurityEvent;
 use App\Models\User;
 use App\Providers\AppServiceProvider;
 use Illuminate\Http\Request;

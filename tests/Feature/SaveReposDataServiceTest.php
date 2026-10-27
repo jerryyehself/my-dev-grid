@@ -8,9 +8,10 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
-use App\Service\SaveReposDataService;
+use App\Services\SaveReposDataService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class SaveReposDataServiceTest extends TestCase
@@ -44,6 +45,7 @@ class SaveReposDataServiceTest extends TestCase
         ]);
     }
 
+    #[TestDox('同步 repo 時建立 project 類型的實作')]
     public function test_save_repos_data_creates_implementation_as_project()
     {
         $this->seed();
@@ -60,6 +62,7 @@ class SaveReposDataServiceTest extends TestCase
         ]);
     }
 
+    #[TestDox('同步時記下 repo 的建立時間')]
     public function test_save_repos_data_stores_git_repo_created_at()
     {
         $this->seed();
@@ -71,6 +74,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertSame('2026-06-15 00:00:00', $implementation->git_repo_created_at->format('Y-m-d H:i:s'));
     }
 
+    #[TestDox('同步時記下 repo 的描述')]
     public function test_save_repos_data_stores_description()
     {
         $this->seed();
@@ -81,6 +85,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertDatabaseHas('implementations', ['git_repo_id' => 111, 'description' => 'A demo repo']);
     }
 
+    #[TestDox('未封存的 repo 標為維護中')]
     public function test_save_repos_data_marks_non_archived_repo_as_maintained()
     {
         $this->seed();
@@ -92,6 +97,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertTrue($implementation->maintain_status);
     }
 
+    #[TestDox('已封存的 repo 標為停止維護')]
     public function test_save_repos_data_marks_archived_repo_as_not_maintained()
     {
         $this->seed();
@@ -113,6 +119,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertFalse($implementation->maintain_status);
     }
 
+    #[TestDox('依語言與 topic 建立技術')]
     public function test_save_repos_data_creates_techniques_for_languages_and_topics()
     {
         $this->seed();
@@ -135,6 +142,7 @@ class SaveReposDataServiceTest extends TestCase
      * 語意是「專案 uses 技術」；technique_implementation 一律 Technique 當主詞，所以存的是
      * 反向那一筆 usedBy（Technique → Implementation）。2026-09-30 以前名字跟方向對調了。
      */
+    #[TestDox('以 uses 關係把專案連到技術')]
     public function test_save_repos_data_links_project_to_techniques_via_uses_relation()
     {
         $this->seed();
@@ -158,6 +166,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertSame('Implementation', $relation->object->name);
     }
 
+    #[TestDox('跨次同步重用既有技術，不重複建立')]
     public function test_save_repos_data_reuses_existing_technique_across_repos()
     {
         $this->seed();
@@ -187,6 +196,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertSame(1, Technique::where('title', 'PHP')->count());
     }
 
+    #[TestDox('依 repo 編號更新既有實作')]
     public function test_save_repos_data_updates_existing_implementation_by_git_repo_id()
     {
         $this->seed();
@@ -208,6 +218,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertDatabaseHas('implementations', ['git_repo_id' => 111, 'title' => 'demo-renamed']);
     }
 
+    #[TestDox('同步指令會執行 repo 同步')]
     public function test_command_runs_the_sync()
     {
         $this->seed();
@@ -218,6 +229,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertDatabaseHas('implementations', ['git_repo_id' => 111]);
     }
 
+    #[TestDox('已知框架 topic 以 requires 連到基底語言')]
     public function test_save_repos_data_links_known_framework_topic_to_its_base_language_via_requires()
     {
         $this->seed();
@@ -237,6 +249,7 @@ class SaveReposDataServiceTest extends TestCase
         ]);
     }
 
+    #[TestDox('未對應的 topic 不會憑空建立 requires 關係')]
     public function test_save_repos_data_does_not_invent_a_requires_edge_for_an_unmapped_topic()
     {
         $this->seed();
@@ -258,6 +271,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertSame(0, EntityRelation::where('entity_type', 'technique')->count());
     }
 
+    #[TestDox('已知技術以 specs 連到官方文件')]
     public function test_save_repos_data_creates_sourcesite_documentation_for_known_techniques_via_specs()
     {
         $this->seed();
@@ -286,6 +300,7 @@ class SaveReposDataServiceTest extends TestCase
         ]);
     }
 
+    #[TestDox('未對應的技術不會憑空建立官方文件')]
     public function test_save_repos_data_does_not_invent_a_sourcesite_for_an_unmapped_technique()
     {
         $this->seed();
@@ -297,6 +312,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertDatabaseMissing('documentation_technique', ['technique_id' => $blade->id]);
     }
 
+    #[TestDox('已知框架 topic 歸類為 framework')]
     public function test_save_repos_data_classifies_known_framework_topic_as_framework_scope()
     {
         $this->seed();
@@ -311,6 +327,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertDatabaseMissing('techniques', ['title' => 'laravel', 'type' => $packagetoolScopeId]);
     }
 
+    #[TestDox('未對應的 topic 歸類為 packagetool')]
     public function test_save_repos_data_classifies_unmapped_topic_as_packagetool_scope()
     {
         $this->seed();
@@ -332,6 +349,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertDatabaseHas('techniques', ['title' => 'testing', 'type' => $packagetoolScopeId]);
     }
 
+    #[TestDox('framework 類 topic 仍以 requires 連到基底語言')]
     public function test_save_repos_data_still_links_framework_scope_topic_to_base_language_via_requires()
     {
         $this->seed();
@@ -352,6 +370,7 @@ class SaveReposDataServiceTest extends TestCase
         ]);
     }
 
+    #[TestDox('vue3 topic 歸為 framework 的 Vue 版本 3')]
     public function test_save_repos_data_classifies_vue3_topic_as_framework_scope()
     {
         $this->seed();
@@ -381,6 +400,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertDatabaseMissing('techniques', ['type' => $packagetoolScopeId]);
     }
 
+    #[TestDox('遷移就地把 vue3 從 packagetool 改歸 framework')]
     public function test_reclassify_vue3_topic_migration_moves_existing_packagetool_row_in_place()
     {
         $this->seed();
@@ -413,6 +433,7 @@ class SaveReposDataServiceTest extends TestCase
         ]);
     }
 
+    #[TestDox('遷移就地把框架 topic 改歸 framework')]
     public function test_reclassify_framework_topics_migration_moves_existing_packagetool_row_in_place()
     {
         $this->seed();
@@ -452,6 +473,7 @@ class SaveReposDataServiceTest extends TestCase
         ]);
     }
 
+    #[TestDox('重複同步時 requires 與 specs 關係不會重複')]
     public function test_save_repos_data_requires_and_specs_edges_are_idempotent_across_syncs()
     {
         $this->seed();
@@ -483,6 +505,7 @@ class SaveReposDataServiceTest extends TestCase
         $this->assertSame(1, Documentation::where('url', 'https://www.php.net/docs.php')->count());
     }
 
+    #[TestDox('傳入現成 repo 清單時不呼叫 GitHub')]
     public function test_save_repos_data_accepts_pre_fetched_repos_without_calling_github()
     {
         $this->seed();

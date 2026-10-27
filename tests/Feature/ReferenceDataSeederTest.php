@@ -15,6 +15,7 @@ use Database\Seeders\ScopeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -33,12 +34,14 @@ class ReferenceDataSeederTest extends TestCase
             ->assertSuccessful();
     }
 
+    #[TestDox('部署時只跑分類與述詞兩支 seeder')]
     public function test_only_reference_data_seeders_run_on_deploy()
     {
         // 加進來的 seeder 每次部署都會在正式環境跑，要先確認符合 ReferenceDataSeeder 的條件
         $this->assertSame([ScopeSeeder::class, RelationSeeder::class], ReferenceDataSeeder::SEEDERS);
     }
 
+    #[TestDox('空資料庫跑部署 seed 只建出預設資料')]
     public function test_deploy_seed_on_an_empty_database_creates_the_reference_data_only()
     {
         Http::preventStrayRequests();
@@ -55,6 +58,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame(0, EntityRelation::count());
     }
 
+    #[TestDox('部署 seed 跑兩次不會多出資料')]
     public function test_running_the_deploy_seed_twice_creates_no_duplicates()
     {
         $this->deploySeed();
@@ -66,6 +70,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame(17, Relation::withTrashed()->distinct()->count('name'));
     }
 
+    #[TestDox('重跑部署 seed 不蓋掉後台改過的內容')]
     public function test_deploy_seed_keeps_edits_made_in_the_admin()
     {
         $this->deploySeed();
@@ -78,6 +83,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame('後台改過的述詞說明', Relation::where('name', 'uses')->value('note'));
     }
 
+    #[TestDox('重跑部署 seed 不把後台取消的反向關係配回去')]
     public function test_deploy_seed_does_not_restore_reverse_pairs_removed_in_the_admin()
     {
         $this->deploySeed();
@@ -93,6 +99,7 @@ class ReferenceDataSeederTest extends TestCase
         }
     }
 
+    #[TestDox('重跑部署 seed 不把後台刪掉的資料建回來')]
     public function test_deploy_seed_does_not_recreate_rows_deleted_in_the_admin()
     {
         $this->deploySeed();
@@ -107,6 +114,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame(1, Relation::withTrashed()->where('name', 'precedes')->count());
     }
 
+    #[TestDox('新加的預設資料會補進已有資料的資料庫')]
     public function test_deploy_seed_adds_new_reference_data_to_an_existing_database()
     {
         // 模擬「預設資料加進 seeder 之前就存在的資料庫」：用舊做法那支 migration 的 down()
@@ -128,6 +136,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame(17, Relation::count());
     }
 
+    #[TestDox('seed 中途失敗時整個退回，不留一半的資料')]
     public function test_a_failing_seed_leaves_no_partial_data()
     {
         // 中途失敗（這裡用 Relation 存檔時丟錯模擬）要整個退回，部署流程停在這一步

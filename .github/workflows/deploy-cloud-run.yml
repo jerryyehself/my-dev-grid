@@ -216,6 +216,20 @@ jobs:
       # 新 revision 上線但不接流量，只能從 tag 專用網址（https://<tag>---<服務網址>）打到。
       # deploy-cloudrun 會把 `tag`／`no_traffic` 原樣轉成 `gcloud run deploy --tag --no-traffic`；
       # env_vars／secrets 照舊用 action 預設的 merge（--update-env-vars／--update-secrets）。
+      #
+      # --startup-probe（#91）：Cloud Run 預設的 startup probe 是 TCP，只看埠有沒有在聽，
+      # nginx 一開始聽就算通過，php-fpm 還沒準備好時進來的請求會拿到 502。改成 HTTP GET /up：
+      # /up 要經過 nginx、php-fpm、Laravel 才回 200，而且不查資料庫（Laravel 內建的健康檢查
+      # 路由，沒有 DiagnosingHealth listener），資料庫慢或暫時連不上不會讓 instance 起不來。
+      # probe 通過之前，Cloud Run 不會把請求送進這個 instance。
+      # - 這是 revision 設定，帶 --no-traffic --tag 部署的新 revision 一樣套用；之後的
+      #   revision 會沿用。gcloud 會用這裡的值整個換掉原本的 probe（不是合併），原本的
+      #   tcpSocket 會拿掉。
+      # - 每 2 秒一次、逾時 1 秒、連續失敗 60 次才放棄：最多等 120 秒，冷啟動慢一點
+      #   （php-fpm 晚幾秒、第一個請求要編譯 opcache）也不會被誤殺。官方文件寫
+      #   timeoutSeconds 不能大於 periodSeconds，REST 參考寫要小於，取嚴格的那個。
+      #   單次逾時只算一次失敗，下一次 probe 再試。
+      # - httpGet.port 要跟服務的 container port 一致（沒另外設定，是預設的 8080）。
       - name: Deploy new revision (no traffic)
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
@@ -263,6 +277,7 @@ jobs:
             --max-instances=3
             --memory=512Mi
             --cpu=1
+            --startup-probe=httpGet.path=/up,httpGet.port=8080,initialDelaySeconds=0,periodSeconds=2,timeoutSeconds=1,failureThreshold=60
 
       # 從服務的 status.traffic 找出這個 tag 對到的 revision 和網址，
       # 不依賴 deploy-cloudrun 的 output 格式。
@@ -288,8 +303,9 @@ jobs:
 
       # 對 tag 網址做自動檢查，全部通過才切流量。
       # - /up：Laravel 健康檢查，要經過 php-fpm 才回得了 200。服務設 --min-instances=0，
-      #   而且 nginx 會比 php-fpm 先開始聽（#91），第一個請求可能是 502，所以碰到
-      #   000（連不上／逾時）、502、503、504 會每 5 秒重試，最多 12 次。
+      #   這時候 instance 可能已經縮到 0、要重新冷啟動。startup probe 改成 HTTP、nginx 改成等
+      #   php-fpm 之後（#91），冷啟動應該不會再回 502，但碰到 000（連不上／逾時）、502、503、
+      #   504 仍然每 5 秒重試，最多 12 次，避免一次暫時的錯誤就擋下部署。
       # - /api/scopes：會查資料庫，確認新程式跑在剛 migrate 完的結構上、Cloud SQL 連得到。
       # - /api/<不存在的路徑>：404，確認路由與錯誤處理正常（不是 500）。
       # - 每個回應都要帶 X-Request-Id（AssignRequestId，#100）。

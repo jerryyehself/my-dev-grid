@@ -13,12 +13,14 @@ use App\Models\TechniqueImplementationLink;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class PivotRelationTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('關聯表連結會帶 relation_id')]
     public function test_pivot_link_carries_relation_id()
     {
         $documentation = Documentation::factory()->create();
@@ -31,6 +33,7 @@ class PivotRelationTest extends TestCase
         $this->assertSame($relation->id, $linked->pivot->relation_id);
     }
 
+    #[TestDox('同一對實體重複建立相同關係的邊會被拒絕')]
     public function test_duplicate_edge_with_same_relation_id_is_rejected()
     {
         $documentation = Documentation::factory()->create();
@@ -43,6 +46,7 @@ class PivotRelationTest extends TestCase
         $documentation->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
     }
 
+    #[TestDox('同一對實體可以有兩條不同關係的邊')]
     public function test_same_pair_can_carry_two_different_relation_edges()
     {
         $documentation = Documentation::factory()->create();
@@ -56,6 +60,7 @@ class PivotRelationTest extends TestCase
         $this->assertCount(2, $documentation->techniques()->get());
     }
 
+    #[TestDox('實體關係的實體類型必須有效')]
     public function test_entity_relation_requires_valid_entity_type()
     {
         $this->expectException(InvalidArgumentException::class);
@@ -63,6 +68,7 @@ class PivotRelationTest extends TestCase
         EntityRelation::factory()->create(['entity_type' => 'not-a-real-type']);
     }
 
+    #[TestDox('實體關係的主詞必須存在於該類型的表')]
     public function test_entity_relation_requires_subject_to_exist_in_entity_type_table()
     {
         $this->expectException(InvalidArgumentException::class);
@@ -73,6 +79,7 @@ class PivotRelationTest extends TestCase
         ]);
     }
 
+    #[TestDox('兩個技術之間可建立實體關係')]
     public function test_entity_relation_between_two_techniques_succeeds()
     {
         $entityRelation = EntityRelation::factory()->create();
@@ -80,6 +87,7 @@ class PivotRelationTest extends TestCase
         $this->assertDatabaseHas('entity_relations', ['id' => $entityRelation->id]);
     }
 
+    #[TestDox('沒被引用的關係可以自由修改')]
     public function test_relation_with_no_links_can_be_freely_updated()
     {
         $relation = Relation::factory()->create();
@@ -89,6 +97,7 @@ class PivotRelationTest extends TestCase
         $this->assertSame('renamed', $relation->fresh()->name);
     }
 
+    #[TestDox('被引用的關係不能改名稱')]
     public function test_relation_referenced_by_a_link_locks_identity_fields()
     {
         $documentation = Documentation::factory()->create();
@@ -100,6 +109,7 @@ class PivotRelationTest extends TestCase
         $relation->update(['name' => 'renamed']);
     }
 
+    #[TestDox('被引用的關係不能改主詞與受詞')]
     public function test_relation_referenced_by_a_link_locks_subject_and_object()
     {
         $documentation = Documentation::factory()->create();
@@ -113,6 +123,7 @@ class PivotRelationTest extends TestCase
         $relation->update(['subject_id' => $otherScope->id]);
     }
 
+    #[TestDox('被引用的關係仍可修改備註')]
     public function test_relation_referenced_by_a_link_still_allows_note_edits()
     {
         $documentation = Documentation::factory()->create();
@@ -125,6 +136,7 @@ class PivotRelationTest extends TestCase
         $this->assertSame('updated note', $relation->fresh()->note);
     }
 
+    #[TestDox('更新被鎖定的欄位時，端點回 422')]
     public function test_update_relation_endpoint_returns_422_when_locked_field_changed()
     {
         $this->actingAsOwner();
@@ -154,6 +166,7 @@ class PivotRelationTest extends TestCase
         ]);
     }
 
+    #[TestDox('關係被軟刪除後，連結仍能解析出該關係')]
     public function test_relation_link_resolves_relation_after_soft_delete()
     {
         $technique = Technique::factory()->create();

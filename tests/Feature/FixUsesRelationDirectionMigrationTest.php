@@ -8,6 +8,7 @@ use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -35,6 +36,7 @@ class FixUsesRelationDirectionMigrationTest extends TestCase
         $this->assertTrue(Relation::where('name', 'used')->exists());
     }
 
+    #[TestDox('遷移只改名稱，不動 id 與既有的邊')]
     public function test_renames_without_touching_ids_or_edges(): void
     {
         $this->rollBackToOldNames();
@@ -69,6 +71,7 @@ class FixUsesRelationDirectionMigrationTest extends TestCase
         $this->assertEquals($edgesBefore, DB::table('technique_implementation')->orderBy('technique_id')->get()->toArray());
     }
 
+    #[TestDox('遷移重複執行不會把方向翻回去')]
     public function test_running_twice_does_not_flip_back(): void
     {
         $this->rollBackToOldNames();
@@ -80,6 +83,7 @@ class FixUsesRelationDirectionMigrationTest extends TestCase
         $this->assertSame('12', Relation::where('name', 'usedBy')->value('class_number'));
     }
 
+    #[TestDox('全新 seed 的結果與遷移後的狀態一致')]
     public function test_fresh_seed_already_matches_migrated_state(): void
     {
         // 新資料庫不經過改名，直接由 seeder 種出來——結果要跟舊資料庫改名後一模一樣
@@ -90,6 +94,7 @@ class FixUsesRelationDirectionMigrationTest extends TestCase
         $this->assertFalse(Relation::where('name', 'used')->exists());
     }
 
+    #[TestDox('回滾能還原舊名稱')]
     public function test_down_restores_old_names(): void
     {
         $this->rollBackToOldNames();

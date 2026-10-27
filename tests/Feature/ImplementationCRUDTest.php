@@ -7,12 +7,14 @@ use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class ImplementationCRUDTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('登入後可新增實作')]
     public function test_create_implementation()
     {
         $this->actingAsOwner();
@@ -31,6 +33,7 @@ class ImplementationCRUDTest extends TestCase
         $this->assertDatabaseHas('implementations', ['title' => 'my-dev-grid', 'type' => $scope->id]);
     }
 
+    #[TestDox('新增實作時 scope 不存在回 422')]
     public function test_create_implementation_rejects_unknown_scope()
     {
         $this->actingAsOwner();
@@ -44,6 +47,7 @@ class ImplementationCRUDTest extends TestCase
             ->assertJsonValidationErrors('type');
     }
 
+    #[TestDox('新增實作未登入回 401')]
     public function test_create_implementation_rejects_unauthenticated_request()
     {
         $scope = Scope::factory()->create();
@@ -56,6 +60,7 @@ class ImplementationCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('可檢視單一實作')]
     public function test_view_implementation()
     {
         $implementation = Implementation::factory()->create();
@@ -66,6 +71,7 @@ class ImplementationCRUDTest extends TestCase
             ->assertJsonFragment(['id' => $implementation->id]);
     }
 
+    #[TestDox('登入後可更新實作')]
     public function test_update_implementation()
     {
         $this->actingAsOwner();
@@ -85,6 +91,7 @@ class ImplementationCRUDTest extends TestCase
         $this->assertDatabaseHas('implementations', ['id' => $implementation->id, 'title' => 'Updated title']);
     }
 
+    #[TestDox('更新實作未登入回 401')]
     public function test_update_implementation_rejects_unauthenticated_request()
     {
         $implementation = Implementation::factory()->create();
@@ -98,6 +105,7 @@ class ImplementationCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('登入後可刪除實作（軟刪除）')]
     public function test_delete_implementation()
     {
         $this->actingAsOwner();
@@ -112,6 +120,7 @@ class ImplementationCRUDTest extends TestCase
         $this->assertSoftDeleted('implementations', ['id' => $implementation->id]);
     }
 
+    #[TestDox('刪除實作未登入回 401')]
     public function test_delete_implementation_rejects_unauthenticated_request()
     {
         $implementation = Implementation::factory()->create();
@@ -121,6 +130,7 @@ class ImplementationCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('可列出所有實作')]
     public function test_list_all_implementations()
     {
         Implementation::factory()->create(['title' => 'isbn-scanner']);
@@ -131,6 +141,7 @@ class ImplementationCRUDTest extends TestCase
             ->assertJsonFragment(['title' => 'isbn-scanner']);
     }
 
+    #[TestDox('列出實作時可依類型篩選')]
     public function test_list_implementations_filters_by_type()
     {
         $projectScope = Scope::factory()->create();
@@ -145,6 +156,7 @@ class ImplementationCRUDTest extends TestCase
             ->assertJsonMissing(['title' => 'flaky ci']);
     }
 
+    #[TestDox('沒指定類型時列出全部實作')]
     public function test_list_implementations_returns_everything_when_type_is_not_given()
     {
         Implementation::factory()->create(['title' => 'my-dev-grid']);
@@ -157,6 +169,7 @@ class ImplementationCRUDTest extends TestCase
             ->assertJsonFragment(['title' => 'flaky ci']);
     }
 
+    #[TestDox('列出實作時預先載入關聯技術')]
     public function test_list_implementations_eager_loads_techniques()
     {
         $implementation = Implementation::factory()->create();
@@ -170,6 +183,7 @@ class ImplementationCRUDTest extends TestCase
             ->assertJsonPath('data.0.techniques.0.id', $technique->id);
     }
 
+    #[TestDox('實作資源會公開 repo 建立時間')]
     public function test_implementation_resource_exposes_git_repo_created_at()
     {
         $implementation = Implementation::factory()->create(['git_repo_created_at' => '2026-06-15 00:00:00']);
