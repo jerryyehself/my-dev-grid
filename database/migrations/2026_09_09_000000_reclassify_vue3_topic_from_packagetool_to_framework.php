@@ -15,8 +15,6 @@ return new class extends Migration
     private const TOPIC = 'vue3';
 
     /**
-     * Run the migrations.
-     *
      * 邏輯跟 2026_09_07 那支一致：就地把 packagetool scope 底下 title 為
      * `vue3` 的 Technique row 改成 framework scope，只更新 `type` 欄位、不刪
      * 除重建，讓既有 `technique_implementation`／`entity_relations`／
@@ -51,8 +49,6 @@ return new class extends Migration
     }
 
     /**
-     * Reverse the migrations.
-     *
      * 刻意不做反向回滾，理由跟 2026_09_07 那支一致：回滾後沒辦法區分「這支
      * migration 改的」跟「migration 跑完後由正常同步流程新建的 framework
      * technique」，硬回滾可能誤傷後者。
