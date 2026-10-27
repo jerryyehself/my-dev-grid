@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -23,6 +24,7 @@ class FormSchemaEndpointTest extends TestCase
      * 「create」不能被 apiResource 的 {scope} 佔位符吃掉——註冊順序錯了就會變成
      * 拿字串 "create" 去查資料庫,回 404。
      */
+    #[TestDox('scope 表單結構端點回傳欄位定義')]
     public function test_scope_form_schema_endpoint_returns_field_definitions()
     {
         $this->seed();
@@ -53,6 +55,7 @@ class FormSchemaEndpointTest extends TestCase
         $this->assertSame('父類', $response->json('parent_class.label'));
     }
 
+    #[TestDox('relation 表單結構端點可正常存取')]
     public function test_relation_form_schema_endpoint_is_reachable()
     {
         $this->seed();

@@ -5,12 +5,14 @@ namespace Tests\Feature;
 use App\Models\Documentation;
 use App\Models\Scope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class DocumentationCRUDTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('登入後可新增文件')]
     public function test_create_documentation()
     {
         $this->actingAsOwner();
@@ -30,6 +32,7 @@ class DocumentationCRUDTest extends TestCase
         $this->assertDatabaseHas('documentations', ['title' => 'Laravel Docs', 'type' => $scope->id]);
     }
 
+    #[TestDox('新增文件時 scope 不存在回 422')]
     public function test_create_documentation_rejects_unknown_scope()
     {
         $this->actingAsOwner();
@@ -43,6 +46,7 @@ class DocumentationCRUDTest extends TestCase
             ->assertJsonValidationErrors('type');
     }
 
+    #[TestDox('新增文件未登入回 401')]
     public function test_create_documentation_rejects_unauthenticated_request()
     {
         $scope = Scope::factory()->create();
@@ -55,6 +59,7 @@ class DocumentationCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('可檢視單一文件')]
     public function test_view_documentation()
     {
         $documentation = Documentation::factory()->create();
@@ -65,6 +70,7 @@ class DocumentationCRUDTest extends TestCase
             ->assertJsonFragment(['id' => $documentation->id]);
     }
 
+    #[TestDox('登入後可更新文件')]
     public function test_update_documentation()
     {
         $this->actingAsOwner();
@@ -82,6 +88,7 @@ class DocumentationCRUDTest extends TestCase
         $this->assertDatabaseHas('documentations', ['id' => $documentation->id, 'title' => 'Updated title']);
     }
 
+    #[TestDox('更新文件未登入回 401')]
     public function test_update_documentation_rejects_unauthenticated_request()
     {
         $documentation = Documentation::factory()->create();
@@ -94,6 +101,7 @@ class DocumentationCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('登入後可刪除文件（軟刪除）')]
     public function test_delete_documentation()
     {
         $this->actingAsOwner();
@@ -108,6 +116,7 @@ class DocumentationCRUDTest extends TestCase
         $this->assertSoftDeleted('documentations', ['id' => $documentation->id]);
     }
 
+    #[TestDox('刪除文件未登入回 401')]
     public function test_delete_documentation_rejects_unauthenticated_request()
     {
         $documentation = Documentation::factory()->create();
@@ -117,6 +126,7 @@ class DocumentationCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('可列出所有文件')]
     public function test_list_all_documentations()
     {
         Documentation::factory()->create(['title' => 'Vue Docs']);
@@ -129,6 +139,7 @@ class DocumentationCRUDTest extends TestCase
 
     // --- 內文欄位 body（D-46）--------------------------------------------
 
+    #[TestDox('新增文件時原樣儲存 Markdown 內文')]
     public function test_create_documentation_stores_markdown_body()
     {
         $this->actingAsOwner();
@@ -150,6 +161,7 @@ class DocumentationCRUDTest extends TestCase
         $this->assertDatabaseHas('documentations', ['title' => '一篇文章', 'body' => $markdown]);
     }
 
+    #[TestDox('內文欄位為選填')]
     public function test_body_is_optional()
     {
         $this->actingAsOwner();
@@ -168,6 +180,7 @@ class DocumentationCRUDTest extends TestCase
             ->assertJsonFragment(['body' => null]);
     }
 
+    #[TestDox('更新文件時可取代內文')]
     public function test_update_documentation_replaces_body()
     {
         $this->actingAsOwner();
@@ -186,6 +199,7 @@ class DocumentationCRUDTest extends TestCase
         $this->assertDatabaseHas('documentations', ['id' => $documentation->id, 'body' => '新的內文']);
     }
 
+    #[TestDox('很長的內文也能完整儲存')]
     public function test_body_survives_a_long_document()
     {
         $this->actingAsOwner();
@@ -206,6 +220,7 @@ class DocumentationCRUDTest extends TestCase
         $this->assertSame($markdown, Documentation::where('title', '很長的一篇')->value('body'));
     }
 
+    #[TestDox('內文不會被去除前後空白')]
     public function test_body_is_not_trimmed()
     {
         $this->actingAsOwner();
@@ -227,6 +242,7 @@ class DocumentationCRUDTest extends TestCase
         $this->assertSame($markdown, Documentation::where('title', '前後空白要保留')->value('body'));
     }
 
+    #[TestDox('檢視文件時會回傳內文')]
     public function test_body_is_returned_by_show()
     {
         $documentation = Documentation::factory()->withBody('# 內文')->create();

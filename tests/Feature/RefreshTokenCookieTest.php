@@ -15,6 +15,7 @@ use Laravel\Sanctum\Events\TokenAuthenticated;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
+use PHPUnit\Framework\Attributes\TestDox;
 use Symfony\Component\HttpFoundation\Cookie;
 use Tests\TestCase;
 
@@ -114,6 +115,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertNull($cookie->getDomain());
     }
 
+    #[TestDox('登入時送出屬性齊全的 refresh cookie')]
     public function test_login_sets_the_refresh_cookie_with_all_required_attributes()
     {
         $user = $this->createUser();
@@ -151,6 +153,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertDatabaseCount('personal_refresh_tokens', 1);
     }
 
+    #[TestDox('登入失敗時不送 refresh cookie')]
     public function test_failed_login_does_not_set_the_cookie()
     {
         $this->createUser();
@@ -165,6 +168,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertDatabaseCount('personal_refresh_tokens', 0);
     }
 
+    #[TestDox('換發時回新 access token 並輪替 refresh token')]
     public function test_refresh_returns_a_new_access_token_and_rotates_the_refresh_token()
     {
         $user = $this->createUser();
@@ -204,6 +208,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertSame(1, RefreshToken::query()->distinct()->count('family_id'));
     }
 
+    #[TestDox('寬限期後重放舊 refresh token 會撤銷整個家族')]
     public function test_replaying_a_used_refresh_token_after_the_grace_period_revokes_the_whole_family()
     {
         $this->createUser();
@@ -233,6 +238,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($otherRefresh))->assertOk();
     }
 
+    #[TestDox('寬限期內重放舊 token 會從未用的後繼接著換發')]
     public function test_a_replay_within_the_grace_period_continues_from_the_unused_successor()
     {
         // 換發回應還沒到瀏覽器就重新整理（或沒有 Web Locks 的兩個分頁同時換發）：
@@ -265,6 +271,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($t3))->assertOk();
     }
 
+    #[TestDox('寬限換發後，被跳過的 token 之後重放仍會被偵測')]
     public function test_after_a_grace_handoff_the_bypassed_token_is_still_detected_as_reuse_later()
     {
         // 寬限期內從後繼換發之後，被跳過的那支（T2）之後再被送來，照樣觸發家族撤銷
@@ -280,6 +287,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertDatabaseCount('personal_refresh_tokens', 0);
     }
 
+    #[TestDox('id 存在但密鑰錯誤時，不會撤銷家族')]
     public function test_a_wrong_secret_for_an_existing_id_does_not_revoke_the_family()
     {
         // 只知道 id（cookie 的 `|` 前面）不能拿來把別人登出
@@ -296,6 +304,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($used))->assertOk();
     }
 
+    #[TestDox('登入時效不能超過絕對上限')]
     public function test_a_session_cannot_be_extended_past_the_absolute_cap()
     {
         $this->createUser();
@@ -322,6 +331,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    #[TestDox('token 未過期時絕對上限仍然生效')]
     public function test_the_absolute_cap_also_applies_when_the_token_itself_has_not_expired()
     {
         // 上限只看原始登入時間：就算 refresh token 本身還沒到期也一樣拒絕
@@ -336,6 +346,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($value))->assertUnauthorized();
     }
 
+    #[TestDox('沒有家族的舊 refresh token 仍可輪替並加入家族')]
     public function test_a_legacy_refresh_token_without_a_family_still_rotates_and_joins_a_family()
     {
         // 加家族欄位之前發的資料列（family_id 是 null）
@@ -353,6 +364,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($current))->assertUnauthorized();
     }
 
+    #[TestDox('換發沒帶 cookie 回 401 並清除 cookie')]
     public function test_refresh_without_cookie_returns_401_and_clears_the_cookie()
     {
         $response = $this->send('POST', '/api/auth/refresh');
@@ -361,6 +373,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertCookieCleared($response);
     }
 
+    #[TestDox('換發帶亂碼 cookie 回 401 並清除 cookie')]
     public function test_refresh_with_garbage_cookie_returns_401_and_clears_the_cookie()
     {
         $this->createUser();
@@ -381,6 +394,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($valid))->assertOk();
     }
 
+    #[TestDox('登出帶亂碼 cookie 仍可登出')]
     public function test_logout_with_garbage_cookie_still_logs_out()
     {
         $this->createUser();
@@ -393,6 +407,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    #[TestDox('refresh token 超過設定時效後失效')]
     public function test_refresh_token_expires_after_the_configured_lifetime()
     {
         $this->createUser();
@@ -405,6 +420,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertCookieCleared($response);
     }
 
+    #[TestDox('access token 超過設定時效後失效')]
     public function test_access_token_expires_after_the_configured_lifetime()
     {
         $this->createUser();
@@ -418,6 +434,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('GET', '/api/user', headers: $bearer)->assertUnauthorized();
     }
 
+    #[TestDox('access token 時效可由設定調整')]
     public function test_access_token_lifetime_is_configurable()
     {
         config(['sanctum.expiration' => 5]);
@@ -431,6 +448,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('GET', '/api/user', headers: $bearer)->assertUnauthorized();
     }
 
+    #[TestDox('Origin 錯誤或缺少時，換發、換 session、登出都回 403')]
     public function test_refresh_session_and_logout_reject_a_wrong_or_missing_origin()
     {
         $user = $this->createUser();
@@ -450,6 +468,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $cookies)->assertOk()->assertJsonPath('data.id', $user->id);
     }
 
+    #[TestDox('OAuth 回呼只發短效回呼 token，不設 cookie')]
     public function test_oauth_callback_issues_a_short_lived_callback_token_and_no_cookie()
     {
         $user = User::factory()->create();
@@ -473,6 +492,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertDatabaseCount('personal_refresh_tokens', 0);
     }
 
+    #[TestDox('回呼 token 可換成 token 組與 cookie')]
     public function test_session_exchanges_the_oauth_callback_token_for_a_token_pair_and_cookie()
     {
         $user = $this->createUser();
@@ -503,6 +523,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($cookie->getValue()))->assertOk();
     }
 
+    #[TestDox('回呼 token 被並行用掉時不再換出新組')]
     public function test_session_does_not_issue_a_pair_when_the_callback_token_was_used_concurrently()
     {
         // 模擬兩個同時送來的 session 請求：這個請求通過 auth:sanctum 之後、換發之前，
@@ -526,6 +547,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertDatabaseCount('personal_refresh_tokens', 0);
     }
 
+    #[TestDox('換 session 拒絕一般 access token')]
     public function test_session_rejects_a_regular_access_token()
     {
         // 一般 access token 不能拿來換 refresh token（偷到 15 分鐘的 token 不能升級成 30 天）
@@ -539,11 +561,13 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertDatabaseCount('personal_refresh_tokens', 1);
     }
 
+    #[TestDox('換 session 沒帶 token 回 401')]
     public function test_session_requires_a_token()
     {
         $this->send('POST', '/api/auth/session')->assertUnauthorized();
     }
 
+    #[TestDox('登出時撤銷兩種 token 並清除 cookie')]
     public function test_logout_revokes_the_access_token_and_the_cookie_refresh_token_and_clears_the_cookie()
     {
         $this->createUser();
@@ -562,6 +586,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($refresh))->assertUnauthorized();
     }
 
+    #[TestDox('登出也會撤銷不同組的 cookie refresh token')]
     public function test_logout_also_revokes_a_cookie_refresh_token_from_a_different_pair()
     {
         // 前端拿著的 access token 跟 cookie 裡的 refresh token 不一定是同一組
@@ -584,6 +609,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertSame(0, $user->tokens()->count());
     }
 
+    #[TestDox('access token 過期後僅靠 cookie 仍可登出')]
     public function test_logout_with_only_the_cookie_revokes_the_family_even_after_the_access_token_expired()
     {
         // 閒置超過 15 分鐘再按登出：access token 已過期，只靠 cookie 也要能登出
@@ -603,6 +629,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($refresh))->assertUnauthorized();
     }
 
+    #[TestDox('只帶 Bearer 登出會撤銷其家族')]
     public function test_logout_with_only_the_bearer_revokes_its_family()
     {
         $this->createUser();
@@ -614,6 +641,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($refresh))->assertUnauthorized();
     }
 
+    #[TestDox('沒帶任何憑證登出不會有影響')]
     public function test_logout_without_any_credential_is_a_harmless_no_op()
     {
         $this->createUser();
@@ -627,6 +655,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->send('GET', '/api/user', headers: ['Authorization' => 'Bearer '.$login->json('token')])->assertOk();
     }
 
+    #[TestDox('舊版前端不帶 cookie 也能登出')]
     public function test_logout_without_cookie_still_works_for_the_old_frontend()
     {
         // 舊版前端（還沒接 refresh）登出時只帶 Bearer，不帶 cookie
@@ -639,6 +668,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    #[TestDox('CORS 只對前端網域允許帶憑證')]
     public function test_cors_allows_credentials_only_for_the_frontend_origin()
     {
         $preflight = fn (string $origin) => $this->send('OPTIONS', '/api/auth/refresh', headers: [
@@ -657,6 +687,7 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertNotSame('*', $denied->headers->get('Access-Control-Allow-Origin'));
     }
 
+    #[TestDox('換發端點有獨立的頻率限制')]
     public function test_refresh_has_its_own_rate_limit()
     {
         for ($i = 1; $i <= 30; $i++) {

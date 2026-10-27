@@ -10,6 +10,7 @@ use App\Models\Technique;
 use App\Services\SaveReposDataService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -59,6 +60,7 @@ class TechniqueAuthorityTest extends TestCase
             ->sort()->values()->all();
     }
 
+    #[TestDox('同一技術的不同寫法只建一筆')]
     public function test_language_and_topic_spellings_of_the_same_technique_become_one_record(): void
     {
         $this->sync(['php', 'vuejs'], ['PHP', 'Vue']);
@@ -72,6 +74,7 @@ class TechniqueAuthorityTest extends TestCase
         $this->assertSame('language', Technique::where('title', 'PHP')->first()->scope->name);
     }
 
+    #[TestDox('權威表以外的名稱以不分大小寫比對')]
     public function test_unlisted_names_are_matched_case_insensitively(): void
     {
         $this->sync([], ['TypeScript']);
@@ -81,6 +84,7 @@ class TechniqueAuthorityTest extends TestCase
         $this->assertSame(['TypeScript'], $this->projectTechniques(222));
     }
 
+    #[TestDox('帶版本的 topic 變成版本紀錄並連回原技術')]
     public function test_versioned_topic_becomes_a_version_record_linked_to_its_base(): void
     {
         $this->sync(['vue3'], ['Vue']);
@@ -104,6 +108,7 @@ class TechniqueAuthorityTest extends TestCase
         $this->assertFalse(EntityRelation::where(['subject_id' => $v3->id, 'object_id' => $javascript->id])->exists());
     }
 
+    #[TestDox('已知版本時，舊的無版本邊仍會更新最後看到時間')]
     public function test_an_existing_version_less_edge_is_still_refreshed_when_the_version_is_known(): void
     {
         // 合併前就有的「專案 uses Vue」：同步現在只會新建 Vue 3 的邊，但舊的 Vue 邊這次也看到了，
@@ -118,6 +123,7 @@ class TechniqueAuthorityTest extends TestCase
         $this->assertSame(['2026-09-30'], $seen);
     }
 
+    #[TestDox('結尾是數字的套件名稱不會被拆出版本')]
     public function test_package_names_ending_in_digits_are_not_split(): void
     {
         $this->sync(['isbn3', 'html5-qrcode']);
@@ -126,6 +132,7 @@ class TechniqueAuthorityTest extends TestCase
         $this->assertSame(0, Technique::whereNotNull('version')->count());
     }
 
+    #[TestDox('升級後保留舊版本，只更新新版本')]
     public function test_upgrading_keeps_the_old_version_and_only_refreshes_the_new_one(): void
     {
         // 專案以前用 Vue 2（假設是之前手動或舊資料建的），同步那天只看到 vue3
@@ -157,6 +164,7 @@ class TechniqueAuthorityTest extends TestCase
         $this->assertSame('2026-09-30', $lastSeen['3']);
     }
 
+    #[TestDox('重新同步只更新最後看到時間，不重複建邊')]
     public function test_resync_refreshes_last_seen_at_without_duplicating_the_edge(): void
     {
         $this->travelTo('2026-09-01 00:00:00');
@@ -173,6 +181,7 @@ class TechniqueAuthorityTest extends TestCase
         $this->assertStringStartsWith('2026-09-01', (string) $row->created_at);
     }
 
+    #[TestDox('同步不會改寫同一對實體上的其他述詞')]
     public function test_sync_does_not_rewrite_other_predicates_on_the_same_pair(): void
     {
         // 手動建的「Claude assists 這個專案」，同步再看到 topic claude 時不能被改成 usedBy

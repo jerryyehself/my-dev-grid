@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\Concerns\CapturesSecurityEvents;
 use Tests\TestCase;
 
@@ -15,6 +16,7 @@ class SocialAuthControllerTest extends TestCase
     use CapturesSecurityEvents;
     use RefreshDatabase;
 
+    #[TestDox('導向遇到未知 provider 回 404')]
     public function test_redirect_rejects_unknown_provider()
     {
         $response = $this->get('/auth/facebook/redirect');
@@ -22,6 +24,7 @@ class SocialAuthControllerTest extends TestCase
         $response->assertNotFound();
     }
 
+    #[TestDox('Google 導向交給 Socialite')]
     public function test_redirect_delegates_to_socialite_for_google()
     {
         Socialite::fake('google');
@@ -32,6 +35,7 @@ class SocialAuthControllerTest extends TestCase
         $this->assertStringContainsString('google', $response->headers->get('Location'));
     }
 
+    #[TestDox('LINE 導向只要求 openid 與 profile 範圍')]
     public function test_line_redirect_requests_only_openid_and_profile_scopes()
     {
         $response = $this->get('/auth/line/redirect');
@@ -41,6 +45,7 @@ class SocialAuthControllerTest extends TestCase
         $this->assertSame('openid profile', $query['scope']);
     }
 
+    #[TestDox('回呼遇到未知 provider 回 404')]
     public function test_callback_rejects_unknown_provider()
     {
         $response = $this->get('/auth/facebook/callback');
@@ -48,6 +53,7 @@ class SocialAuthControllerTest extends TestCase
         $response->assertNotFound();
     }
 
+    #[TestDox('OAuth 身分已綁定時回呼會登入')]
     public function test_callback_logs_in_when_oauth_identity_already_exists()
     {
         $user = User::factory()->create();
@@ -69,6 +75,7 @@ class SocialAuthControllerTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
+    #[TestDox('未綁定的 OAuth 身分被拒絕，且不自動註冊')]
     public function test_callback_rejects_unknown_oauth_identity_without_auto_registration()
     {
         $this->captureLogs();
@@ -100,6 +107,7 @@ class SocialAuthControllerTest extends TestCase
         $this->assertNotLogged('Stranger');
     }
 
+    #[TestDox('LINE 未綁定的身分同樣被拒絕')]
     public function test_callback_rejects_unknown_identity_for_line_provider_too()
     {
         Socialite::fake('line', SocialiteUser::fake([

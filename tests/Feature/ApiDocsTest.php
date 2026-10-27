@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -18,6 +19,7 @@ class ApiDocsTest extends TestCase
         return $this->getJson('/docs/api.json')->assertOk()->json();
     }
 
+    #[TestDox('API 文件頁不需登入即可瀏覽')]
     public function test_docs_page_is_public()
     {
         $this->get('/docs/api')
@@ -28,6 +30,7 @@ class ApiDocsTest extends TestCase
             ->assertSee('apiDescriptionDocument', false);
     }
 
+    #[TestDox('OpenAPI 文件列出所有主要端點')]
     public function test_document_lists_the_main_endpoints()
     {
         $paths = $this->document()['paths'];
@@ -49,6 +52,7 @@ class ApiDocsTest extends TestCase
      * OAuth 跳轉端點（routes/web.php 的 /auth/{provider}/*、/auth/token/{provider}/*）
      * 是瀏覽器導向，不是 API，不列進文件。
      */
+    #[TestDox('OpenAPI 文件不含 OAuth 導向與網頁路由')]
     public function test_document_excludes_oauth_redirects_and_web_routes()
     {
         $paths = array_keys($this->document()['paths']);
@@ -58,6 +62,7 @@ class ApiDocsTest extends TestCase
         }
     }
 
+    #[TestDox('手寫的圖回應在文件中有欄位說明')]
     public function test_hand_built_graph_response_is_described()
     {
         $schema = $this->document()['paths']['/graph']['get']['responses']['200']['content']['application/json']['schema'];
@@ -70,6 +75,7 @@ class ApiDocsTest extends TestCase
         );
     }
 
+    #[TestDox('文件中的錯誤回應採用 problem details')]
     public function test_error_responses_use_problem_details()
     {
         $document = $this->document();
@@ -93,6 +99,7 @@ class ApiDocsTest extends TestCase
         $this->assertArrayHasKey('Retry-After', $document['components']['responses']['TooManyRequests']['headers']);
     }
 
+    #[TestDox('文件的認證方式與路由實際設定一致')]
     public function test_security_schemes_match_the_routes()
     {
         $document = $this->document();

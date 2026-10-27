@@ -12,6 +12,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\TestCase;
@@ -43,6 +44,7 @@ class ProblemDetailsTest extends TestCase
         return $response;
     }
 
+    #[TestDox('驗證失敗回 422，同時保留 message 與 errors')]
     public function test_validation_error_keeps_message_and_errors()
     {
         $this->actingAsOwner();
@@ -59,6 +61,7 @@ class ProblemDetailsTest extends TestCase
      * StoreScopeRequest／StoreRelationRequest 以前自己組 422（只有 `errors`，沒有 `message`），
      * 現在跟其他 FormRequest 一樣走 Laravel 的驗證錯誤，`errors` 形狀不變、多了 `message`。
      */
+    #[TestDox('scope 與 relation 的驗證錯誤格式一致')]
     public function test_scope_and_relation_validation_errors_use_the_same_format()
     {
         $this->actingAsOwner();
@@ -70,6 +73,7 @@ class ProblemDetailsTest extends TestCase
             ->assertJsonValidationErrors(['subject_id', 'object_id', 'name']);
     }
 
+    #[TestDox('沒帶 Accept 標頭時驗證錯誤仍回 JSON')]
     public function test_validation_error_is_json_even_without_accept_header()
     {
         $this->actingAsOwner();
@@ -81,6 +85,7 @@ class ProblemDetailsTest extends TestCase
             ->assertJsonValidationErrors(['name']);
     }
 
+    #[TestDox('登入失敗保留登入表單讀取的欄位錯誤')]
     public function test_login_failure_keeps_the_field_error_the_login_form_reads()
     {
         $response = $this->postJson('/api/auth/login', [
@@ -92,6 +97,7 @@ class ProblemDetailsTest extends TestCase
             ->assertJsonPath('errors.email.0', '帳號或密碼錯誤。');
     }
 
+    #[TestDox('關係被鎖定的錯誤保留 locked_fields 擴充欄位')]
     public function test_relation_locked_error_keeps_its_extension_fields()
     {
         $this->actingAsOwner();
@@ -120,6 +126,7 @@ class ProblemDetailsTest extends TestCase
         $this->assertContains('name', $response->json('locked_fields'));
     }
 
+    #[TestDox('未登入回 401 problem details')]
     public function test_unauthenticated()
     {
         $response = $this->postJson('/api/scopes', []);
@@ -131,11 +138,13 @@ class ProblemDetailsTest extends TestCase
     /**
      * 不帶 Accept 時，Laravel 預設會試著導去 `login` 路由（這個專案沒有），變成 500。
      */
+    #[TestDox('沒帶 Accept 標頭的未登入仍回 401')]
     public function test_unauthenticated_without_accept_header_is_still_401()
     {
         $this->assertProblem($this->delete('/api/scopes/1'), 401, '/api/scopes/1');
     }
 
+    #[TestDox('換發被拒絕時仍會清除 cookie')]
     public function test_refresh_rejection_keeps_clearing_the_cookie()
     {
         $response = $this->post('/api/auth/refresh', [], [
@@ -152,6 +161,7 @@ class ProblemDetailsTest extends TestCase
         $this->assertTrue($cleared->isCleared());
     }
 
+    #[TestDox('Origin 不被允許時回 403')]
     public function test_forbidden_origin()
     {
         $response = $this->postJson('/api/auth/refresh', [], ['Origin' => 'https://evil.example']);
@@ -160,6 +170,7 @@ class ProblemDetailsTest extends TestCase
             ->assertJsonPath('message', '不允許的來源。');
     }
 
+    #[TestDox('被 policy 禁止時回 403')]
     public function test_forbidden_by_policy()
     {
         Route::middleware('api')->get('/api/__test/forbidden', function () {
@@ -170,6 +181,7 @@ class ProblemDetailsTest extends TestCase
             ->assertJsonPath('message', 'This action is unauthorized.');
     }
 
+    #[TestDox('找不到資料時回 404')]
     public function test_model_not_found()
     {
         $response = $this->get('/api/scopes/999999');
@@ -177,6 +189,7 @@ class ProblemDetailsTest extends TestCase
         $this->assertProblem($response, 404, '/api/scopes/999999');
     }
 
+    #[TestDox('未知的 API 路徑回 404，不回前端頁面')]
     public function test_unknown_api_path_is_404_not_the_spa_shell()
     {
         $response = $this->get('/api/does-not-exist');
@@ -184,6 +197,7 @@ class ProblemDetailsTest extends TestCase
         $this->assertProblem($response, 404, '/api/does-not-exist');
     }
 
+    #[TestDox('不支援的 HTTP 方法回 405')]
     public function test_method_not_allowed()
     {
         $response = $this->patchJson('/api/graph');
@@ -191,6 +205,7 @@ class ProblemDetailsTest extends TestCase
         $this->assertProblem($response, 405, '/api/graph');
     }
 
+    #[TestDox('請求過多回 429 並保留 Retry-After')]
     public function test_too_many_requests_keeps_retry_after()
     {
         for ($i = 1; $i <= 5; $i++) {
@@ -204,6 +219,7 @@ class ProblemDetailsTest extends TestCase
             ->assertHeader('X-RateLimit-Limit', '5');
     }
 
+    #[TestDox('正式環境的 500 不洩漏例外細節')]
     public function test_server_error_does_not_leak_exception_details_in_production()
     {
         config(['app.debug' => false]);
@@ -224,6 +240,7 @@ class ProblemDetailsTest extends TestCase
         $this->assertStringNotContainsString('secret internal detail', $response->getContent());
     }
 
+    #[TestDox('instance 欄位不含查詢字串')]
     public function test_instance_has_no_query_string()
     {
         $this->assertProblem($this->getJson('/api/graph/path?start=&token=abc'), 422, '/api/graph/path');
@@ -232,6 +249,7 @@ class ProblemDetailsTest extends TestCase
     /**
      * 成功的回應不受影響。
      */
+    #[TestDox('成功的回應格式不受影響')]
     public function test_successful_responses_are_unchanged()
     {
         Scope::factory()->create();
@@ -246,6 +264,7 @@ class ProblemDetailsTest extends TestCase
     /**
      * `/api` 以外的瀏覽器請求（不要 JSON）照舊是 Laravel 的 HTML 錯誤頁或導向，不改成 problem details。
      */
+    #[TestDox('非 API 的瀏覽器請求不轉成 problem details')]
     public function test_non_api_browser_requests_are_not_converted()
     {
         $response = $this->get('/auth/unknown-provider/redirect');
@@ -257,6 +276,7 @@ class ProblemDetailsTest extends TestCase
     /**
      * Triple 用的 session 登入（routes/web.php）帶 Accept: application/json，錯誤一樣是 problem details。
      */
+    #[TestDox('/api 以外的 JSON 請求也回 problem details')]
     public function test_json_requests_outside_api_prefix_also_get_problem_details()
     {
         User::factory()->create(['email' => 'owner@example.com']);

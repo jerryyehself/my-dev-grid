@@ -7,6 +7,7 @@ use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -82,6 +83,7 @@ class RequestIdTest extends TestCase
         return array_map(fn (string $line) => json_decode($line, true, flags: JSON_THROW_ON_ERROR), $lines);
     }
 
+    #[TestDox('回應會帶產生的 X-Request-Id')]
     public function test_response_carries_a_generated_request_id(): void
     {
         $response = $this->getJson('/up');
@@ -91,6 +93,7 @@ class RequestIdTest extends TestCase
         $this->assertMatchesRegularExpression('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $id);
     }
 
+    #[TestDox('前端網域的 CORS 回應會公開 X-Request-Id')]
     public function test_cors_response_from_the_frontend_origin_exposes_the_request_id_header(): void
     {
         // 跨 origin 的 fetch 只讀得到 CORS-safelisted 標頭；X-Request-Id 要列在
@@ -110,6 +113,7 @@ class RequestIdTest extends TestCase
         $response->assertHeader('X-Request-Id');
     }
 
+    #[TestDox('每個請求產生不同的 request id')]
     public function test_each_request_gets_a_different_generated_id(): void
     {
         $first = $this->getJson('/up')->headers->get('X-Request-Id');
@@ -118,6 +122,7 @@ class RequestIdTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
+    #[TestDox('合法的傳入 request id 會原樣回傳')]
     public function test_valid_incoming_request_id_is_echoed_back(): void
     {
         $this->getJson('/up', ['X-Request-Id' => 'frontend-abc_123.4'])
@@ -125,6 +130,7 @@ class RequestIdTest extends TestCase
     }
 
     #[DataProvider('invalidRequestIdProvider')]
+    #[TestDox('不合法的傳入 request id 會被取代')]
     public function test_invalid_incoming_request_id_is_replaced(string $incoming): void
     {
         $id = $this->getJson('/up', ['X-Request-Id' => $incoming])->headers->get('X-Request-Id');
@@ -143,6 +149,7 @@ class RequestIdTest extends TestCase
         ];
     }
 
+    #[TestDox('沒有 request id 標頭時改用 Cloud Trace 標頭')]
     public function test_cloud_trace_header_is_used_when_there_is_no_request_id_header(): void
     {
         $traceId = '105445aa7843bc8bf206b12000100000';
@@ -151,6 +158,7 @@ class RequestIdTest extends TestCase
             ->assertHeader('X-Request-Id', $traceId);
     }
 
+    #[TestDox('request id 標頭優先於 trace 標頭')]
     public function test_request_id_header_wins_over_trace_header(): void
     {
         $this->getJson('/up', [
@@ -159,6 +167,7 @@ class RequestIdTest extends TestCase
         ])->assertHeader('X-Request-Id', 'mine');
     }
 
+    #[TestDox('格式錯誤的 trace 標頭會被忽略')]
     public function test_malformed_trace_header_is_ignored(): void
     {
         $id = $this->getJson('/up', ['X-Cloud-Trace-Context' => 'not-a-trace'])->headers->get('X-Request-Id');
@@ -166,6 +175,7 @@ class RequestIdTest extends TestCase
         $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $id);
     }
 
+    #[TestDox('路由層的錯誤回應也帶 request id')]
     public function test_router_level_errors_also_carry_the_header(): void
     {
         // 沒有任何 POST 路由吃得到這個路徑：路由器在全域 middleware 管線內丟 405，
@@ -175,6 +185,7 @@ class RequestIdTest extends TestCase
             ->assertHeader('X-Request-Id');
     }
 
+    #[TestDox('同一請求的每行日誌帶相同 request id 與 trace')]
     public function test_every_log_line_of_a_request_has_the_same_request_id_and_trace(): void
     {
         $traceId = '105445aa7843bc8bf206b12000100000';
@@ -200,6 +211,7 @@ class RequestIdTest extends TestCase
         $this->assertSame(['foo' => 'bar'], $entries[1]['context']);
     }
 
+    #[TestDox('不同請求的日誌各帶自己的 request id')]
     public function test_log_lines_of_different_requests_carry_their_own_ids(): void
     {
         $this->getJson('/_test/log', ['X-Request-Id' => 'req-one'])->assertOk();
@@ -210,6 +222,7 @@ class RequestIdTest extends TestCase
         $this->assertSame(['req-one', 'req-one', 'req-two', 'req-two'], $ids);
     }
 
+    #[TestDox('未處理例外記成帶 request id 的 ERROR 與堆疊')]
     public function test_unhandled_exception_is_logged_as_error_reporting_stack_trace_with_request_id(): void
     {
         $response = $this->getJson('/_test/boom', ['X-Request-Id' => 'req-boom', 'User-Agent' => 'phpunit-ua']);
@@ -231,6 +244,7 @@ class RequestIdTest extends TestCase
         $this->assertSame('phpunit-ua', $entry['httpRequest']['userAgent']);
     }
 
+    #[TestDox('日誌中的請求網址不含查詢字串')]
     public function test_http_request_url_never_includes_the_query_string(): void
     {
         $this->getJson('/_test/boom?code=secret-oauth-code&state=abc');
@@ -241,6 +255,7 @@ class RequestIdTest extends TestCase
         $this->assertStringNotContainsString('?', $entry['httpRequest']['requestUrl']);
     }
 
+    #[TestDox('請求以外的日誌不帶請求欄位')]
     public function test_log_lines_outside_a_request_have_no_request_fields(): void
     {
         Log::info('from a command');
@@ -251,6 +266,7 @@ class RequestIdTest extends TestCase
         $this->assertArrayNotHasKey('httpRequest', $entry);
     }
 
+    #[TestDox('可正確解析 Cloud Trace 標頭')]
     public function test_parse_trace_header(): void
     {
         $id = '105445aa7843bc8bf206b12000100000';
@@ -263,6 +279,7 @@ class RequestIdTest extends TestCase
         $this->assertSame([null, null], AssignRequestId::parseTraceHeader('zzz/1;o=1'));
     }
 
+    #[TestDox('本機預設日誌不是 JSON 通道')]
     public function test_local_default_logging_is_not_the_json_channel(): void
     {
         // setUp 為了其他測試把 default 換成 cloud_run；這裡確認的是「出廠設定」：

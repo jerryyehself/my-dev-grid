@@ -8,6 +8,7 @@ use App\Models\Relation;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -71,6 +72,7 @@ class RelationLockedResponseTest extends TestCase
         ];
     }
 
+    #[TestDox('修改被鎖定的欄位回 422，且不會存入')]
     public function test_changing_a_locked_field_returns_422_and_does_not_persist()
     {
         $this->actingAsOwner();
@@ -94,6 +96,7 @@ class RelationLockedResponseTest extends TestCase
      * 這種對不上任何輸入欄位的通用 key——否則 Triple 的 `errors[inputKey]` 查不到，
      * 訊息不會出現在畫面上，使用者只會看到「按了沒反應」。
      */
+    #[TestDox('422 的 errors 以被鎖定的欄位名稱為 key')]
     public function test_the_422_keys_its_errors_by_the_locked_field_names()
     {
         $this->actingAsOwner();
@@ -123,6 +126,7 @@ class RelationLockedResponseTest extends TestCase
     /**
      * 只改 note 仍然要成功——鎖定的是身分欄位，不是整筆資料。
      */
+    #[TestDox('被鎖定的關係仍可修改備註')]
     public function test_note_is_still_editable_on_a_locked_relation()
     {
         $this->actingAsOwner();
@@ -144,6 +148,7 @@ class RelationLockedResponseTest extends TestCase
      * （其他 controller、批次更新、artisan 指令）呼叫 `$relation->update()`，
      * 回應形狀都該一致，而不是變成未處理的 500。
      */
+    #[TestDox('鎖定例外不經 controller 也會自行轉成 422')]
     public function test_the_exception_renders_itself_without_any_controller()
     {
         $exception = new RelationLockedException(['name', 'subject_id']);
@@ -161,6 +166,7 @@ class RelationLockedResponseTest extends TestCase
     /**
      * 不要進 error log——這是呼叫端送錯，不是伺服器故障。
      */
+    #[TestDox('鎖定例外不會寫進錯誤日誌')]
     public function test_the_exception_is_not_reported()
     {
         $this->assertFalse((new RelationLockedException(['name']))->report());

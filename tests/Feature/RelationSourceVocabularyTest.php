@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Relation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -16,6 +17,7 @@ class RelationSourceVocabularyTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('自創的述詞沒有外部詞彙出處')]
     public function test_self_created_predicates_have_null_source(): void
     {
         // specs/specifiedBy 的 note 明寫「查無乾淨的外部對應」——這是分類帳裡
@@ -30,6 +32,7 @@ class RelationSourceVocabularyTest extends TestCase
     }
 
     #[DataProvider('borrowedPredicateProvider')]
+    #[TestDox('借用的述詞記錄正確的外部詞彙出處')]
     public function test_borrowed_predicates_have_source(string $name, string $vocabulary, string $term): void
     {
         $this->seed();
@@ -63,6 +66,7 @@ class RelationSourceVocabularyTest extends TestCase
         ];
     }
 
+    #[TestDox('每個 seeder 種出的述詞都做過出處判斷')]
     public function test_every_seeded_relation_has_a_source_decision(): void
     {
         // 上面兩支測試合起來要覆蓋全部 17 筆——這支測試不驗證個別值，只驗證
@@ -83,6 +87,7 @@ class RelationSourceVocabularyTest extends TestCase
         $this->assertEqualsCanonicalizing($allNames, $decided, '有 relation 沒有被任何一支測試的清單涵蓋到，即使它剛好是 null 也不能算「驗證過」');
     }
 
+    #[TestDox('回填遷移的出處表與 seeder 種出的資料一致')]
     public function test_backfill_migration_matches_seeder(): void
     {
         // 回填 migration 的 SOURCES 表是手動抄了一份跟 RelationSeeder 一樣的
@@ -131,6 +136,7 @@ class RelationSourceVocabularyTest extends TestCase
         }
     }
 
+    #[TestDox('互為反向的述詞，出處詞彙保持一致')]
     public function test_reverse_pairs_agree_on_shared_source(): void
     {
         // documentedBy／usedBy／succeeds 這三筆沒有在自己的 note 裡另外具名詞條，

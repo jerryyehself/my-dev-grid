@@ -11,6 +11,7 @@ use App\Models\Technique;
 use App\Services\RelationEdgeQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -51,6 +52,7 @@ class RelationEdgesTest extends TestCase
         return $relation->fresh();
     }
 
+    #[TestDox('邊清單端點會回傳四張連結表的資料')]
     public function test_edges_endpoint_returns_rows_from_every_link_table()
     {
         $relation = $this->relationWithOneEdgePerTable();
@@ -87,6 +89,7 @@ class RelationEdgesTest extends TestCase
      * 會顯示成 `Vue isVersionOf Vue`。同時涵蓋 entity_relations（技術對技術，兩端都有
      * version）與 pivot（文章那一端沒有 version 欄位，UNION 裡補 NULL）兩種分支。
      */
+    #[TestDox('邊清單中的技術名稱會帶版本')]
     public function test_technique_titles_carry_their_version()
     {
         $relation = Relation::factory()->create();
@@ -119,6 +122,7 @@ class RelationEdgesTest extends TestCase
         }
     }
 
+    #[TestDox('邊清單不含其他關係的邊')]
     public function test_edges_of_another_relation_are_not_included()
     {
         $relation = $this->relationWithOneEdgePerTable();
@@ -144,6 +148,7 @@ class RelationEdgesTest extends TestCase
      * **吃不到 Eloquent 的 SoftDeletes 全域 scope**,每個 union 分支都得自己
      * `whereNull('deleted_at')`。漏掉的話不會報錯,只會安靜地多出幾條指向已刪除實體的邊。
      */
+    #[TestDox('邊清單排除指向已軟刪除實體的邊')]
     public function test_edges_pointing_at_soft_deleted_entities_are_excluded()
     {
         $relation = Relation::factory()->create();
@@ -163,6 +168,7 @@ class RelationEdgesTest extends TestCase
         );
     }
 
+    #[TestDox('邊清單會分頁，且每頁筆數有上限')]
     public function test_edges_are_paginated_and_per_page_is_clamped()
     {
         $relation = Relation::factory()->create();
@@ -198,6 +204,7 @@ class RelationEdgesTest extends TestCase
      * 這正是 is_referenced 這個布林回答不了的問題:`uses`(84 筆) 跟它的反向
      * `used`(0 筆) **兩者都 is_referenced=true**,但詳情頁要顯示的清單長度完全不同。
      */
+    #[TestDox('自身與反向的邊數分開回報')]
     public function test_own_and_reverse_edge_counts_are_reported_separately()
     {
         $subject = Scope::factory()->create();
@@ -228,6 +235,7 @@ class RelationEdgesTest extends TestCase
     /**
      * 對稱關係（自己就是自己的反向）不能把同一批邊算兩次。
      */
+    #[TestDox('對稱關係不會把同一批邊算兩次')]
     public function test_a_symmetric_relation_does_not_double_count_its_edges()
     {
         $scope = Scope::factory()->create();
@@ -250,6 +258,7 @@ class RelationEdgesTest extends TestCase
      * 變成 344 次。這裡用「筆數成長，查詢數不准跟著長」來守，而不是寫死一個會隨
      * 實作漂移的魔術數字。
      */
+    #[TestDox('關係列表的查詢次數不隨筆數成長')]
     public function test_relation_index_query_count_does_not_grow_with_rows()
     {
         Relation::factory()->count(3)->create();

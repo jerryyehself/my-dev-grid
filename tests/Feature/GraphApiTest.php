@@ -8,12 +8,14 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class GraphApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('技術版本節點的標籤會帶上版本號')]
     public function test_technique_version_records_are_labelled_with_their_version()
     {
         // 版本是獨立的一筆，title 相同（2026-09-30），標籤不帶版本的話圖上會有兩個一樣的「Vue」
@@ -26,6 +28,7 @@ class GraphApiTest extends TestCase
         $response->assertJsonFragment(['id' => "technique-{$v3->id}", 'type' => 'technique', 'label' => 'Vue 3']);
     }
 
+    #[TestDox('沒有邊的實體也會列為圖的節點')]
     public function test_graph_lists_every_entity_as_a_node_even_without_edges()
     {
         $documentation = Documentation::factory()->create();
@@ -52,6 +55,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('只有文件節點帶子類型與網址')]
     public function test_documentation_nodes_carry_subtype_and_url_other_nodes_do_not()
     {
         $documentation = Documentation::factory()->create(['url' => 'https://www.php.net/docs.php']);
@@ -68,6 +72,7 @@ class GraphApiTest extends TestCase
         $this->assertNull($techniqueNode['url']);
     }
 
+    #[TestDox('圖會解析文件連技術的邊與述詞')]
     public function test_graph_resolves_documentation_technique_pivot_edge_with_predicate()
     {
         $documentation = Documentation::factory()->create();
@@ -87,6 +92,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('圖會解析文件連實作的邊')]
     public function test_graph_resolves_documentation_implementation_pivot_edge()
     {
         $documentation = Documentation::factory()->create();
@@ -103,6 +109,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('圖會解析技術連實作的邊')]
     public function test_graph_resolves_technique_implementation_pivot_edge()
     {
         $technique = Technique::factory()->create();
@@ -119,6 +126,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('圖會解析同類型實體間的關係邊')]
     public function test_graph_resolves_same_type_entity_relation_edge()
     {
         $subjectTechnique = Technique::factory()->create();
@@ -141,6 +149,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('關係被軟刪除後，邊仍能解析出述詞')]
     public function test_graph_edge_still_resolves_predicate_after_relation_soft_delete()
     {
         $documentation = Documentation::factory()->create();
@@ -159,6 +168,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('圖的回應包含 nodes 與 edges')]
     public function test_graph_response_has_nodes_and_edges_keys()
     {
         $response = $this->getJson('/api/graph');
@@ -166,6 +176,7 @@ class GraphApiTest extends TestCase
         $response->assertOk()->assertJsonStructure(['nodes', 'edges']);
     }
 
+    #[TestDox('只有實作節點回報建立日期')]
     public function test_graph_only_reports_created_at_for_implementation_nodes()
     {
         $documentation = Documentation::factory()->create();
@@ -189,6 +200,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('查路徑缺少起點或終點時回 422')]
     public function test_path_requires_start_and_end_query_params()
     {
         $response = $this->getJson('/api/graph/path');
@@ -196,6 +208,7 @@ class GraphApiTest extends TestCase
         $response->assertStatus(422);
     }
 
+    #[TestDox('起點等於終點時路徑只有該節點')]
     public function test_path_is_trivially_found_when_start_equals_end()
     {
         $documentation = Documentation::factory()->create();
@@ -213,6 +226,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('可找出兩節點間的直接邊')]
     public function test_path_finds_direct_edge_between_two_nodes()
     {
         $documentation = Documentation::factory()->create();
@@ -235,6 +249,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('逆向走邊時回報反向關係名稱')]
     public function test_path_reports_reverse_relation_name_when_travelling_backward()
     {
         $documentation = Documentation::factory()->create();
@@ -257,6 +272,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('沒有定義反向時沿用原關係名稱')]
     public function test_path_falls_back_to_original_name_when_reverse_relation_undefined()
     {
         $documentation = Documentation::factory()->create();
@@ -276,6 +292,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('可跨不同關係找出多跳最短路徑')]
     public function test_path_finds_multi_hop_shortest_path_across_different_relations()
     {
         $documentation = Documentation::factory()->create();
@@ -296,6 +313,7 @@ class GraphApiTest extends TestCase
         $response->assertJsonCount(2, 'edges');
     }
 
+    #[TestDox('節點不相連時回報找不到路徑')]
     public function test_path_reports_not_found_when_nodes_are_disconnected()
     {
         $documentationA = Documentation::factory()->create();
