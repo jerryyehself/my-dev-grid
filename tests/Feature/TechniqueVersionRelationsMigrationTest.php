@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Relation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -14,6 +15,7 @@ class TechniqueVersionRelationsMigrationTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('遷移替舊資料庫補上版本關係，結果與 seeder 相同')]
     public function test_adds_the_pair_to_an_already_seeded_database_like_the_seeder_does(): void
     {
         $this->seed();

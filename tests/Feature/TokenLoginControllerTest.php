@@ -5,12 +5,14 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class TokenLoginControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('登入成功回傳 token，不建立 session')]
     public function test_login_succeeds_and_returns_a_token_without_creating_a_session()
     {
         $user = User::factory()->create([
@@ -36,6 +38,7 @@ class TokenLoginControllerTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 1);
     }
 
+    #[TestDox('密碼錯誤時登入回 422')]
     public function test_login_rejects_wrong_password()
     {
         User::factory()->create([
@@ -53,6 +56,7 @@ class TokenLoginControllerTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    #[TestDox('email 不存在時登入回 422')]
     public function test_login_rejects_unknown_email()
     {
         $response = $this->postJson('/api/auth/login', [
@@ -64,6 +68,7 @@ class TokenLoginControllerTest extends TestCase
             ->assertJsonValidationErrors('email');
     }
 
+    #[TestDox('登入必須提供 email 與密碼')]
     public function test_login_requires_email_and_password()
     {
         $response = $this->postJson('/api/auth/login', []);
@@ -72,6 +77,7 @@ class TokenLoginControllerTest extends TestCase
             ->assertJsonValidationErrors(['email', 'password']);
     }
 
+    #[TestDox('發出的 token 可用於後續請求的認證')]
     public function test_issued_token_authenticates_subsequent_requests()
     {
         $user = User::factory()->create([
@@ -92,6 +98,7 @@ class TokenLoginControllerTest extends TestCase
             ->assertJsonFragment(['id' => $user->id]);
     }
 
+    #[TestDox('登出會撤銷 token')]
     public function test_logout_revokes_the_token()
     {
         $user = User::factory()->create([
@@ -121,6 +128,7 @@ class TokenLoginControllerTest extends TestCase
             ->assertUnauthorized();
     }
 
+    #[TestDox('登出必須從前端網域發出')]
     public function test_logout_requires_the_frontend_origin()
     {
         // 登出不要求 token（refresh cookie 也能登出，見 RefreshTokenCookieTest），

@@ -17,6 +17,7 @@ use Laravel\Socialite\Two\AbstractProvider;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as SocialiteUser;
 use Mockery;
+use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 use Tests\Concerns\CapturesSecurityEvents;
 use Tests\TestCase;
@@ -106,6 +107,7 @@ class SecurityEventLoggingTest extends TestCase
 
     // ── authn_login_success ──────────────────────────────────────────
 
+    #[TestDox('Google session 回呼成功時記錄登入成功事件')]
     public function test_google_session_callback_logs_login_success()
     {
         $user = $this->bindIdentity('google', 'google-123');
@@ -122,6 +124,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertNotLogged('google-123');
     }
 
+    #[TestDox('LINE token 回呼記錄登入與發 token，不含 token 值')]
     public function test_line_token_callback_logs_login_success_and_token_created_without_the_token()
     {
         $user = $this->bindIdentity('line', 'line-123');
@@ -144,6 +147,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertNotLogged($this->secretOf($token));
     }
 
+    #[TestDox('密碼登入的兩種模式都記錄登入成功')]
     public function test_password_logins_log_success_for_both_modes()
     {
         $user = $this->createUser();
@@ -162,6 +166,7 @@ class SecurityEventLoggingTest extends TestCase
 
     // ── authn_login_fail ─────────────────────────────────────────────
 
+    #[TestDox('密碼登入失敗只在帳號存在時記 user_id')]
     public function test_password_login_failure_logs_the_user_id_only_when_the_account_exists()
     {
         $user = $this->createUser();
@@ -186,6 +191,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertNotLogged('guess');
     }
 
+    #[TestDox('OAuth state 不符時記錄登入失敗並維持原本的錯誤')]
     public function test_oauth_invalid_state_logs_login_fail_and_still_errors_like_before()
     {
         $this->socialiteThrows('google', new InvalidStateException);
@@ -202,6 +208,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertNotLogged('oauth-code-must-not-be-logged');
     }
 
+    #[TestDox('OAuth 提供者拒絕時記錄其錯誤代碼')]
     public function test_oauth_provider_denial_logs_the_provider_error_code()
     {
         $this->socialiteThrows('line', new RuntimeException('provider said no'));
@@ -220,6 +227,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertStringNotContainsString('provider said no', json_encode($context));
     }
 
+    #[TestDox('refresh cookie 無效記登入失敗，缺少則不記')]
     public function test_an_invalid_refresh_cookie_logs_login_fail_but_a_missing_one_does_not()
     {
         $this->captureLogs();
@@ -233,6 +241,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertNoSecurityEvent('authn_login_fail');
     }
 
+    #[TestDox('重用已換發的回呼 token 時記錄登入失敗')]
     public function test_reusing_an_already_exchanged_callback_token_logs_login_fail()
     {
         $user = $this->createUser();
@@ -253,6 +262,7 @@ class SecurityEventLoggingTest extends TestCase
 
     // ── authn_token_created／authn_token_revoked／authn_token_reuse ──
 
+    #[TestDox('登入與輪替記錄發 token 事件，不含 token 值')]
     public function test_login_and_rotation_log_token_created_without_token_values()
     {
         $user = $this->createUser();
@@ -273,6 +283,7 @@ class SecurityEventLoggingTest extends TestCase
         }
     }
 
+    #[TestDox('token 登出記錄登出與 token 撤銷事件')]
     public function test_token_logout_logs_session_logout_and_token_revoked()
     {
         $user = $this->createUser();
@@ -291,6 +302,7 @@ class SecurityEventLoggingTest extends TestCase
         ], 'info');
     }
 
+    #[TestDox('無憑證的 token 登出只記登出，不帶使用者')]
     public function test_token_logout_without_credentials_logs_session_logout_without_a_user()
     {
         $this->captureLogs();
@@ -302,6 +314,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertNoSecurityEvent('authn_token_revoked');
     }
 
+    #[TestDox('session 登出記錄登出事件')]
     public function test_session_logout_logs_session_logout()
     {
         $user = $this->createUser();
@@ -313,6 +326,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertSecurityEvent('session_logout', ['user_id' => $user->id, 'auth_mode' => 'session']);
     }
 
+    #[TestDox('重放 refresh token 記 critical 重用與撤銷事件')]
     public function test_refresh_token_replay_logs_token_reuse_as_critical_and_the_revocation()
     {
         $user = $this->createUser();
@@ -339,6 +353,7 @@ class SecurityEventLoggingTest extends TestCase
 
     // ── session_expired ──────────────────────────────────────────────
 
+    #[TestDox('碰到登入絕對上限時記錄 session 過期')]
     public function test_hitting_the_absolute_cap_logs_session_expired()
     {
         config(['sanctum.refresh_token_max_lifetime' => 60]);
@@ -355,6 +370,7 @@ class SecurityEventLoggingTest extends TestCase
 
     // ── authz_fail（403）─────────────────────────────────────────────
 
+    #[TestDox('Origin 錯誤記錄授權失敗，不帶使用者')]
     public function test_a_wrong_origin_logs_authz_fail_without_a_user()
     {
         $this->captureLogs();
@@ -371,6 +387,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertArrayNotHasKey('user_id', $context);
     }
 
+    #[TestDox('已登入使用者被禁止時，授權失敗事件帶使用者')]
     public function test_a_forbidden_action_by_an_authenticated_user_logs_the_user()
     {
         $user = $this->createUser();
@@ -386,6 +403,7 @@ class SecurityEventLoggingTest extends TestCase
 
     // ── excess_rate_limit_exceeded（429）─────────────────────────────
 
+    #[TestDox('被頻率限制的請求會記錄上限與路由')]
     public function test_rate_limited_requests_log_the_limit_and_route()
     {
         for ($i = 1; $i <= 5; $i++) {
@@ -410,6 +428,7 @@ class SecurityEventLoggingTest extends TestCase
 
     // ── 正式環境的格式 ───────────────────────────────────────────────
 
+    #[TestDox('事件以 JSON 帶 request id 寫入 Cloud Run 通道')]
     public function test_events_reach_the_cloud_run_channel_as_json_with_the_request_id()
     {
         $logFile = tempnam(sys_get_temp_dir(), 'security-log-');
@@ -434,6 +453,7 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertStringStartsWith('authz_fail ', $entry['message']);
     }
 
+    #[TestDox('其他狀態碼不會被記成 403 或 429 事件')]
     public function test_403_and_429_are_not_logged_for_other_statuses()
     {
         $this->captureLogs();

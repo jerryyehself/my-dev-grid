@@ -9,6 +9,7 @@ use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -86,6 +87,7 @@ class MergeDuplicateTechniquesMigrationTest extends TestCase
             ->map(fn ($t) => trim("{$t->title} {$t->version}"))->sort()->values()->all();
     }
 
+    #[TestDox('遷移會合併不同寫法的技術並移轉所有邊')]
     public function test_merges_spellings_into_one_record_and_moves_every_edge(): void
     {
         $this->migration->up();
@@ -104,6 +106,7 @@ class MergeDuplicateTechniquesMigrationTest extends TestCase
         $this->assertSame(1, DB::table('documentation_technique')->where('technique_id', $vue->id)->count(), '官方文件的 specs 還掛在 Vue 上');
     }
 
+    #[TestDox('帶版本的名稱轉為版本紀錄並連回原技術')]
     public function test_versioned_names_become_versions_linked_to_their_base(): void
     {
         $this->migration->up();
@@ -124,6 +127,7 @@ class MergeDuplicateTechniquesMigrationTest extends TestCase
         $this->assertTrue(DB::table('entity_relations')->where(['subject_id' => $nuxt3->id, 'object_id' => $nuxt->id, 'relation_id' => $isVersionOf])->exists());
     }
 
+    #[TestDox('回滾能把每一筆資料還原成合併前的樣子')]
     public function test_down_restores_every_row_exactly(): void
     {
         $before = $this->snapshot();
@@ -135,6 +139,7 @@ class MergeDuplicateTechniquesMigrationTest extends TestCase
         $this->assertEquals($before, $this->snapshot());
     }
 
+    #[TestDox('空資料庫時遷移不做任何事')]
     public function test_does_nothing_on_an_empty_database(): void
     {
         DB::table('technique_implementation')->delete();

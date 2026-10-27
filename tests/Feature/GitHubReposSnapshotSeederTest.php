@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Database\Seeders\GitHubReposSnapshotSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -24,6 +25,7 @@ class GitHubReposSnapshotSeederTest extends TestCase
         parent::tearDown();
     }
 
+    #[TestDox('依快照檔種入實作')]
     public function test_it_seeds_implementations_from_the_snapshot_file()
     {
         $this->seed();
@@ -58,6 +60,7 @@ class GitHubReposSnapshotSeederTest extends TestCase
         ]);
     }
 
+    #[TestDox('找不到快照檔時丟出明確錯誤')]
     public function test_it_throws_a_clear_error_when_the_snapshot_is_missing()
     {
         File::delete($this->fixturePath());

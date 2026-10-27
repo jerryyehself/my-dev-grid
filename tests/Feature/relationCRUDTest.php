@@ -5,12 +5,14 @@ namespace Tests\Feature;
 use App\Models\Relation;
 use App\Models\Scope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class relationCRUDTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('登入後可新增關係')]
     public function test_create_relation()
     {
         $this->actingAsOwner();
@@ -46,6 +48,7 @@ class relationCRUDTest extends TestCase
      * B 存檔時 Relation::syncReverse() 會把 A 的 reverse_id 補回指 B,
      * 呼叫端不需要、也不應該再送第二次請求去補另一邊。
      */
+    #[TestDox('建立配對關係時雙向反向會一併補上')]
     public function test_creating_a_partner_wires_both_directions()
     {
         $this->actingAsOwner();
@@ -92,6 +95,7 @@ class relationCRUDTest extends TestCase
      * 2026-09-17 之前這支測試用的是兩個不同的 scope,ReverseIsSwapped 加上去之後才
      * 暴露出來——那個組合語意上本來就不成立。
      */
+    #[TestDox('主詞受詞相同的關係可以是自己的反向')]
     public function test_a_relation_may_be_its_own_reverse()
     {
         $this->actingAsOwner();
@@ -124,6 +128,7 @@ class relationCRUDTest extends TestCase
     /**
      * 反過來:主詞受詞不同的關係不能把自己當反向。
      */
+    #[TestDox('主詞受詞不同的關係不能是自己的反向，回 422')]
     public function test_a_relation_with_differing_ends_cannot_be_its_own_reverse()
     {
         $this->actingAsOwner();
@@ -155,6 +160,7 @@ class relationCRUDTest extends TestCase
      * 指向一條「已經跟別人配對」的關係要被擋下來。不擋的話只有兩種結果,兩種都不對:
      * 不同步就留下單向的壞配對,同步就會默默把對方原本的伴侶踢掉變成孤兒。
      */
+    #[TestDox('反向不能指向已配對的關係，回 422')]
     public function test_reverse_id_cannot_point_at_an_already_paired_relation()
     {
         $this->actingAsOwner();
@@ -190,6 +196,7 @@ class relationCRUDTest extends TestCase
      * 所以這是日常操作而不是邊角案例。2026-09-17 之前 syncReverse() 遇到 null 直接
      * return,結果清掉 A 的反向之後 B 還指著 A——正是這個機制存在要消滅的單向狀態。
      */
+    #[TestDox('清除配對一端時，另一端也會一併清除')]
     public function test_clearing_one_side_of_a_pair_clears_the_other()
     {
         $this->actingAsOwner();
@@ -219,6 +226,7 @@ class relationCRUDTest extends TestCase
     /**
      * 反向關係的主詞受詞必須跟自己對調,不能隨便指一條不相干的關係。
      */
+    #[TestDox('反向關係的主詞受詞必須對調，否則回 422')]
     public function test_reverse_must_have_swapped_ends()
     {
         $this->actingAsOwner();
@@ -262,6 +270,7 @@ class relationCRUDTest extends TestCase
      * 壞配對的是 test_reverse_must_have_swapped_ends;這一支的價值在於把「連鎖刪除的
      * 正確性建立在對調規則上」這件事寫在會被執行的地方,而不是只寫在註解裡。
      */
+    #[TestDox('軟刪除 scope 不會留下懸空的反向關係')]
     public function test_soft_deleting_a_scope_leaves_no_dangling_reverse()
     {
         $this->seed();
@@ -288,6 +297,7 @@ class relationCRUDTest extends TestCase
      * reverse() 這個 belongsTo 會套用 Relation 自己的 SoftDeletes,
      * 所以指向已軟刪除的關係時解析成 null,不會吐出前端看不到的資料。
      */
+    #[TestDox('反向關係被軟刪除後解析為 null')]
     public function test_reverse_relation_resolves_to_null_when_soft_deleted()
     {
         $this->seed();
@@ -311,6 +321,7 @@ class relationCRUDTest extends TestCase
      * 其餘 6 對加上 `accompanies` 的自指完全沒有覆蓋——而 15 條（2026-09-30 加了 isVersionOf／hasVersion 變 17 條）全部成對,靠的
      * 純粹是 RelationSeeder 剛好寫對了,沒有任何機制在維護。
      */
+    #[TestDox('seeder 種出的關係全部互相配對')]
     public function test_every_seeded_relation_is_reciprocally_paired()
     {
         $this->seed();
@@ -349,6 +360,7 @@ class relationCRUDTest extends TestCase
         );
     }
 
+    #[TestDox('新增關係未登入回 401')]
     public function test_create_relation_rejects_unauthenticated_request()
     {
         $this->seed();
@@ -368,6 +380,7 @@ class relationCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('可檢視單一關係')]
     public function test_view_relation()
     {
         $this->seed();
@@ -380,6 +393,7 @@ class relationCRUDTest extends TestCase
             ->assertJsonFragment(['id' => $relation->id]);
     }
 
+    #[TestDox('登入後可更新關係')]
     public function test_update_relation()
     {
         $this->actingAsOwner();
@@ -402,6 +416,7 @@ class relationCRUDTest extends TestCase
         $this->assertDatabaseHas('relations', ['id' => $relation->id, 'name' => 'Updated name']);
     }
 
+    #[TestDox('更新關係未登入回 401')]
     public function test_update_relation_rejects_unauthenticated_request()
     {
         $this->seed();
@@ -420,6 +435,7 @@ class relationCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('更新關係時名稱唯一性只比對關係表')]
     public function test_update_relation_name_unique_check_is_scoped_to_relations_table()
     {
         $this->actingAsOwner();
@@ -442,6 +458,7 @@ class relationCRUDTest extends TestCase
             ->assertJsonFragment(['name' => $scopeName]);
     }
 
+    #[TestDox('登入後可刪除關係')]
     public function test_delete_relation()
     {
         $this->actingAsOwner();
@@ -457,6 +474,7 @@ class relationCRUDTest extends TestCase
         $this->assertSoftDeleted('relations', ['id' => $relation->id]);
     }
 
+    #[TestDox('刪除關係未登入回 401')]
     public function test_delete_relation_rejects_unauthenticated_request()
     {
         $this->seed();
@@ -468,6 +486,7 @@ class relationCRUDTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    #[TestDox('可列出所有關係')]
     public function test_list_all_relations()
     {
         $this->seed();
@@ -482,6 +501,7 @@ class relationCRUDTest extends TestCase
         ]);
     }
 
+    #[TestDox('seeder 建立 requires 與 isRequiredBy 互為反向')]
     public function test_seeder_creates_requires_and_is_required_by_as_reciprocal_pair()
     {
         $this->seed();

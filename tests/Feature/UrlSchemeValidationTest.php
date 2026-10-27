@@ -7,6 +7,7 @@ use App\Models\Implementation;
 use App\Models\Scope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -100,6 +101,7 @@ class UrlSchemeValidationTest extends TestCase
     }
 
     #[DataProvider('endpointAndRejectedUrlProvider')]
+    #[TestDox('url 欄位不是 http 或 https 時回 422')]
     public function test_non_http_scheme_is_rejected(string $endpoint, string $url): void
     {
         $this->actingAsOwner();
@@ -111,6 +113,7 @@ class UrlSchemeValidationTest extends TestCase
     }
 
     #[DataProvider('endpointProvider')]
+    #[TestDox('url 欄位接受 https 網址')]
     public function test_https_url_is_accepted(string $endpoint): void
     {
         $this->actingAsOwner();
@@ -122,6 +125,7 @@ class UrlSchemeValidationTest extends TestCase
     }
 
     #[DataProvider('endpointProvider')]
+    #[TestDox('url 欄位接受 http 網址')]
     public function test_http_url_is_accepted(string $endpoint): void
     {
         $this->actingAsOwner();
@@ -149,6 +153,7 @@ class UrlSchemeValidationTest extends TestCase
     }
 
     #[DataProvider('documentationEndpointAndRejectedUrlProvider')]
+    #[TestDox('文件的 uri 欄位不是 http 或 https 時回 422')]
     public function test_documentation_uri_rejects_non_http_scheme(string $endpoint, string $url): void
     {
         $this->actingAsOwner();
@@ -159,6 +164,7 @@ class UrlSchemeValidationTest extends TestCase
             ->assertJsonValidationErrors('uri');
     }
 
+    #[TestDox('文件的 uri 欄位接受 https 網址')]
     public function test_documentation_uri_accepts_https(): void
     {
         $this->actingAsOwner();

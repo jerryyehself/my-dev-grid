@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -27,6 +28,7 @@ class RateLimitTest extends TestCase
         ], $headers);
     }
 
+    #[TestDox('API 登入一分鐘內第 6 次回 429')]
     public function test_api_login_returns_429_on_the_sixth_attempt_within_a_minute()
     {
         for ($i = 1; $i <= 5; $i++) {
@@ -39,6 +41,7 @@ class RateLimitTest extends TestCase
             ->assertHeader('Retry-After');
     }
 
+    #[TestDox('session 登入一分鐘內第 6 次回 429')]
     public function test_session_login_returns_429_on_the_sixth_attempt_within_a_minute()
     {
         $attempt = fn () => $this->postJson('/auth/login', [
@@ -53,6 +56,7 @@ class RateLimitTest extends TestCase
         $attempt()->assertStatus(429);
     }
 
+    #[TestDox('一般 API 一分鐘內第 61 次請求回 429')]
     public function test_api_returns_429_on_the_61st_request_within_a_minute()
     {
         for ($i = 1; $i <= 60; $i++) {
@@ -64,6 +68,7 @@ class RateLimitTest extends TestCase
             ->assertHeader('Retry-After');
     }
 
+    #[TestDox('登入嘗試不會用掉一般 API 的額度')]
     public function test_login_attempts_do_not_use_up_the_general_api_bucket()
     {
         // 登入桶子（5）用完之後，一般 API 仍然可用——兩個 limiter 的桶子要分開，
@@ -75,6 +80,7 @@ class RateLimitTest extends TestCase
         $this->getJson('/api/scopes')->assertOk();
     }
 
+    #[TestDox('不同來源 IP 的登入各有獨立額度')]
     public function test_a_different_forwarded_ip_gets_its_own_bucket()
     {
         // 模擬 Cloud Run：Google 前端把真實 IP 附加在 X-Forwarded-For。
@@ -90,6 +96,7 @@ class RateLimitTest extends TestCase
         $this->attemptApiLogin('203.0.113.1')->assertStatus(429);
     }
 
+    #[TestDox('不同來源 IP 的 API 各有獨立額度')]
     public function test_a_different_forwarded_ip_gets_its_own_api_bucket()
     {
         for ($i = 1; $i <= 60; $i++) {
@@ -100,6 +107,7 @@ class RateLimitTest extends TestCase
         $this->getJson('/api/scopes', ['X-Forwarded-For' => '203.0.113.2'])->assertOk();
     }
 
+    #[TestDox('偽造 X-Forwarded-For 左側無法繞過限制')]
     public function test_spoofed_left_side_of_forwarded_for_cannot_bypass_the_limit()
     {
         // 用戶端自己偽造 X-Forwarded-For 的左邊，Google 前端仍會把真實 IP 附加在
@@ -111,6 +119,7 @@ class RateLimitTest extends TestCase
         $this->attemptApiLogin('10.9.8.99, 203.0.113.9')->assertStatus(429);
     }
 
+    #[TestDox('社群登入路由有限流，但比密碼登入寬鬆')]
     public function test_social_login_routes_are_limited_but_more_generously_than_password_login()
     {
         // 不認識的 provider 由 controller 回 404（見 routes/web.php 的註解），

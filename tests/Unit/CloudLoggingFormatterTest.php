@@ -8,6 +8,7 @@ use DateTimeZone;
 use Monolog\Level;
 use Monolog\LogRecord;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestDox;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -47,6 +48,7 @@ class CloudLoggingFormatterTest extends TestCase
         return $decoded;
     }
 
+    #[TestDox('基本輸出含 severity、message 與 UTC 時間')]
     public function test_basic_shape_has_severity_message_and_utc_time(): void
     {
         $out = $this->decode((new CloudLoggingFormatter)->format($this->record('hello')));
@@ -62,6 +64,7 @@ class CloudLoggingFormatterTest extends TestCase
     }
 
     #[DataProvider('severityProvider')]
+    #[TestDox('severity 使用 Cloud Logging 的等級名稱')]
     public function test_severity_uses_cloud_logging_names(Level $level, string $expected): void
     {
         $out = $this->decode((new CloudLoggingFormatter)->format($this->record(level: $level)));
@@ -83,6 +86,7 @@ class CloudLoggingFormatterTest extends TestCase
         ];
     }
 
+    #[TestDox('請求欄位被提升到頂層，不在 extra 重複')]
     public function test_request_fields_are_hoisted_and_not_duplicated_in_extra(): void
     {
         $formatter = new CloudLoggingFormatter(projectId: 'my-project');
@@ -105,6 +109,7 @@ class CloudLoggingFormatterTest extends TestCase
         $this->assertSame(['other' => 'x'], $out['extra']);
     }
 
+    #[TestDox('沒有專案 ID 時省略 trace 欄位，保留 request id')]
     public function test_trace_fields_are_omitted_without_project_id_but_request_id_stays(): void
     {
         $out = $this->decode((new CloudLoggingFormatter)->format($this->record(
@@ -116,6 +121,7 @@ class CloudLoggingFormatterTest extends TestCase
         $this->assertArrayNotHasKey('logging.googleapis.com/trace_sampled', $out);
     }
 
+    #[TestDox('httpRequest 原樣輸出為日誌的 httpRequest 欄位')]
     public function test_http_request_is_passed_through_as_log_entry_http_request(): void
     {
         $httpRequest = ['requestMethod' => 'GET', 'requestUrl' => 'https://example.test/api/x', 'remoteIp' => '203.0.113.9'];
@@ -129,6 +135,7 @@ class CloudLoggingFormatterTest extends TestCase
         $this->assertArrayNotHasKey('extra', $out);
     }
 
+    #[TestDox('例外轉成 Error Reporting 認得的 PHP 堆疊訊息')]
     public function test_exception_becomes_php_stack_trace_message_for_error_reporting(): void
     {
         $exception = new RuntimeException('boom');
@@ -151,6 +158,7 @@ class CloudLoggingFormatterTest extends TestCase
         $this->assertArrayNotHasKey('log_message', $out);
     }
 
+    #[TestDox('呼叫端文字與例外訊息不同時另外保留')]
     public function test_caller_message_is_kept_when_it_differs_from_exception_message(): void
     {
         $out = $this->decode((new CloudLoggingFormatter)->format($this->record(
@@ -163,6 +171,7 @@ class CloudLoggingFormatterTest extends TestCase
         $this->assertStringContainsString('timeout', $out['message']);
     }
 
+    #[TestDox('多行訊息維持單行，中文不被跳脫')]
     public function test_multiline_message_stays_on_one_line_and_chinese_is_not_escaped(): void
     {
         $line = (new CloudLoggingFormatter)->format($this->record("第一行\n第二行"));
@@ -172,6 +181,7 @@ class CloudLoggingFormatterTest extends TestCase
         $this->assertSame("第一行\n第二行", $this->decode($line)['message']);
     }
 
+    #[TestDox('過長訊息會截斷，且仍是合法 JSON')]
     public function test_long_message_is_truncated_and_line_stays_valid_json(): void
     {
         $formatter = new CloudLoggingFormatter(maxMessageBytes: 100);

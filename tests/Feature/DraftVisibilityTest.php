@@ -9,6 +9,7 @@ use App\Models\Technique;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -41,6 +42,7 @@ class DraftVisibilityTest extends TestCase
         Sanctum::actingAs(User::factory()->create());
     }
 
+    #[TestDox('訪客的文件列表只看得到已發布文章')]
     public function test_guest_index_lists_only_published_documentations()
     {
         $this->getJson('/api/documentations')
@@ -49,6 +51,7 @@ class DraftVisibilityTest extends TestCase
             ->assertJsonMissing(['title' => '草稿文章']);
     }
 
+    #[TestDox('登入後的文件列表包含草稿')]
     public function test_signed_in_index_includes_drafts()
     {
         $this->signIn();
@@ -58,12 +61,14 @@ class DraftVisibilityTest extends TestCase
             ->assertJsonFragment(['title' => '草稿文章']);
     }
 
+    #[TestDox('訪客看草稿回 404，看已發布文章回 200')]
     public function test_guest_gets_404_for_a_draft_and_200_for_a_published_documentation()
     {
         $this->getJson("/api/documentations/{$this->draft->id}")->assertNotFound();
         $this->getJson("/api/documentations/{$this->published->id}")->assertOk();
     }
 
+    #[TestDox('登入後可開啟草稿')]
     public function test_signed_in_can_open_a_draft()
     {
         $this->signIn();
@@ -73,6 +78,7 @@ class DraftVisibilityTest extends TestCase
             ->assertJsonFragment(['title' => '草稿文章']);
     }
 
+    #[TestDox('訪客的圖不含草稿節點與其邊')]
     public function test_guest_graph_drops_draft_nodes_and_their_edges()
     {
         $technique = Technique::factory()->create();
@@ -92,6 +98,7 @@ class DraftVisibilityTest extends TestCase
         $response->assertJsonMissing(['label' => '草稿文章']);
     }
 
+    #[TestDox('登入後的圖包含草稿節點')]
     public function test_signed_in_graph_includes_draft_nodes()
     {
         $this->signIn();
@@ -100,6 +107,7 @@ class DraftVisibilityTest extends TestCase
         $this->assertContains("documentation-{$this->draft->id}", $nodeIds);
     }
 
+    #[TestDox('訪客查經過草稿的路徑時找不到')]
     public function test_guest_path_to_or_through_a_draft_is_not_found()
     {
         $technique = Technique::factory()->create();
@@ -119,6 +127,7 @@ class DraftVisibilityTest extends TestCase
             ->assertJson(['found' => false]);
     }
 
+    #[TestDox('訪客檢視技術與實作時看不到草稿文件')]
     public function test_guest_technique_and_implementation_show_omit_draft_documentations()
     {
         $technique = Technique::factory()->create();
@@ -140,6 +149,7 @@ class DraftVisibilityTest extends TestCase
             ->assertJsonMissing(['title' => '草稿文章']);
     }
 
+    #[TestDox('訪客的關係邊不含牽涉草稿的邊')]
     public function test_guest_relation_edges_omit_edges_touching_a_draft()
     {
         $technique = Technique::factory()->create();
@@ -154,6 +164,7 @@ class DraftVisibilityTest extends TestCase
             ->assertJsonMissing(['subject_title' => '草稿文章']);
     }
 
+    #[TestDox('登入後的關係邊包含草稿')]
     public function test_signed_in_relation_edges_include_drafts()
     {
         $technique = Technique::factory()->create();

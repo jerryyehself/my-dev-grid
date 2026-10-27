@@ -8,6 +8,7 @@ use App\Models\Relation;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -52,6 +53,7 @@ class RelationReferenceLockTest extends TestCase
     /**
      * 自己 0 筆、反向有邊 → 仍然算被引用。
      */
+    #[TestDox('判斷關係是否被引用時，也算入反向關係的邊')]
     public function test_is_referenced_counts_the_reverses_links()
     {
         [$linked, $partner] = $this->pairWithOneLinkedSide();
@@ -64,6 +66,7 @@ class RelationReferenceLockTest extends TestCase
     /**
      * 被自己的邊鎖住 vs 被反向的邊鎖住,要分得出來——鎖定欄位的畫面要能說明理由。
      */
+    #[TestDox('區分是被自己的邊還是被反向的邊鎖定')]
     public function test_referenced_via_distinguishes_self_from_reverse()
     {
         $this->pairWithOneLinkedSide();
@@ -89,6 +92,7 @@ class RelationReferenceLockTest extends TestCase
     /**
      * 實際的行為後果:只有反向有邊的那一條,現在也不能改鎖定欄位了。
      */
+    #[TestDox('只被反向鎖定的關係也不能改鎖定欄位')]
     public function test_a_relation_locked_only_by_its_reverse_cannot_change_locked_fields()
     {
         [, $partner] = $this->pairWithOneLinkedSide();
@@ -106,6 +110,7 @@ class RelationReferenceLockTest extends TestCase
      * reverse 資源又再遞迴算一次自己的引用狀態。修法是 scopeWithReferenceCounts() 預載
      * 計數、reverse 只吐最小形狀、isReferenced() 記憶化,之後回到 12 次。
      */
+    #[TestDox('關係列表不會發生 N+1 查詢')]
     public function test_relation_index_does_not_n_plus_one()
     {
         $this->pairWithOneLinkedSide();

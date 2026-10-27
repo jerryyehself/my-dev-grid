@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Services\GitService;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class GitServiceTest extends TestCase
 {
+    #[TestDox('取得 repo 時排除私有 repo')]
     public function test_get_repos_excludes_private_repos()
     {
         Http::fake([
@@ -26,6 +28,7 @@ class GitServiceTest extends TestCase
         $this->assertSame('public-repo', $repos->first()['title']);
     }
 
+    #[TestDox('取得 repo 時會分頁抓到空頁為止')]
     public function test_get_repos_paginates_until_an_empty_page()
     {
         Http::fake([
@@ -42,6 +45,7 @@ class GitServiceTest extends TestCase
         $this->assertCount(2, $repos);
     }
 
+    #[TestDox('取得 repo 時保留描述與封存狀態')]
     public function test_get_repos_keeps_description_and_archived_fields()
     {
         Http::fake([
@@ -66,6 +70,7 @@ class GitServiceTest extends TestCase
         $this->assertTrue($repo['archived']);
     }
 
+    #[TestDox('取得 repo 時保留擁有者帳號')]
     public function test_get_repos_keeps_owner_login()
     {
         Http::fake([
@@ -88,6 +93,7 @@ class GitServiceTest extends TestCase
         $this->assertSame('acme', $repo['owner']);
     }
 
+    #[TestDox('單一 repo 取語言失敗時，其餘照常處理')]
     public function test_get_repos_keeps_going_when_a_single_repo_languages_fetch_fails()
     {
         Http::fake([

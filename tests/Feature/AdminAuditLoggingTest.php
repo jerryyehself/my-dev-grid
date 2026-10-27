@@ -8,6 +8,7 @@ use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\Concerns\CapturesSecurityEvents;
 use Tests\TestCase;
 
@@ -19,6 +20,7 @@ class AdminAuditLoggingTest extends TestCase
     use CapturesSecurityEvents;
     use RefreshDatabase;
 
+    #[TestDox('新增資料時，稽核日誌記錄誰建立了哪筆資料')]
     public function test_creating_a_record_logs_who_created_which_record()
     {
         $user = $this->actingAsOwner();
@@ -40,6 +42,7 @@ class AdminAuditLoggingTest extends TestCase
         ], 'warning');
     }
 
+    #[TestDox('更新資料時只記錄變動的欄位名稱，不記值')]
     public function test_updating_a_record_logs_the_changed_field_names_but_not_their_values()
     {
         $user = $this->actingAsOwner();
@@ -63,6 +66,7 @@ class AdminAuditLoggingTest extends TestCase
         $this->assertNotLogged('很長的內文');
     }
 
+    #[TestDox('沒有實際變動的更新不會寫稽核日誌')]
     public function test_an_update_that_changes_nothing_is_not_logged()
     {
         $this->actingAsOwner();
@@ -77,6 +81,7 @@ class AdminAuditLoggingTest extends TestCase
         $this->assertNoSecurityEvent('authz_admin');
     }
 
+    #[TestDox('刪除 scope 時連同被刪的關係一併記錄')]
     public function test_deleting_a_scope_logs_the_scope_and_the_relations_deleted_with_it()
     {
         $user = $this->actingAsOwner();
@@ -93,6 +98,7 @@ class AdminAuditLoggingTest extends TestCase
         ], $deleted->all());
     }
 
+    #[TestDox('同步關聯時記錄新增與移除的 id')]
     public function test_pivot_sync_logs_attached_and_detached_ids()
     {
         $user = $this->actingAsOwner();
@@ -127,6 +133,7 @@ class AdminAuditLoggingTest extends TestCase
         ]);
     }
 
+    #[TestDox('沒有登入使用者的寫入不記稽核日誌')]
     public function test_writes_without_a_logged_in_user_are_not_audited()
     {
         // seeder、artisan 指令（snapshot:github-repos）沒有登入使用者

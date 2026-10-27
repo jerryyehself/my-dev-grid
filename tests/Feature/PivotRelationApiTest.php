@@ -8,12 +8,14 @@ use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 class PivotRelationApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('新增文件時可連結技術並帶 relation_id')]
     public function test_store_documentation_attaches_techniques_with_relation_id()
     {
         $this->actingAsOwner();
@@ -41,6 +43,7 @@ class PivotRelationApiTest extends TestCase
         $response->assertJsonPath('data.techniques.0.relation_id', $relation->id);
     }
 
+    #[TestDox('文件列表包含技術與實作的關聯')]
     public function test_index_documentation_includes_technique_and_implementation_relations()
     {
         $this->actingAsOwner();
@@ -74,6 +77,7 @@ class PivotRelationApiTest extends TestCase
         $this->assertSame($implementation->id, $data['implementations'][0]['id']);
     }
 
+    #[TestDox('新增文件時 relation_id 不存在回 422')]
     public function test_store_documentation_rejects_unknown_relation_id()
     {
         $this->actingAsOwner();
@@ -93,6 +97,7 @@ class PivotRelationApiTest extends TestCase
             ->assertJsonValidationErrors('techniques.0.relation_id');
     }
 
+    #[TestDox('更新文件時會同步連結的實作與 relation_id')]
     public function test_update_documentation_syncs_implementations_with_relation_id()
     {
         $this->actingAsOwner();
@@ -118,6 +123,7 @@ class PivotRelationApiTest extends TestCase
         $response->assertJsonPath('data.implementations.0.relation_id', $relation->id);
     }
 
+    #[TestDox('更新文件時以新的連結集合取代舊的')]
     public function test_update_documentation_resyncs_replacing_previous_pivot_set()
     {
         $this->actingAsOwner();
@@ -148,6 +154,7 @@ class PivotRelationApiTest extends TestCase
         ]);
     }
 
+    #[TestDox('檢視文件時，巢狀技術帶有 relation_id')]
     public function test_show_documentation_resource_exposes_relation_id_on_nested_techniques()
     {
         $documentation = Documentation::factory()->create();
@@ -161,6 +168,7 @@ class PivotRelationApiTest extends TestCase
             ->assertJsonPath('techniques.0.relation_id', $relation->id);
     }
 
+    #[TestDox('不經關聯表載入的技術不帶 relation_id')]
     public function test_technique_resource_does_not_expose_relation_id_when_not_loaded_via_pivot()
     {
         $technique = Technique::factory()->create();

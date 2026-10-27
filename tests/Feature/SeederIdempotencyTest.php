@@ -6,6 +6,7 @@ use App\Models\Relation;
 use App\Models\Scope;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -17,6 +18,7 @@ class SeederIdempotencyTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[TestDox('seeder 重複執行不會產生重複資料')]
     public function test_running_twice_creates_no_duplicates()
     {
         $this->seed(DatabaseSeeder::class);
@@ -33,6 +35,7 @@ class SeederIdempotencyTest extends TestCase
         $this->assertSame($relationCount, Relation::distinct()->count('name'));
     }
 
+    #[TestDox('seeder 重複執行後，反向配對仍互相指向')]
     public function test_running_twice_keeps_every_reverse_pair_mutual()
     {
         $this->seed(DatabaseSeeder::class);
@@ -48,6 +51,7 @@ class SeederIdempotencyTest extends TestCase
         }
     }
 
+    #[TestDox('重跑 seeder 不會覆蓋後台修改過的內容')]
     public function test_rerun_does_not_overwrite_edits_made_in_the_admin()
     {
         $this->seed(DatabaseSeeder::class);
@@ -60,6 +64,7 @@ class SeederIdempotencyTest extends TestCase
         $this->assertSame('後台改過的述詞說明', Relation::where('name', 'uses')->value('note'));
     }
 
+    #[TestDox('重跑 seeder 不會重建後台刪除的資料')]
     public function test_rerun_does_not_recreate_rows_deleted_in_the_admin()
     {
         $this->seed(DatabaseSeeder::class);

@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -26,6 +27,7 @@ class WebRoutesTest extends TestCase
      * `authorize()` 擋成 403——後者代表資源路由又被註冊回來了。
      */
     #[DataProvider('writeRequestsProvider')]
+    #[TestDox('網頁路由沒有資源寫入端點，回 405')]
     public function test_web_namespace_exposes_no_resource_write_routes(string $method, string $uri)
     {
         $response = $this->call($method, $uri);
@@ -58,6 +60,7 @@ class WebRoutesTest extends TestCase
      * `npm run build` 時才會綠，推上 CI 就紅（2026-09-16 實際踩過一次）。
      * 這支測試要斷言的是「路由指到哪」，跟前端資產無關，就在路由層斷言。
      */
+    #[TestDox('/projects/create 不會導向不存在的 controller 方法')]
     public function test_projects_create_is_not_routed_to_a_missing_controller_method()
     {
         $this->assertFalse(Route::has('projects.create'), 'projects.create 不該存在——TechniqueController 沒有 create() 方法。');
@@ -75,6 +78,7 @@ class WebRoutesTest extends TestCase
     /**
      * 讀取路徑仍然只有 `/api/*` 這一份，沒有被一起移除。
      */
+    #[TestDox('API 讀取路由不受影響')]
     public function test_api_read_routes_are_untouched()
     {
         $this->getJson('/api/scopes')->assertOk();

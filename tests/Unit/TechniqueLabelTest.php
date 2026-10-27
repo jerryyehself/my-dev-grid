@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Technique;
+use PHPUnit\Framework\Attributes\TestDox;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -11,11 +12,13 @@ use PHPUnit\Framework\TestCase;
  */
 class TechniqueLabelTest extends TestCase
 {
+    #[TestDox('技術名稱會在空格後接上版本')]
     public function test_version_is_appended_after_a_space(): void
     {
         $this->assertSame('Vue 3', Technique::labelFrom('Vue', '3'));
     }
 
+    #[TestDox('版本為空時，名稱維持不變')]
     public function test_empty_version_leaves_the_title_alone(): void
     {
         $this->assertSame('Vue', Technique::labelFrom('Vue', null));
@@ -24,6 +27,7 @@ class TechniqueLabelTest extends TestCase
         $this->assertSame('Vue', Technique::labelFrom('Vue', '  '));
     }
 
+    #[TestDox('label 屬性採用相同的名稱規則')]
     public function test_accessor_uses_the_same_rule(): void
     {
         $this->assertSame('Nuxt 3', (new Technique(['title' => 'Nuxt', 'version' => '3']))->label);

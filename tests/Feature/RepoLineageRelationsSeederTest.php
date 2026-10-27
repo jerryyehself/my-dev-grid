@@ -6,6 +6,7 @@ use App\Models\EntityRelation;
 use App\Models\Implementation;
 use Database\Seeders\RepoLineageRelationsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -18,6 +19,7 @@ class RepoLineageRelationsSeederTest extends TestCase
         return Implementation::factory()->create(['title' => $title]);
     }
 
+    #[TestDox('種入已知的實作之間的傳承關係，重跑不重複')]
     public function test_it_seeds_the_known_real_implementation_relations()
     {
         $this->seed();
@@ -72,6 +74,7 @@ class RepoLineageRelationsSeederTest extends TestCase
         ])->count());
     }
 
+    #[TestDox('缺少所需 repo 時丟出明確錯誤')]
     public function test_it_throws_a_clear_error_when_a_repo_is_missing()
     {
         $this->seed();

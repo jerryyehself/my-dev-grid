@@ -9,6 +9,7 @@ use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -45,6 +46,7 @@ class ScopeCountsTest extends TestCase
         return [$top, $children];
     }
 
+    #[TestDox('scope 詳情依文件、技術、實作分別回傳數量')]
     public function test_entity_counts_are_returned_per_family()
     {
         [, $children] = $this->tree();
@@ -66,6 +68,7 @@ class ScopeCountsTest extends TestCase
     /**
      * 軟刪除的實體不算——三個實體模型都有 SoftDeletes，計數必須跟著它們的全域 scope 走。
      */
+    #[TestDox('已軟刪除的實體不計入數量')]
     public function test_soft_deleted_entities_are_not_counted()
     {
         [, $children] = $this->tree();
@@ -89,6 +92,7 @@ class ScopeCountsTest extends TestCase
      *
      * 3 個子類裡任挑一個，它的兄弟應該是 2，不是 3。
      */
+    #[TestDox('兄弟數量不含 scope 自己')]
     public function test_siblings_count_excludes_the_scope_itself()
     {
         [, $children] = $this->tree();
@@ -107,6 +111,7 @@ class ScopeCountsTest extends TestCase
     /**
      * 頂層 scope 依定義沒有兄弟，而且不該因為「扣掉自己」變成 -1。
      */
+    #[TestDox('頂層 scope 的兄弟數為 0')]
     public function test_a_top_level_scope_has_no_siblings()
     {
         [$top] = $this->tree();
@@ -120,6 +125,7 @@ class ScopeCountsTest extends TestCase
     /**
      * 述詞定義的計數（作為主詞 / 作為受詞），對應詳情頁頂層那一排。
      */
+    #[TestDox('回傳作為主詞與受詞的述詞定義數量')]
     public function test_predicate_definition_counts()
     {
         [$top, $children] = $this->tree();
@@ -142,6 +148,7 @@ class ScopeCountsTest extends TestCase
      * 所以**筆數增加不該讓查詢數增加**——這裡直接用「加到 20 筆 scope 之後，
      * 查詢數不能比空的時候多」來守，而不是寫死一個會隨實作漂移的魔術數字。
      */
+    #[TestDox('scope 列表的查詢次數不隨筆數成長')]
     public function test_scope_index_does_not_n_plus_one()
     {
         $this->tree();

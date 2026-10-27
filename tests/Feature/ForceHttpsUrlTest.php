@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Providers\AppServiceProvider;
 use Illuminate\Support\Facades\URL;
+use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
@@ -19,6 +20,7 @@ class ForceHttpsUrlTest extends TestCase
         parent::tearDown();
     }
 
+    #[TestDox('APP_URL 是 https 時，OAuth 回呼網址也用 https')]
     public function test_oauth_redirect_uri_uses_https_when_app_url_is_https()
     {
         config(['app.url' => 'https://api.example.test', 'services.google.client_id' => 'test-client']);
@@ -34,6 +36,7 @@ class ForceHttpsUrlTest extends TestCase
         );
     }
 
+    #[TestDox('APP_URL 是 http 時，產生的網址維持 http')]
     public function test_urls_stay_http_when_app_url_is_http()
     {
         config(['app.url' => 'http://localhost']);
