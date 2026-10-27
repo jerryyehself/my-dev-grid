@@ -10,7 +10,7 @@
 
 **controller 的 PHPDoc、`#[Endpoint]` 文字，以及 Resource／FormRequest 陣列 key 正上方的註解，都會原樣公開在 API 文件（`/docs/api`，Scramble）：**每個 API action 都要有 `#[\Dedoc\Scramble\Attributes\Endpoint(title: …)]`（簡短繁體中文，寫給 API 使用者看；有補充價值時再加一句 `description`），不要留 Laravel 產生的樣板註解（"Display a listing of the resource." 之類），否則它會變成端點標題。`description` 有填時會蓋掉 PHPDoc 的描述。Resource 的 `toArray()` 與 FormRequest 的 `rules()` 裡，key 正上方的註解會變成欄位說明：要給 API 讀者看的說明寫成緊貼 key 的單行 `/** … */`，開發者才需要的理由寫成它上方的 `//` 註解——key 上有 `/** */` 時，同一處的 `//` 註解不會被輸出。給 API 讀者看的文字不要出現內部決策／規格編號、issue 編號、私有 repo 路徑、內部筆數或對前端的指示。改完用 `php artisan scramble:export` 檢查輸出。API 路由要指到 controller 方法，不要寫 closure：production 會跑 `route:cache`，closure 會被序列化，Scramble 讀不到它身上的 `#[Endpoint]`，標題就掉了（檢查時要先 `php artisan route:cache` 再 export，結束後 `route:clear`）。
 
-**這條只管「跟使用者對話」跟這個 repo 本身的內容，不影響跨 session 協作文件的語言政策**——`my-dev-grid-skills` 裡的 `engineering-principles.md`、`SKILL.md` 這類跨專案共用文件基於 token 成本考量用英文主版，那是另一個 repo 的獨立政策，不代表可以把這個習慣帶進來，跟**使用者本人**互動時（不管是主 session 還是任何角色 session）一律用繁體中文，不要因為讀多了英文文件就跟著用英文回覆使用者。
+**這條只管「跟使用者對話」跟這個 repo 本身的內容。**跟使用者本人互動時一律用繁體中文，不要因為讀多了英文文件就跟著用英文回覆使用者。
 
 # 資料填充慣例（2026-09-10 使用者確認）
 
@@ -48,7 +48,7 @@
 2. **驗證範圍**：CI 的 PHPUnit（sqlite 與 pgsql 兩種都要過），加上針對這次改動的手動確認步驟。動到部署管線（`Dockerfile`、`docker/`、workflow、環境變數）、日誌／middleware／`bootstrap/app.php`／`config/`，或 `composer.lock` 相依套件的 PR，請求合併前要先跑 `scripts/smoke-test.sh`（用 repo 的 Dockerfile 建映像檔，接暫存 PostgreSQL，以 production 設定跑起來再探測），把它印出的摘要表貼到 PR（貼成 PR 留言也可以）。跑不起來就在 PR 裡寫明沒跑和原因，不要默默略過。這個 repo 是公開的，貼出去的只寫結果，不要帶內部討論或使用者的原話。
 3. **資料安全檢查**：會不會誤刪資料、影響範圍有沒有限制在該限制的地方。
 
-合併前一律先問使用者（對應 `my-dev-grid-skills` 三層判斷的第 2 層），就算 CI 全過也一樣。部署後看一次 Cloud Logging，確認沒有新錯誤。
+合併前一律先問使用者，就算 CI 全過也一樣。部署後看一次 Cloud Logging，確認沒有新錯誤。
 
 ## 資料庫結構變更的順序
 
