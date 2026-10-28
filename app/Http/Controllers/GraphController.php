@@ -17,8 +17,8 @@ use Illuminate\Support\Collection;
 
 class GraphController extends Controller
 {
-    /** `nodeId()` 產生的格式：型別、連字號、不帶前導零的正整數 id。 */
-    private const NODE_ID_PATTERN = '/^(documentation|technique|implementation)-[1-9][0-9]*$/';
+    /** `nodeId()` 產生的格式：型別、連字號、不帶前導零的正整數 id。要 public：Scramble 產生文件時要讀得到驗證規則。 */
+    public const NODE_ID_PATTERN = '/^(documentation|technique|implementation)-[1-9][0-9]*$/';
 
     /**
      * Build a nodes/edges graph across Documentation, Technique and
