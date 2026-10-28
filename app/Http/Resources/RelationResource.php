@@ -70,8 +70,9 @@ class RelationResource extends JsonResource
             // 自己的邊與反向的邊分開給：一條述詞自己的邊數可以很大、它的反向是 0，
             // 兩者都 is_referenced=true，但清單長度不同，畫面上要講的也是兩件不同的事。
             // 邊的清單本身在 GET /api/relations/{id}/edges（分頁），不塞進這裡。
-            /** 使用這條述詞的邊數。邊的清單見 `GET /relations/{relation}/edges`。 */
+            /** 使用這條述詞的邊數。邊的清單見 `GET /relations/{relation}/edges`；未登入時不含連到草稿文件或設為不公開之實作的邊，與該清單的 `total` 一致。 */
             'own_edges_count' => $this->ownEdgesCount(),
+            /** 反向述詞的邊數；計算方式同 `own_edges_count`。沒有反向述詞，或反向是自己時為 0。 */
             'reverse_edges_count' => $this->reverseEdgesCount(),
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),

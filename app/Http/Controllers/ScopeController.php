@@ -13,7 +13,7 @@ class ScopeController extends Controller
 {
     #[Endpoint(
         title: '列出分類',
-        description: '回傳所有分類，依類號、子類號排序，每筆含父層與各項關聯的筆數。',
+        description: '回傳所有分類，依類號、子類號排序，每筆含父層與各項關聯的筆數。未登入時實作的筆數不含設為不公開的專案。',
     )]
     public function index()
     {
@@ -113,7 +113,7 @@ class ScopeController extends Controller
 
     #[Endpoint(
         title: '取得分類',
-        description: '回傳單一分類，含父層、子類、同層分類與述詞，以及子類、同層分類、述詞、文件、技術、實作的筆數（不列出實體本身）。另附建立子類時可用的下一個子類號。',
+        description: '回傳單一分類，含父層、子類、同層分類與述詞，以及子類、同層分類、述詞、文件、技術、實作的筆數（不列出實體本身；未登入時實作的筆數不含設為不公開的專案）。另附建立子類時可用的下一個子類號。',
     )]
     public function show(Scope $scope)
     {
@@ -131,15 +131,7 @@ class ScopeController extends Controller
         // 清單（子類、兄弟、述詞定義），loadCount() 補的是「屬於這個 scope 的
         // 實體有幾筆」——那組實體**不會**在這支端點列出來（可能上百筆，要分頁），
         // 只給數字。
-        $scope->loadCount([
-            'children',
-            'siblings',
-            'subjectOf',
-            'objectOf',
-            'documentations',
-            'techniques',
-            'implementations',
-        ]);
+        $scope->loadCount(Scope::detailCounts());
 
         // withFormHints()：只有這支端點會把 new_child_call_number 算出來。
         // my-dev-grid-front 的分類編輯頁打的就是這裡,拿它預填新增表單的子類號。
