@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Documentation;
+use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Technique;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -28,8 +29,8 @@ use Illuminate\Support\Facades\DB;
  *
  * 實體都有 SoftDeletes，這裡是裸的 query builder、吃不到全域 scope，所以每個分支
  * 都自己 `whereNull('deleted_at')`——否則已刪除的實體會從邊的清單裡冒出來。
- * 同一個理由，草稿文章也要自己濾：沒登入的請求看不到草稿，連到草稿的邊也不列
- * （`Documentation::viewerCanSeeDrafts()`，2026-09-30）。
+ * 同一個理由，草稿文章與不公開的專案也要自己濾：沒登入的請求看不到它們，連到它們的
+ * 邊也不列（`Documentation::viewerCanSeeDrafts()`、`Implementation::viewerCanSeeHidden()`）。
  *
  * `subject_title`／`object_title` 是**顯示用的名稱**：技術帶版本（「Vue 3」），規則跟
  * 圖譜節點的 label 是同一條 `Technique::labelFrom()`（2026-10-03）。只取 title 的話，
@@ -44,9 +45,12 @@ class RelationEdgeQuery
 
     private readonly bool $includeDrafts;
 
+    private readonly bool $includeHiddenImplementations;
+
     public function __construct(private readonly Relation $relation)
     {
         $this->includeDrafts = Documentation::viewerCanSeeDrafts();
+        $this->includeHiddenImplementations = Implementation::viewerCanSeeHidden();
     }
 
     public function paginate(?int $perPage = null): LengthAwarePaginator
@@ -147,7 +151,7 @@ class RelationEdgeQuery
             ->where('link.relation_id', $this->relation->id)
             ->select($this->columns($subjectType, $objectType, $table));
 
-        return $this->hideDrafts($query, ['subject' => $subjectType, 'object' => $objectType]);
+        return $this->hideFromViewer($query, ['subject' => $subjectType, 'object' => $objectType]);
     }
 
     /**
@@ -164,23 +168,27 @@ class RelationEdgeQuery
             ->where('link.relation_id', $this->relation->id)
             ->select($this->columns($type, $type, 'entity_relations'));
 
-        return $this->hideDrafts($query, ['subject' => $type, 'object' => $type]);
+        return $this->hideFromViewer($query, ['subject' => $type, 'object' => $type]);
     }
 
     /**
-     * 主詞或受詞是文章、而這次請求看不到草稿時，只留已發布的那一端。
+     * 拿掉這次請求看不到的那一端：看不到草稿時，文章只留已發布的；看不到不公開的專案時，
+     * 專案只留公開的。
+     *
+     * 這裡是裸的 query builder，用不到 `Implementation::visibleToViewer()` 這個 Eloquent
+     * scope，所以條件另外寫一份；判斷看不看得到，仍然交給 model 上的那個方法。
      *
      * @param  array{subject:string, object:string}  $types  別名 => 實體型別
      */
-    private function hideDrafts(Builder $query, array $types): Builder
+    private function hideFromViewer(Builder $query, array $types): Builder
     {
-        if ($this->includeDrafts) {
-            return $query;
-        }
-
         foreach ($types as $alias => $type) {
-            if ($type === 'documentation') {
+            if ($type === 'documentation' && ! $this->includeDrafts) {
                 $query->where($alias.'.status', Documentation::STATUS_PUBLISHED);
+            }
+
+            if ($type === 'implementation' && ! $this->includeHiddenImplementations) {
+                $query->where($alias.'.is_visible', true);
             }
         }
 

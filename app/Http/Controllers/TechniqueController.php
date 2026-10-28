@@ -59,11 +59,15 @@ class TechniqueController extends Controller
 
     #[Endpoint(
         title: '取得技術',
-        description: '回傳單一技術，含所屬分類、關聯的實作，以及關聯的文件（未登入時不含草稿）。',
+        description: '回傳單一技術，含所屬分類、關聯的實作（未登入時不含設為不公開的），以及關聯的文件（未登入時不含草稿）。',
     )]
     public function show(Technique $technique)
     {
-        $technique->load(['scope', 'documentations' => fn ($query) => $query->visibleToViewer(), 'implementations']);
+        $technique->load([
+            'scope',
+            'documentations' => fn ($query) => $query->visibleToViewer(),
+            'implementations' => fn ($query) => $query->visibleToViewer(),
+        ]);
 
         return response()->json(new TechniqueResource($technique));
     }
