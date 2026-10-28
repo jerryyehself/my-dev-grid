@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\SetCURIEAttribute;
+use Closure;
 use Database\Factories\ScopeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -89,14 +90,28 @@ class Scope extends Model
      */
     public function scopeWithDetailCounts($query)
     {
-        return $query->withCount([
+        return $query->withCount(self::detailCounts());
+    }
+
+    /**
+     * `withCount()`／`loadCount()` 要數的關聯。清單與詳情共用，兩邊的數字才不會對不上。
+     *
+     * `implementations` 沒登入時不數設為不公開的專案（`Implementation::visibleToViewer()`）：
+     * 讀取端點是公開的，計數若把它們算進去，訪客對得出「清單上少了幾個」。回應的欄位名
+     * 仍是 `implementations_count`（`withCount` 的別名取關聯名）。登入後數全部。
+     *
+     * @return array<int|string, string|Closure>
+     */
+    public static function detailCounts(): array
+    {
+        return [
             'children',
             'siblings',
             'subjectOf',
             'objectOf',
             'documentations',
             'techniques',
-            'implementations',
-        ]);
+            'implementations' => fn ($query) => $query->visibleToViewer(),
+        ];
     }
 }

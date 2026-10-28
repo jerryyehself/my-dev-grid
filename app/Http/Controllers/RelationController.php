@@ -17,7 +17,7 @@ class RelationController extends Controller
 {
     #[Endpoint(
         title: '列出述詞',
-        description: '回傳所有述詞，依類號、子類號排序，每筆含父層、主體與客體分類，以及被引用的狀態。',
+        description: '回傳所有述詞，依類號、子類號排序，每筆含父層、主體與客體分類，以及被引用的狀態與使用它的邊數。未登入時邊數不含連到草稿文件或設為不公開之實作的邊。',
     )]
     public function index()
     {
@@ -127,7 +127,7 @@ class RelationController extends Controller
         );
 
         return response()->json([
-            'data' => new RelationResource($relation->loadCount(Relation::LINK_RELATIONS)->load(['parent', 'children', 'reverse' => fn ($q) => $q->withCount(Relation::LINK_RELATIONS)])),
+            'data' => new RelationResource($relation->loadCount(Relation::referenceCounts())->load(['parent', 'children', 'reverse' => fn ($q) => $q->withCount(Relation::referenceCounts())])),
             'message' => $relation->wasRecentlyCreated
                 ? 'Relation created.'
                 : 'Relation already exists.',
@@ -136,7 +136,7 @@ class RelationController extends Controller
 
     #[Endpoint(
         title: '取得述詞',
-        description: '回傳單一述詞，含父層、子述詞、反向述詞，以及它被使用的邊數與是否被引用。另附建立子述詞時可用的下一個子類號。',
+        description: '回傳單一述詞，含父層、子述詞、反向述詞，以及它被使用的邊數與是否被引用（未登入時邊數不含連到草稿文件或設為不公開之實作的邊）。另附建立子述詞時可用的下一個子類號。',
     )]
     public function show(Relation $relation)
     {
@@ -144,8 +144,8 @@ class RelationController extends Controller
 
         // own_edges_count / reverse_edges_count / is_referenced 都靠這組計數。
         // 不預載的話它們會各自去查連結表,而且反向那條還要再查一輪。
-        $relation->loadCount(Relation::LINK_RELATIONS)
-            ->load(['reverse' => fn ($query) => $query->withCount(Relation::LINK_RELATIONS)]);
+        $relation->loadCount(Relation::referenceCounts())
+            ->load(['reverse' => fn ($query) => $query->withCount(Relation::referenceCounts())]);
 
         // withFormHints()：只有這支端點算 new_child_call_number（預填新增表單的
         // 子類號用）。清單頁不開，那是 N+1 的來源（見 RelationResource 的註解）。

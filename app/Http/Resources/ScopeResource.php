@@ -80,7 +80,7 @@ class ScopeResource extends JsonResource
             // 屬於這個 scope 的實體。三族分開給，不要只給一個總數——
             // 一個 scope 實際上只會有其中一族（頂層三族都是 0），分開給才看得出
             // 是哪一族，也免得呼叫端自己去猜。
-            /** 屬於這個分類的文件筆數；技術、實作分別是 `techniques_count`、`implementations_count`。 */
+            /** 屬於這個分類的文件筆數；技術、實作分別是 `techniques_count`、`implementations_count`；未登入時 `implementations_count` 不含設為不公開的專案。 */
             'documentations_count' => $this->whenCounted('documentations'),
             'techniques_count' => $this->whenCounted('techniques'),
             'implementations_count' => $this->whenCounted('implementations'),

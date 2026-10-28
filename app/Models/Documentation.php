@@ -51,6 +51,18 @@ class Documentation extends Model
         return self::viewerCanSeeDrafts() ? $query : $query->where('status', self::STATUS_PUBLISHED);
     }
 
+    /**
+     * 草稿，不管這次請求有沒有登入。用來算出要從公開計數拿掉的端點。
+     *
+     * `status` 為 NULL 也算草稿，條件跟圖譜的 `hiddenNodeIds()` 一致。
+     */
+    public function scopeDraft(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $draft) => $draft
+            ->where($query->qualifyColumn('status'), '!=', self::STATUS_PUBLISHED)
+            ->orWhereNull($query->qualifyColumn('status')));
+    }
+
     public function isPublished(): bool
     {
         return (int) $this->status === self::STATUS_PUBLISHED;
