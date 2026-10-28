@@ -38,6 +38,7 @@
 #   - 用暫存的 Dockerfile 副本（不動 repo 的 Dockerfile），每個 FROM 後面放進
 #     合併過的 CA bundle 並設好 SSL_CERT_FILE／CURL_CA_BUNDLE／NODE_EXTRA_CA_CERTS
 #   - 把 `RUN composer install ...` 換成 no-op，改在 host 上裝 vendor 再 COPY 進去
+#     （checkout 已有 vendor/ 且跟 composer.lock 對得上就重用，不用整個重下載）
 # 跟正式環境的差別只有「CA」與「vendor 在哪裡安裝」，其餘層完全相同。
 
 set -euo pipefail
@@ -231,7 +232,7 @@ print_summary() {
     fi
     if [ "$SANDBOX" = 1 ]; then
       echo
-      echo "> sandbox 模式與正式環境的差異只有兩項：映像檔內多放了出口 proxy 的 CA，以及 vendor/ 是在 host 上安裝後再 COPY 進映像檔。"
+      echo "> sandbox 模式與正式環境的差異只有兩項：映像檔內多放了出口 proxy 的 CA，以及 vendor/ 是在 host 上安裝（有現成的 vendor/ 就重用）後再 COPY 進映像檔。"
     fi
   )"
   echo
@@ -391,14 +392,78 @@ PY
   # Dockerfile 專屬的 ignore 檔：跟 repo 的 .dockerignore 一樣，只是不排除 vendor
   grep -vxE 'vendor/?' "$WT/.dockerignore" >"$TMP/Dockerfile.smoke.dockerignore"
 
-  # vendor 在 host 端安裝（容器內裝會因為 proxy 重簽憑證而下載失敗）
+  # vendor 在 host 端安裝（容器內裝會因為 proxy 重簽憑證而下載失敗）。
+  #
+  # 這個環境裡 composer 抓不到 zipball，會退回用 git 原始碼逐套件下載，一次要
+  # 約 8 分鐘、佔好幾 GB。所以如果跑腳本的 checkout 已經有 vendor/，就直接重用：
+  #   1. 用 hardlink 複製（cp -al，不佔額外空間、也很快）到 worktree
+  #   2. vendor/composer/ 與 vendor/ 頂層的檔案（autoload.php）改成真正的複製：
+  #      composer 會就地改寫這些檔案，hardlink 的話會連 checkout 的 vendor 一起被改到
+  #   3. 照常跑 composer install --no-dev：lock 對得上的話，只會移除 dev 套件、
+  #      重新產生 autoloader，不會下載任何東西
+  # 套件目錄本身維持 hardlink 沒問題：composer 移除或換版本時是 unlink 整個目錄的
+  # 檔案再重新解壓，只會動到 worktree 這邊的目錄項目，不會改到 checkout 的 vendor。
+  # 重用的條件：vendor/composer/installed.json 存在，而且正式（非 dev）套件裡，
+  # 跟 worktree 的 composer.lock 版本或 commit 對不上的不超過 VENDOR_REUSE_MAX_MISMATCH
+  # 個（對不上的那幾個 composer 會自己補下載）。差太多就不如整個重裝，退回完整安裝。
+  VENDOR_REUSE_MAX_MISMATCH=10
+  VENDOR_REUSED=0
+  VENDOR_SRC="$REPO_ROOT/vendor"
+  if [ -f "$VENDOR_SRC/composer/installed.json" ]; then
+    VENDOR_MISMATCH="$(python3 -I - "$WT/composer.lock" "$VENDOR_SRC/composer/installed.json" <<'PY' 2>/dev/null || echo "?"
+import json
+import sys
+
+lock = json.load(open(sys.argv[1], encoding="utf-8"))
+installed = json.load(open(sys.argv[2], encoding="utf-8"))
+have = {p["name"]: p for p in installed["packages"]}
+
+
+def ref(pkg):
+    return (pkg.get("source") or {}).get("reference") or (pkg.get("dist") or {}).get("reference")
+
+
+print(sum(
+    1
+    for p in lock["packages"]
+    if p["name"] not in have
+    or have[p["name"]]["version"] != p["version"]
+    or ref(have[p["name"]]) != ref(p)
+))
+PY
+)"
+    if [[ "$VENDOR_MISMATCH" =~ ^[0-9]+$ ]] && [ "$VENDOR_MISMATCH" -le "$VENDOR_REUSE_MAX_MISMATCH" ]; then
+      if cp -al "$VENDOR_SRC" "$WT/vendor" 2>/dev/null \
+        && rm -rf "$WT/vendor/composer" && cp -a "$VENDOR_SRC/composer" "$WT/vendor/composer" \
+        && find "$VENDOR_SRC" -maxdepth 1 -type f -printf '%f\n' | while IFS= read -r f; do
+          cp --remove-destination -p "$VENDOR_SRC/$f" "$WT/vendor/$f" || exit 1
+        done; then
+        VENDOR_REUSED=1
+        echo "重用 $VENDOR_SRC（與 composer.lock 差 ${VENDOR_MISMATCH} 個套件），只移除 dev 套件、重建 autoloader"
+      else
+        echo "複製 $VENDOR_SRC 失敗（不同檔案系統？），退回完整安裝"
+        rm -rf "$WT/vendor"
+      fi
+    else
+      echo "$VENDOR_SRC 與 composer.lock 差太多（${VENDOR_MISMATCH} 個套件），退回完整安裝"
+    fi
+  else
+    echo "$VENDOR_SRC 不存在，退回完整安裝"
+  fi
+
   REMOTE_BEFORE="$(git -C "$REPO_ROOT" remote -v)"
   echo "host 端 composer install（--no-dev，沿用 Dockerfile 的參數）…"
+  COMPOSER_START=$SECONDS
   if ! (cd "$WT" && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-scripts --no-interaction --no-progress --optimize-autoloader --ignore-platform-reqs) >"$TMP/composer.log" 2>&1; then
     tail -20 "$TMP/composer.log" | cut -c1-300
     die "host composer install" "失敗（完整輸出：$TMP/composer.log）"
   fi
-  record pass "host composer install" "vendor 安裝在 worktree（--no-dev --ignore-platform-reqs）"
+  COMPOSER_SECS=$((SECONDS - COMPOSER_START))
+  if [ "$VENDOR_REUSED" = 1 ]; then
+    record pass "host composer install" "重用 checkout 的 vendor 後移除 dev 套件（--no-dev --ignore-platform-reqs，${COMPOSER_SECS} 秒）"
+  else
+    record pass "host composer install" "完整安裝 vendor 到 worktree（--no-dev --ignore-platform-reqs，${COMPOSER_SECS} 秒）"
+  fi
 
   # 已知陷阱：以 root 跑 composer 之後 repo 的 git remote 可能被改掉
   REMOTE_AFTER="$(git -C "$REPO_ROOT" remote -v)"
@@ -601,16 +666,26 @@ fi
 db_start
 wait_pg || record fail "資料庫重新啟動" "40 秒內沒有就緒"
 
-# /docs/api.json（Scramble）
-if docker run --rm "$IMAGE" test -d vendor/dedoc/scramble >/dev/null 2>&1; then
+# /docs/api、/docs/api.json（Scramble）：config/scramble.php 掛了 RestrictedDocsAccess 的 ref，
+# 文件只在 local 提供，這裡（APP_ENV=production）要回 403；更早的 ref 文件公開，回 200。
+if ! docker run --rm "$IMAGE" test -d vendor/dedoc/scramble >/dev/null 2>&1; then
+  record skip "GET /docs/api.json" "此 ref 沒有安裝 Scramble"
+elif docker run --rm "$IMAGE" grep -q RestrictedDocsAccess config/scramble.php >/dev/null 2>&1; then
+  for docs_path in /docs/api /docs/api.json; do
+    http_req docs "$BASE$docs_path"
+    if [ "$HTTP_CODE" = 403 ]; then
+      record pass "GET $docs_path → 403（正式環境不提供文件）"
+    else
+      record fail "GET $docs_path → 403（正式環境不提供文件）" "實際 $HTTP_CODE"
+    fi
+  done
+else
   http_req docs "$BASE/docs/api.json"
   if [ "$HTTP_CODE" = 200 ]; then
     record pass "GET /docs/api.json → 200"
   else
     record fail "GET /docs/api.json → 200" "實際 $HTTP_CODE"
   fi
-else
-  record skip "GET /docs/api.json → 200" "此 ref 沒有安裝 Scramble"
 fi
 
 # ---------------------------------------------------------------------------

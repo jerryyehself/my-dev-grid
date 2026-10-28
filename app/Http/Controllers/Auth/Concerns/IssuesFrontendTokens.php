@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth\Concerns;
 
 use App\Http\RefreshTokenCookie;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\RefreshTokenFamilies;
 use D076\SanctumRefreshTokens\DTOs\TokensDTO;
@@ -36,7 +37,7 @@ trait IssuesFrontendTokens
 
         return response()
             ->json([
-                'data' => $tokens->user,
+                'data' => new UserResource($tokens->user),
                 'token' => $tokens->access_token,
                 'expires_in' => $expiresIn,
             ])
