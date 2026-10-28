@@ -17,7 +17,7 @@ use Throwable;
  * 不是建立 session。理由同 TokenLoginController 的類別註解，不重複寫。
  *
  * 用 `redirectUrl()` 明確指定這支自己的 callback 網址，不吃
- * config/services.php 的 `redirect`（那個是 SocialAuthController／Triple
+ * config/services.php 的 `redirect`（那個是 SocialAuthController
  * 在用的預設值）——這代表 issue #49 申請正式 OAuth 憑證時，Google／LINE
  * 兩邊都要把「兩個」callback 網址都登記成 authorized redirect URI，
  * 不是只登記 SocialAuthController 那一個。

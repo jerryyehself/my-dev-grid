@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
 class CurrentUserController extends Controller
 {
     // 前端（SPA）開機時拿這支確認目前的登入狀態——未登入回 401，
-    // 已登入回目前的 User。`auth:sanctum` 對 Triple（session cookie）跟
+    // 已登入回目前的 User。`auth:sanctum` 對同源 session cookie 跟
     // my-dev-grid-front（bearer token）一視同仁，兩種認證方式都吃。
     #[Endpoint(
         title: '取得目前使用者',

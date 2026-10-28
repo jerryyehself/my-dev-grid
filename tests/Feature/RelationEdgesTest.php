@@ -18,7 +18,7 @@ use Tests\TestCase;
  * 「使用這個述詞的邊」——計數與分頁清單（規格「本體論編輯規格」B5）。
  *
  * 在此之前 `/api/relations/{id}` 只有 `is_referenced`（布林）跟 `referenced_via`，
- * 問不到 84 這個數字，也拿不到那些邊本身。Triple 的「關聯數量」算的則是
+ * 問不到 84 這個數字，也拿不到那些邊本身。當時後台（Triple）的「關聯數量」算的則是
  * `object_of + subject_of` 的長度——那是**述詞定義**的數量，不是邊的數量，
  * 是另一個東西。
  */

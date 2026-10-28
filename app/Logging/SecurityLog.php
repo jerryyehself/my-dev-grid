@@ -43,7 +43,7 @@ final class SecurityLog
 
     /**
      * @param  string  $method  google、line、password
-     * @param  string  $mode  session（Triple 後台）或 token（my-dev-grid-front）
+     * @param  string  $mode  session（同源 cookie）或 token（my-dev-grid-front）
      */
     public static function loginSucceeded(int|string $userId, string $method, string $mode): void
     {

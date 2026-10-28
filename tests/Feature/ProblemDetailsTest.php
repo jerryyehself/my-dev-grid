@@ -19,7 +19,7 @@ use Tests\TestCase;
 
 /**
  * API 的 4xx／5xx 回應是 RFC 9457 problem details（App\Http\ProblemDetails），
- * 同時保留 Laravel 原本的 `message`、`errors`——前端（my-dev-grid-front）跟 Triple
+ * 同時保留 Laravel 原本的 `message`、`errors`——前端（my-dev-grid-front）
  * 讀的就是這兩個欄位跟狀態碼，這支測試同時釘住「新格式」跟「舊欄位還在」。
  */
 class ProblemDetailsTest extends TestCase
@@ -274,7 +274,7 @@ class ProblemDetailsTest extends TestCase
     }
 
     /**
-     * Triple 用的 session 登入（routes/web.php）帶 Accept: application/json，錯誤一樣是 problem details。
+     * session 模式的登入（routes/web.php）帶 Accept: application/json，錯誤一樣是 problem details。
      */
     #[TestDox('/api 以外的 JSON 請求也回 problem details')]
     public function test_json_requests_outside_api_prefix_also_get_problem_details()

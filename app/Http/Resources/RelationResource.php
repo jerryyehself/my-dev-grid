@@ -17,9 +17,9 @@ class RelationResource extends JsonResource
      * 只是 `RelationReferenceLockTest` 守的是查詢數上限（12），沒有守「筆數成長時
      * 查詢數不准跟著長」，所以一直沒被看見。
      *
-     * 消費端只有一個而且只打 show：Triple 的 `fetchCallNumberByClass()`
-     * （`AppTripleEdit.vue` / `AppTripleNew.vue`）打 `/api/relations/{id}` 預填新增
-     * 表單的子類號。清單頁與巢狀資源沒有人讀。
+     * 只在 show 開：原本的消費端是已移除的 Triple 後台，新增表單打
+     * `/api/relations/{id}` 預填子類號；my-dev-grid-front 目前沒有讀這個欄位。
+     * 清單頁與巢狀資源沒有人讀。
      */
     protected bool $withFormHints = false;
 

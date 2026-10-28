@@ -22,7 +22,7 @@ use Symfony\Component\HttpFoundation\Response;
  *       "errors": { "name": ["名稱為必填。"] } // 只有 422 才有，Laravel 原本的欄位，保留
  *     }
  *
- * 向下相容：`message`、`errors` 跟原本的值完全一樣（前端與 Triple 讀的就是這兩個欄位
+ * 向下相容：`message`、`errors` 跟原本的值完全一樣（前端讀的就是這兩個欄位
  * 跟狀態碼），problem details 的欄位是**加上去**的；其他自訂欄位（例如
  * RelationLockedException 的 `locked_fields`）也原樣保留，算 RFC 9457 的 extension member。
  *
@@ -39,7 +39,7 @@ class ProblemDetails
 
     /**
      * 這個請求的錯誤要不要用 JSON（problem details）回：`/api` 底下的一律要，
-     * 其他路徑（`routes/web.php` 的 Triple 登入等）看用戶端有沒有要 JSON。
+     * 其他路徑（`routes/web.php` 的 session 登入等）看用戶端有沒有要 JSON。
      *
      * `/api` 不看 Accept 的理由：前端的 GET／DELETE 沒有帶 `Accept: application/json`，
      * 只看 Accept 的話，同一支 API 查無資料時會回 Laravel 的 HTML 錯誤頁，

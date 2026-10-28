@@ -142,7 +142,7 @@ class ScopeController extends Controller
         ]);
 
         // withFormHints()：只有這支端點會把 new_child_call_number 算出來。
-        // Triple 的 fetchCallNumberByClass() 打的就是這裡,拿它預填新增表單的子類號。
+        // my-dev-grid-front 的分類編輯頁打的就是這裡,拿它預填新增表單的子類號。
         // 清單頁跟巢狀資源不開,那是 N+1 的來源(見 ScopeResource 的註解)。
         return response()->json(
             (new ScopeResource($scope))->withFormHints()

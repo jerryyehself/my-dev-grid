@@ -20,10 +20,9 @@ class ScopeResource extends JsonResource
      * 的計數功能更早存在，只是從來沒有人量過——`ScopeCountsTest` 的查詢數測試是這次
      * 才把它逼出來的。
      *
-     * 實際的消費端只有一個，而且只打 show：Triple 的 `fetchCallNumberByClass()`
-     * （`AppTripleEdit.vue` / `AppTripleNew.vue`）打 `/api/scopes/{id}`，拿它來預填
-     * 新增表單的子類號。清單頁、巢狀的 parent/children 都沒有任何人讀這個欄位。
-     * `my-dev-grid-front` 整個 repo 也沒有出現過這個欄位名。
+     * 實際的消費端只有一個，而且只打 show：my-dev-grid-front 的分類編輯頁對選到的
+     * 父層打 `/api/scopes/{id}`，拿它來預填新增表單的子類號。清單頁、巢狀的
+     * parent/children 都沒有任何人讀這個欄位。
      */
     protected bool $withFormHints = false;
 
