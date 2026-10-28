@@ -1,5 +1,7 @@
 <?php
 
+use Dedoc\Scramble\Http\Middleware\RestrictedDocsAccess;
+
 return [
     /*
      * Which routes to document. String or array form; use Scramble::routes() for custom selection.
@@ -194,12 +196,17 @@ return [
     'flatten_deep_query_parameters' => true,
 
     /*
-     * 文件頁（/docs/api）與 OpenAPI JSON（/docs/api.json）公開、唯讀，所以不掛
-     * RestrictedDocsAccess（它預設只在 local 環境放行）。每次請求都會重新分析程式碼產生
-     * 文件，套上跟 API 同一個 'api' limiter（每分鐘 60 次／IP）。
+     * 文件頁（/docs/api）與 OpenAPI JSON（/docs/api.json）只在本機開發環境（APP_ENV=local）
+     * 提供：RestrictedDocsAccess 在 local 以外的環境一律回 403（它會再查 `viewApiDocs`
+     * gate，這個專案沒有定義，所以登入也一樣擋）。需要文件檔時，用 CI（Tests workflow）
+     * 跑 `scramble:export` 匯出的 OpenAPI JSON artifact。
+     *
+     * 每次請求都會重新分析程式碼產生文件，所以 local 也套上跟 API 同一個 'api' limiter
+     * （每分鐘 60 次／IP）。
      */
     'middleware' => [
         'throttle:api',
+        RestrictedDocsAccess::class,
     ],
 
     'extensions' => [],

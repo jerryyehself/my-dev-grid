@@ -102,7 +102,10 @@ class WebRoutesTest extends TestCase
             $this->assertTrue(Route::has($name), "登入路由 {$name} 不該跟著舊後台一起被移除。");
         }
 
+        // API 文件只在 local 環境提供（config/scramble.php），其他環境的行為見 ApiDocsTest
+        $this->app['env'] = 'local';
         $this->get('/docs/api.json')->assertOk();
+
         $this->getJson('/api/scopes')->assertOk();
         $this->getJson('/api/relations')->assertOk();
     }

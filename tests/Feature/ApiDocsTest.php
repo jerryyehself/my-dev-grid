@@ -2,25 +2,64 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
  * API 文件（Scramble，D-118）：`/docs/api` 是文件頁、`/docs/api.json` 是 OpenAPI 文件，
- * 不用登入就能看（測試環境不是 local，Scramble 預設的存取限制在這裡會擋成 403）。
+ * 只在本機開發環境（APP_ENV=local）提供，其他環境由 RestrictedDocsAccess 擋成 403
+ * （config/scramble.php）。驗證文件內容的測試先把環境切成 local。
  */
 class ApiDocsTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // phpunit.xml 的 APP_ENV 是 testing；RestrictedDocsAccess 看的是 app()->environment()
+        $this->app['env'] = 'local';
+    }
 
     private function document(): array
     {
         return $this->getJson('/docs/api.json')->assertOk()->json();
     }
 
-    #[TestDox('API 文件頁不需登入即可瀏覽')]
-    public function test_docs_page_is_public()
+    /**
+     * 正式環境不提供文件：這兩個路由每次請求都會重新分析程式碼，也會列出完整的路由清單。
+     * 登入也一樣擋——RestrictedDocsAccess 在非 local 環境會查 `viewApiDocs` gate，
+     * 這個專案沒有定義它，所以沒有人能通過。
+     */
+    #[DataProvider('nonLocalEnvironmentsProvider')]
+    #[TestDox('非 local 環境請求 API 文件回 403')]
+    public function test_docs_are_forbidden_outside_local(string $environment)
+    {
+        $this->app['env'] = $environment;
+
+        $this->get('/docs/api')->assertForbidden();
+        $this->getJson('/docs/api.json')->assertForbidden();
+
+        $this->actingAs(User::factory()->create());
+
+        $this->get('/docs/api')->assertForbidden();
+        $this->getJson('/docs/api.json')->assertForbidden();
+    }
+
+    public static function nonLocalEnvironmentsProvider(): array
+    {
+        return [
+            'production' => ['production'],
+            'testing' => ['testing'],
+        ];
+    }
+
+    #[TestDox('local 環境的 API 文件頁不需登入即可瀏覽')]
+    public function test_docs_page_is_public_in_local()
     {
         $this->get('/docs/api')
             ->assertOk()
