@@ -9,7 +9,9 @@ use App\Models\Relation;
 use App\Models\Technique;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -131,6 +133,28 @@ class ImplementationVisibilityTest extends TestCase
             ->assertJsonMissing(['title' => '不公開的專案']);
     }
 
+    #[TestDox('帶無效 token 時，查詢次數不隨專案筆數增加')]
+    public function test_an_invalid_token_does_not_cost_one_token_lookup_per_row()
+    {
+        // 登入態判斷每一列都會呼叫（ImplementationResource 的 is_visible），
+        // token 無效時 Sanctum 不會記住結果，沒有快取就會每一列各查一次 token 表
+        $countQueries = function (): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $this->withToken('1|not-a-real-token')->getJson('/api/implementations')->assertOk();
+            $count = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $count;
+        };
+
+        $baseline = $countQueries();
+        Implementation::factory()->count(20)->create();
+        $afterGrowth = $countQueries();
+
+        $this->assertSame($baseline, $afterGrowth, "專案多 20 筆後查詢數從 {$baseline} 次變成 {$afterGrowth} 次。");
+    }
+
     #[TestDox('訪客的圖不含不公開的專案節點與連到它的邊')]
     public function test_guest_graph_drops_hidden_implementation_nodes_and_their_edges()
     {
@@ -179,6 +203,40 @@ class ImplementationVisibilityTest extends TestCase
         $this->getJson("/api/graph/path?start=technique-{$isolated->id}&end=technique-{$this->technique->id}")
             ->assertOk()
             ->assertJson(['found' => false]);
+    }
+
+    /** @return array<string, array{0: string}> */
+    public static function malformedNodeIds(): array
+    {
+        return [
+            '前導零' => ['0%d'],
+            '加號' => ['+%d'],
+            '尾端多字' => ['%dx'],
+        ];
+    }
+
+    #[TestDox('路徑查詢的節點 id 格式不符時回 422')]
+    #[DataProvider('malformedNodeIds')]
+    public function test_path_rejects_malformed_node_ids(string $idFormat)
+    {
+        $draft = Documentation::factory()->create(['title' => '草稿文章', 'status' => 0]);
+
+        foreach (['implementation' => $this->hidden, 'documentation' => $draft] as $type => $model) {
+            $nodeId = $type.'-'.sprintf($idFormat, $model->id);
+
+            $this->getJson("/api/graph/path?start={$nodeId}&end={$nodeId}")
+                ->assertUnprocessable()
+                ->assertJsonMissing(['label' => $model->title]);
+        }
+    }
+
+    #[TestDox('訪客以同一個不公開專案為起訖點時找不到，也沒有標題')]
+    public function test_guest_path_from_a_hidden_implementation_to_itself_is_not_found()
+    {
+        $this->getJson("/api/graph/path?start={$this->hiddenNodeId()}&end={$this->hiddenNodeId()}")
+            ->assertOk()
+            ->assertJson(['found' => false, 'nodes' => []])
+            ->assertJsonMissing(['label' => '不公開的專案']);
     }
 
     #[TestDox('登入後查路徑可以經過不公開的專案')]

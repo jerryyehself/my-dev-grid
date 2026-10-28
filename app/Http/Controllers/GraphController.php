@@ -17,6 +17,9 @@ use Illuminate\Support\Collection;
 
 class GraphController extends Controller
 {
+    /** `nodeId()` 產生的格式：型別、連字號、不帶前導零的正整數 id。 */
+    private const NODE_ID_PATTERN = '/^(documentation|technique|implementation)-[1-9][0-9]*$/';
+
     /**
      * Build a nodes/edges graph across Documentation, Technique and
      * Implementation.
@@ -82,14 +85,15 @@ class GraphController extends Controller
     // 同 index()：手動組的回應，在這裡寫明形狀。找不到路徑時 found 是 false、nodes／edges 是空陣列。
     #[Endpoint(
         title: '查詢最短路徑',
-        description: '以 `start`、`end`（節點 id）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。找不到路徑，或起訖點是看不到的草稿或不公開的實作時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
+        description: '以 `start`、`end`（節點 id，格式同 `GET /graph` 的 `id`，例如 `technique-12`；格式不符時回 422）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。找不到路徑，或起訖點是看不到的草稿或不公開的實作時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
     )]
     #[Response(200, type: 'array{found: bool, nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, storedDirection: "forward"|"reverse", hasDefinedReverse: bool}>}')]
     public function path(Request $request)
     {
+        // 只收 index() 產生的那種 node id
         $validated = $request->validate([
-            'start' => ['required', 'string'],
-            'end' => ['required', 'string'],
+            'start' => ['required', 'string', 'regex:'.self::NODE_ID_PATTERN],
+            'end' => ['required', 'string', 'regex:'.self::NODE_ID_PATTERN],
         ]);
         $start = $validated['start'];
         $end = $validated['end'];
@@ -379,10 +383,11 @@ class GraphController extends Controller
             $idsByType[$type][] = (int) $rawId;
         }
 
+        // 跟 index() 一樣套用可見性條件
         $models = [
-            'documentation' => Documentation::whereIn('id', $idsByType['documentation'])->get()->keyBy('id'),
+            'documentation' => Documentation::visibleToViewer()->whereIn('id', $idsByType['documentation'])->get()->keyBy('id'),
             'technique' => Technique::whereIn('id', $idsByType['technique'])->get()->keyBy('id'),
-            'implementation' => Implementation::whereIn('id', $idsByType['implementation'])->get()->keyBy('id'),
+            'implementation' => Implementation::visibleToViewer()->whereIn('id', $idsByType['implementation'])->get()->keyBy('id'),
         ];
 
         return collect($nodeIds)->map(function (string $nodeId) use ($models) {

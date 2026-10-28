@@ -42,7 +42,7 @@ class Implementation extends Model
      */
     public static function viewerCanSeeHidden(): bool
     {
-        return auth('sanctum')->check();
+        return User::viewerIsSignedIn();
     }
 
     /**
