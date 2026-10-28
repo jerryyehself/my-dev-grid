@@ -39,7 +39,7 @@ class TokenLoginController extends Controller
         title: '登入',
         description: '以 email 與密碼登入，回傳 access token（有效 15 分鐘）；refresh token 另外以 httpOnly cookie 設定。帳號或密碼錯誤回 422。每個 IP 每分鐘最多 5 次。',
     )]
-    #[Response(200, '登入成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
+    #[Response(200, '登入成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Http\\Resources\\UserResource, token: string, expires_in: int|null}')]
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([
