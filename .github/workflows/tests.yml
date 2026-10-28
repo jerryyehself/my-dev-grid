@@ -21,6 +21,11 @@ name: Tests
 #
 # Also checks code style with `pint --test` (Laravel preset, PSR-12), once
 # per run on the SQLite leg.
+#
+# The API docs (`/docs/api`, `/docs/api.json`) are only served when
+# APP_ENV=local (`config/scramble.php`), so the SQLite leg also exports the
+# OpenAPI document with `scramble:export` and uploads it as the `openapi`
+# artifact of the run.
 
 on:
   push:
@@ -100,6 +105,25 @@ jobs:
       - name: Run tests (SQLite)
         if: matrix.db == 'sqlite'
         run: composer test
+
+      # 匯出 OpenAPI 文件（正式環境不提供 /docs/api，要看文件就下載這個 artifact）；只跑一次。
+      # 先 migrate：Scramble 讀資料表欄位推斷 model 的屬性，沒有資料表會少欄位資訊。
+      # route:cache 跟正式環境一樣，路由寫成 closure 時 #[Endpoint] 會讀不到（docs/conventions/api.md）。
+      - name: Export OpenAPI document
+        if: matrix.db == 'sqlite'
+        run: |
+          php artisan migrate --force --no-interaction
+          php artisan route:cache
+          php artisan scramble:export
+          php artisan route:clear
+
+      - name: Upload OpenAPI document
+        if: matrix.db == 'sqlite'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: api.json
+          if-no-files-found: error
 
       - name: Run tests (Postgres)
         if: matrix.db == 'pgsql'

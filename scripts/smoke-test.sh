@@ -666,16 +666,26 @@ fi
 db_start
 wait_pg || record fail "資料庫重新啟動" "40 秒內沒有就緒"
 
-# /docs/api.json（Scramble）
-if docker run --rm "$IMAGE" test -d vendor/dedoc/scramble >/dev/null 2>&1; then
+# /docs/api、/docs/api.json（Scramble）：config/scramble.php 掛了 RestrictedDocsAccess 的 ref，
+# 文件只在 local 提供，這裡（APP_ENV=production）要回 403；更早的 ref 文件公開，回 200。
+if ! docker run --rm "$IMAGE" test -d vendor/dedoc/scramble >/dev/null 2>&1; then
+  record skip "GET /docs/api.json" "此 ref 沒有安裝 Scramble"
+elif docker run --rm "$IMAGE" grep -q RestrictedDocsAccess config/scramble.php >/dev/null 2>&1; then
+  for docs_path in /docs/api /docs/api.json; do
+    http_req docs "$BASE$docs_path"
+    if [ "$HTTP_CODE" = 403 ]; then
+      record pass "GET $docs_path → 403（正式環境不提供文件）"
+    else
+      record fail "GET $docs_path → 403（正式環境不提供文件）" "實際 $HTTP_CODE"
+    fi
+  done
+else
   http_req docs "$BASE/docs/api.json"
   if [ "$HTTP_CODE" = 200 ]; then
     record pass "GET /docs/api.json → 200"
   else
     record fail "GET /docs/api.json → 200" "實際 $HTTP_CODE"
   fi
-else
-  record skip "GET /docs/api.json → 200" "此 ref 沒有安裝 Scramble"
 fi
 
 # ---------------------------------------------------------------------------
