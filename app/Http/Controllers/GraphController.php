@@ -17,6 +17,9 @@ use Illuminate\Support\Collection;
 
 class GraphController extends Controller
 {
+    /** `nodeId()` 產生的格式：型別、連字號、不帶前導零的正整數 id。要 public：Scramble 產生文件時要讀得到驗證規則。 */
+    public const NODE_ID_PATTERN = '/^(documentation|technique|implementation)-[1-9][0-9]*$/';
+
     /**
      * Build a nodes/edges graph across Documentation, Technique and
      * Implementation.
@@ -39,7 +42,7 @@ class GraphController extends Controller
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
         title: '取得知識圖譜',
-        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值。未登入時不含草稿文件，連到草稿的邊也不會出現。',
+        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值。未登入時不含草稿文件與設為不公開的實作，連到它們的邊也不會出現。',
     )]
     #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, subtype: string|null, url: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null}>}')]
     public function index()
@@ -47,7 +50,7 @@ class GraphController extends Controller
         $nodes = collect()
             ->concat($this->nodesFor(Documentation::visibleToViewer()->with('scope')->get(), 'documentation'))
             ->concat($this->nodesFor(Technique::all(), 'technique'))
-            ->concat($this->nodesFor(Implementation::all(), 'implementation'))
+            ->concat($this->nodesFor(Implementation::visibleToViewer()->get(), 'implementation'))
             ->values();
 
         $edges = $this->rawEdges()
@@ -82,19 +85,20 @@ class GraphController extends Controller
     // 同 index()：手動組的回應，在這裡寫明形狀。找不到路徑時 found 是 false、nodes／edges 是空陣列。
     #[Endpoint(
         title: '查詢最短路徑',
-        description: '以 `start`、`end`（節點 id）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。找不到路徑，或起訖點是看不到的草稿時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
+        description: '以 `start`、`end`（節點 id，格式同 `GET /graph` 的 `id`，例如 `technique-12`；格式不符時回 422）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。找不到路徑，或起訖點是看不到的草稿或不公開的實作時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
     )]
     #[Response(200, type: 'array{found: bool, nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, storedDirection: "forward"|"reverse", hasDefinedReverse: bool}>}')]
     public function path(Request $request)
     {
+        // 只收 index() 產生的那種 node id
         $validated = $request->validate([
-            'start' => ['required', 'string'],
-            'end' => ['required', 'string'],
+            'start' => ['required', 'string', 'regex:'.self::NODE_ID_PATTERN],
+            'end' => ['required', 'string', 'regex:'.self::NODE_ID_PATTERN],
         ]);
         $start = $validated['start'];
         $end = $validated['end'];
 
-        // 起訖點本身是草稿：當成找不到。不擋的話，下面的 nodesByIds() 會把草稿標題回傳出去
+        // 起訖點本身是草稿或不公開的專案：當成找不到。不擋的話，下面的 nodesByIds() 會把標題回傳出去
         $hidden = $this->hiddenNodeIds();
         if (isset($hidden[$start]) || isset($hidden[$end])) {
             return response()->json(['found' => false, 'nodes' => [], 'edges' => []]);
@@ -168,23 +172,30 @@ class GraphController extends Controller
     }
 
     /**
-     * 這次請求看不到的節點（沒登入時的草稿文章），以 node id 為 key。
-     * 草稿節點不出現、連到它的邊也不出現，路徑查詢也不能經過它。
+     * 這次請求看不到的節點（沒登入時的草稿文章與不公開的專案），以 node id 為 key。
+     * 這些節點不出現、連到它們的邊也不出現，路徑查詢也不能經過它們。
      *
      * @return array<string, true>
      */
     private function hiddenNodeIds(): array
     {
-        if (Documentation::viewerCanSeeDrafts()) {
-            return [];
+        $hidden = collect();
+
+        if (! Documentation::viewerCanSeeDrafts()) {
+            $hidden = $hidden->concat(Documentation::where(fn ($query) => $query
+                ->where('status', '!=', Documentation::STATUS_PUBLISHED)
+                ->orWhereNull('status'))
+                ->pluck('id')
+                ->map(fn (int $id) => $this->nodeId('documentation', $id)));
         }
 
-        return Documentation::where(fn ($query) => $query
-            ->where('status', '!=', Documentation::STATUS_PUBLISHED)
-            ->orWhereNull('status'))
-            ->pluck('id')
-            ->mapWithKeys(fn (int $id) => [$this->nodeId('documentation', $id) => true])
-            ->all();
+        if (! Implementation::viewerCanSeeHidden()) {
+            $hidden = $hidden->concat(Implementation::hidden()
+                ->pluck('id')
+                ->map(fn (int $id) => $this->nodeId('implementation', $id)));
+        }
+
+        return $hidden->mapWithKeys(fn (string $nodeId) => [$nodeId => true])->all();
     }
 
     private function allRawEdges(): Collection
@@ -372,10 +383,11 @@ class GraphController extends Controller
             $idsByType[$type][] = (int) $rawId;
         }
 
+        // 跟 index() 一樣套用可見性條件
         $models = [
-            'documentation' => Documentation::whereIn('id', $idsByType['documentation'])->get()->keyBy('id'),
+            'documentation' => Documentation::visibleToViewer()->whereIn('id', $idsByType['documentation'])->get()->keyBy('id'),
             'technique' => Technique::whereIn('id', $idsByType['technique'])->get()->keyBy('id'),
-            'implementation' => Implementation::whereIn('id', $idsByType['implementation'])->get()->keyBy('id'),
+            'implementation' => Implementation::visibleToViewer()->whereIn('id', $idsByType['implementation'])->get()->keyBy('id'),
         ];
 
         return collect($nodeIds)->map(function (string $nodeId) use ($models) {

@@ -167,7 +167,7 @@ class RelationController extends Controller
     // Scramble 都推不出來，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
         title: '列出述詞使用的邊',
-        description: '分頁列出使用這條述詞的邊（文件、技術、實作之間的連結），每筆含兩端的類型、id 與標題。公開唯讀，不需登入。',
+        description: '分頁列出使用這條述詞的邊（文件、技術、實作之間的連結），每筆含兩端的類型、id 與標題。公開唯讀，不需登入；未登入時不含連到草稿文件或設為不公開之實作的邊。',
     )]
     #[QueryParameter('page', '頁碼，從 1 開始。', type: 'int', default: 1)]
     #[QueryParameter('per_page', '每頁筆數，預設 '.RelationEdgeQuery::DEFAULT_PER_PAGE.'，最多 '.RelationEdgeQuery::MAX_PER_PAGE.'。', type: 'int', default: RelationEdgeQuery::DEFAULT_PER_PAGE)]

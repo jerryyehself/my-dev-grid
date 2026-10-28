@@ -42,7 +42,7 @@ class Documentation extends Model
      */
     public static function viewerCanSeeDrafts(): bool
     {
-        return auth('sanctum')->check();
+        return User::viewerIsSignedIn();
     }
 
     /** 沒登入的請求只留已發布的。 */
