@@ -17,6 +17,9 @@ use Illuminate\Support\Collection;
 
 class GraphController extends Controller
 {
+    /** `nodeId()` 產生的格式：型別、連字號、不帶前導零的正整數 id。要 public：Scramble 產生文件時要讀得到驗證規則。 */
+    public const NODE_ID_PATTERN = '/^(documentation|technique|implementation)-[1-9][0-9]*$/';
+
     /**
      * Build a nodes/edges graph across Documentation, Technique and
      * Implementation.
@@ -87,9 +90,10 @@ class GraphController extends Controller
     #[Response(200, type: 'array{found: bool, nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, storedDirection: "forward"|"reverse", hasDefinedReverse: bool}>}')]
     public function path(Request $request)
     {
+        // 只收 index() 產生的那種 node id
         $validated = $request->validate([
-            'start' => ['required', 'string'],
-            'end' => ['required', 'string'],
+            'start' => ['required', 'string', 'regex:'.self::NODE_ID_PATTERN],
+            'end' => ['required', 'string', 'regex:'.self::NODE_ID_PATTERN],
         ]);
         $start = $validated['start'];
         $end = $validated['end'];
@@ -372,8 +376,9 @@ class GraphController extends Controller
             $idsByType[$type][] = (int) $rawId;
         }
 
+        // 跟 index() 一樣套用可見性條件
         $models = [
-            'documentation' => Documentation::whereIn('id', $idsByType['documentation'])->get()->keyBy('id'),
+            'documentation' => Documentation::visibleToViewer()->whereIn('id', $idsByType['documentation'])->get()->keyBy('id'),
             'technique' => Technique::whereIn('id', $idsByType['technique'])->get()->keyBy('id'),
             'implementation' => Implementation::whereIn('id', $idsByType['implementation'])->get()->keyBy('id'),
         ];
