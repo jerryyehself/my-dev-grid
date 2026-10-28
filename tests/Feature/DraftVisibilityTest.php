@@ -9,6 +9,7 @@ use App\Models\Technique;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -175,5 +176,25 @@ class DraftVisibilityTest extends TestCase
         $this->getJson("/api/relations/{$relation->id}/edges")
             ->assertOk()
             ->assertJsonFragment(['subject_title' => '草稿文章']);
+    }
+
+    public static function malformedNodeIds(): array
+    {
+        return [
+            '前導零' => ['0%d'],
+            '加號' => ['%%2B%d'],
+            '尾端多字' => ['%dx'],
+        ];
+    }
+
+    #[TestDox('路徑查詢的節點 id 格式不符時回 422，不帶出草稿標題')]
+    #[DataProvider('malformedNodeIds')]
+    public function test_path_rejects_malformed_node_ids(string $idFormat)
+    {
+        $nodeId = 'documentation-'.sprintf($idFormat, $this->draft->id);
+
+        $this->getJson("/api/graph/path?start={$nodeId}&end={$nodeId}")
+            ->assertUnprocessable()
+            ->assertJsonMissing(['label' => '草稿文章']);
     }
 }
