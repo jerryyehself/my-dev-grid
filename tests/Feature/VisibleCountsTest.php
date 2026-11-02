@@ -18,7 +18,7 @@ use Tests\TestCase;
  * 公開的計數欄位不能洩漏看不到的東西。
  *
  * 清單與邊的端點沒登入時都已經濾掉不公開的專案（`is_visible = false`）與草稿文件，
- * 但 `implementations_count`、`own_edges_count`、`reverse_edges_count` 原本照數全部，
+ * 但 `implementations_count`、`documentations_count`、`own_edges_count`、`reverse_edges_count` 原本照數全部，
  * 訪客拿清單長度跟計數一比就知道少了幾筆。這裡守的是：沒登入時計數跟訪客實際看得到的
  * 清單一致（述詞的 `own_edges_count` 等於 `/edges` 的 `total`），登入後數全部。
  *
@@ -150,6 +150,58 @@ class VisibleCountsTest extends TestCase
             ->firstWhere('id', $this->scope->id);
 
         $this->assertSame(2, $row['implementations_count']);
+    }
+
+    /** 在 `$this->scope` 底下放一篇已發布、一篇草稿的文件（setUp 的文件掛在別的分類）。 */
+    private function documentationsInScope(): void
+    {
+        Documentation::factory()->create(['type' => $this->scope->id, 'status' => Documentation::STATUS_PUBLISHED]);
+        Documentation::factory()->create(['type' => $this->scope->id, 'status' => 0]);
+    }
+
+    #[TestDox('訪客的分類詳情不數草稿文件')]
+    public function test_guest_scope_show_counts_only_published_documentations()
+    {
+        $this->documentationsInScope();
+
+        $body = $this->getJson("/api/scopes/{$this->scope->id}")->assertOk()->json();
+
+        $this->assertSame(1, $body['documentations_count']);
+        $this->assertSame(2, $body['entities_count'], '實體總數 = 已發布文件 1 + 公開專案 1。');
+    }
+
+    #[TestDox('登入後的分類詳情數全部的文件')]
+    public function test_signed_in_scope_show_counts_draft_documentations()
+    {
+        $this->documentationsInScope();
+        $this->signIn();
+
+        $body = $this->getJson("/api/scopes/{$this->scope->id}")->assertOk()->json();
+
+        $this->assertSame(2, $body['documentations_count']);
+    }
+
+    #[TestDox('訪客的分類列表不數草稿文件')]
+    public function test_guest_scope_index_counts_only_published_documentations()
+    {
+        $this->documentationsInScope();
+
+        $row = collect($this->getJson('/api/scopes')->assertOk()->json('data'))
+            ->firstWhere('id', $this->scope->id);
+
+        $this->assertSame(1, $row['documentations_count']);
+    }
+
+    #[TestDox('登入後的分類列表數全部的文件')]
+    public function test_signed_in_scope_index_counts_draft_documentations()
+    {
+        $this->documentationsInScope();
+        $this->signIn();
+
+        $row = collect($this->getJson('/api/scopes')->assertOk()->json('data'))
+            ->firstWhere('id', $this->scope->id);
+
+        $this->assertSame(2, $row['documentations_count']);
     }
 
     #[TestDox('訪客的述詞詳情不數牽涉看不到之端點的邊，且等於邊清單的總數')]

@@ -13,7 +13,7 @@ class ScopeController extends Controller
 {
     #[Endpoint(
         title: '列出分類',
-        description: '回傳所有分類，依類號、子類號排序，每筆含父層與各項關聯的筆數。未登入時實作的筆數不含設為不公開的專案。',
+        description: '回傳所有分類，依類號、子類號排序，每筆含父層與各項關聯的筆數。未登入時文件的筆數不含草稿、實作的筆數不含設為不公開的專案。',
     )]
     public function index()
     {
@@ -113,7 +113,7 @@ class ScopeController extends Controller
 
     #[Endpoint(
         title: '取得分類',
-        description: '回傳單一分類，含父層、子類、同層分類與述詞，以及子類、同層分類、述詞、文件、技術、實作的筆數（不列出實體本身；未登入時實作的筆數不含設為不公開的專案）。另附建立子類時可用的下一個子類號。',
+        description: '回傳單一分類，含父層、子類、同層分類與述詞，以及子類、同層分類、述詞、文件、技術、實作的筆數（不列出實體本身；未登入時文件的筆數不含草稿、實作的筆數不含設為不公開的專案）。另附建立子類時可用的下一個子類號。',
     )]
     public function show(Scope $scope)
     {

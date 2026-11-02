@@ -96,9 +96,10 @@ class Scope extends Model
     /**
      * `withCount()`／`loadCount()` 要數的關聯。清單與詳情共用，兩邊的數字才不會對不上。
      *
-     * `implementations` 沒登入時不數設為不公開的專案（`Implementation::visibleToViewer()`）：
-     * 讀取端點是公開的，計數若把它們算進去，訪客對得出「清單上少了幾個」。回應的欄位名
-     * 仍是 `implementations_count`（`withCount` 的別名取關聯名）。登入後數全部。
+     * `documentations` 沒登入時不數草稿（`Documentation::visibleToViewer()`），`implementations`
+     * 沒登入時不數設為不公開的專案（`Implementation::visibleToViewer()`）：讀取端點是公開的，
+     * 計數若把它們算進去，訪客對得出「清單上少了幾個」。回應的欄位名仍是
+     * `documentations_count`、`implementations_count`（`withCount` 的別名取關聯名）。登入後數全部。
      *
      * @return array<int|string, string|Closure>
      */
@@ -109,7 +110,7 @@ class Scope extends Model
             'siblings',
             'subjectOf',
             'objectOf',
-            'documentations',
+            'documentations' => fn ($query) => $query->visibleToViewer(),
             'techniques',
             'implementations' => fn ($query) => $query->visibleToViewer(),
         ];
