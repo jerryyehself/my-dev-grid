@@ -4,6 +4,12 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [1.1.2] - 2026-11-03
+
+### 安全性
+
+- 相依套件 `symfony/mime` 從 v8.1.6 升級到 v8.1.10，修補公開的安全通報 CVE-2026-45070（PKSA-wtxr-p26d-nn42）。
+
 ## [1.1.1] - 2026-10-28
 
 ### 安全性
@@ -105,6 +111,7 @@ GitHub 同步
 - CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
+[1.1.2]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.2
 [1.1.1]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.1
 [1.1.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.0
 [1.0.1]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.0.1
