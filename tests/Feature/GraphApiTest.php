@@ -322,17 +322,52 @@ class GraphApiTest extends TestCase
             ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
     }
 
-    #[TestDox('起訖點是同一個不存在的節點時，路徑找不到')]
-    #[DataProvider('viewers')]
-    public function test_path_from_a_nonexistent_node_to_itself_is_not_found(bool $signedIn)
+    /** @return array<string, array{0: string, 1: bool}> */
+    public static function nodeTypesAndViewers(): array
+    {
+        $cases = [];
+        foreach (['documentation', 'technique', 'implementation'] as $type) {
+            $cases["{$type}／訪客"] = [$type, false];
+            $cases["{$type}／登入"] = [$type, true];
+        }
+
+        return $cases;
+    }
+
+    #[TestDox('起訖點是同一個不存在的節點時，路徑找不到（三種節點都一樣）')]
+    #[DataProvider('nodeTypesAndViewers')]
+    public function test_path_from_a_nonexistent_node_to_itself_is_not_found(string $type, bool $signedIn)
     {
         if ($signedIn) {
             Sanctum::actingAs(User::factory()->create());
         }
 
-        $this->getJson('/api/graph/path?start=documentation-999999&end=documentation-999999')
+        $this->getJson("/api/graph/path?start={$type}-999999&end={$type}-999999")
             ->assertOk()
             ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
+    }
+
+    #[TestDox('起點或終點是已刪除的技術時，兩個方向都找不到路徑')]
+    #[DataProvider('viewers')]
+    public function test_path_with_a_soft_deleted_technique_at_either_end_is_not_found(bool $signedIn)
+    {
+        // 技術的 pivot 邊不會因為技術軟刪除就被 rawEdges() 排除，所以只有起訖點的存在檢查擋得住
+        $technique = Technique::factory()->create();
+        $documentation = Documentation::factory()->create(['status' => 1]);
+        $relation = Relation::factory()->create(['name' => 'specs']);
+        $documentation->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
+        $technique->delete();
+        if ($signedIn) {
+            Sanctum::actingAs(User::factory()->create());
+        }
+        $techniqueId = "technique-{$technique->id}";
+        $documentationId = "documentation-{$documentation->id}";
+
+        foreach ([[$techniqueId, $documentationId], [$documentationId, $techniqueId]] as [$start, $end]) {
+            $this->getJson("/api/graph/path?start={$start}&end={$end}")
+                ->assertOk()
+                ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
+        }
     }
 
     #[TestDox('沒有任何邊的現存節點查自己，路徑只有該節點')]
