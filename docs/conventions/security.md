@@ -11,7 +11,7 @@
 ## 草稿與公開讀取
 
 - 讀取端點公開、不需要登入，所以每個會回傳文件的地方，都要自己濾掉草稿：清單用 `->visibleToViewer()`，關聯載入時也一樣（`TechniqueController::show`）。
-- 用 query builder 或手動組資料的地方，要另外處理：`RelationEdgeQuery` 濾掉連到草稿的邊，`GraphController::hiddenNodeIds()` 讓草稿節點、連到它的邊、經過它的路徑都不出現。
+- 用 query builder 或手動組資料的地方，要另外處理：`RelationEdgeQuery` 濾掉連到草稿的邊，`GraphController` 的圖譜照常列出草稿節點與連到它的邊（`active` 為 false），但沒登入時把它的標籤換成「未公開」、不帶 `subtype` 與 `url`（`GraphController::labelFor()`、`nodesFor()`）。已軟刪除的文件，連結表裡的邊要自己排除（`GraphController::deletedDocumentationNodeIds()`）。
 - 沒登入的人打草稿的 show，回 404 而不是 403，不透露這個 id 有一篇草稿（`DocumentationController::show`）。
 
 ## 輸入

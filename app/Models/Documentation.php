@@ -54,7 +54,7 @@ class Documentation extends Model
     /**
      * 草稿，不管這次請求有沒有登入。用來算出要從公開計數拿掉的端點。
      *
-     * `status` 為 NULL 也算草稿，條件跟圖譜的 `hiddenNodeIds()` 一致。
+     * `status` 為 NULL 也算草稿，條件跟 `isPublished()` 一致（圖譜用它決定節點的 `active`）。
      */
     public function scopeDraft(Builder $query): Builder
     {

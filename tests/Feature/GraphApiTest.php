@@ -7,7 +7,10 @@ use App\Models\EntityRelation;
 use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Technique;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
+use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -166,6 +169,108 @@ class GraphApiTest extends TestCase
             'target' => "technique-{$technique->id}",
             'predicate' => 'documents',
         ]);
+    }
+
+    /**
+     * 已發布與草稿各一篇文件，各自連到技術、實作，彼此之間也有一條同型別的邊，然後兩篇都軟刪除。
+     * 軟刪除不會動到連結表，所以這些連結列都還在。
+     *
+     * @return array{0: Documentation, 1: Documentation, 2: Documentation}
+     */
+    private function softDeletedDocumentationsWithLinks(): array
+    {
+        $technique = Technique::factory()->create();
+        $implementation = Implementation::factory()->create();
+        $relation = Relation::factory()->create(['name' => 'specs']);
+        $published = Documentation::factory()->create(['title' => '已刪除的已發布文章', 'status' => 1]);
+        $draft = Documentation::factory()->create(['title' => '已刪除的草稿', 'status' => 0]);
+        // 留一篇沒刪的，確認濾掉的只有已刪除文件的邊
+        $remaining = Documentation::factory()->create(['status' => 1]);
+
+        foreach ([$published, $draft, $remaining] as $documentation) {
+            $documentation->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
+            $documentation->implementations()->attach($implementation->id, ['relation_id' => $relation->id]);
+        }
+        EntityRelation::factory()->documentation()->create([
+            'subject_id' => $published->id,
+            'object_id' => $draft->id,
+            'relation_id' => $relation->id,
+        ]);
+
+        $published->delete();
+        $draft->delete();
+
+        return [$published, $draft, $remaining];
+    }
+
+    private function assertGraphOmitsDocumentations(TestResponse $response, Documentation ...$documentations): void
+    {
+        $nodeIds = collect($response->json('nodes'))->pluck('id');
+        $edges = collect($response->json('edges'));
+        $endpoints = $edges->pluck('source')->concat($edges->pluck('target'));
+
+        foreach ($documentations as $documentation) {
+            $nodeId = "documentation-{$documentation->id}";
+            $this->assertNotContains($nodeId, $nodeIds);
+            $this->assertNotContains($nodeId, $endpoints);
+            $response->assertJsonMissing(['label' => $documentation->title]);
+        }
+
+        // 每條邊的兩端都要是回傳的節點
+        $this->assertEmpty($endpoints->diff($nodeIds));
+    }
+
+    #[TestDox('訪客的圖不含已刪除文件的節點與邊')]
+    public function test_guest_graph_omits_soft_deleted_documentations_and_their_edges()
+    {
+        [$published, $draft, $remaining] = $this->softDeletedDocumentationsWithLinks();
+
+        $response = $this->getJson('/api/graph')->assertOk();
+
+        $this->assertGraphOmitsDocumentations($response, $published, $draft);
+        $this->assertContains("documentation-{$remaining->id}", collect($response->json('edges'))->pluck('source'));
+    }
+
+    #[TestDox('登入後的圖也不含已刪除文件的節點與邊')]
+    public function test_signed_in_graph_omits_soft_deleted_documentations_and_their_edges()
+    {
+        [$published, $draft, $remaining] = $this->softDeletedDocumentationsWithLinks();
+        Sanctum::actingAs(User::factory()->create());
+
+        $response = $this->getJson('/api/graph')->assertOk();
+
+        $this->assertGraphOmitsDocumentations($response, $published, $draft);
+        $this->assertContains("documentation-{$remaining->id}", collect($response->json('edges'))->pluck('source'));
+    }
+
+    #[TestDox('查路徑時不會經過已刪除的文件')]
+    public function test_path_does_not_go_through_a_soft_deleted_documentation()
+    {
+        $technique = Technique::factory()->create();
+        $implementation = Implementation::factory()->create();
+        $relation = Relation::factory()->create(['name' => 'specs']);
+        $documentation = Documentation::factory()->create();
+        // 技術 ↔ 文件 ↔ 專案：唯一的路徑經過這篇文件
+        $documentation->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
+        $documentation->implementations()->attach($implementation->id, ['relation_id' => $relation->id]);
+        $documentation->delete();
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson("/api/graph/path?start=technique-{$technique->id}&end=implementation-{$implementation->id}")
+            ->assertOk()
+            ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
+    }
+
+    #[TestDox('技術與實作節點的 active 一律為 true')]
+    public function test_technique_and_implementation_nodes_are_always_active()
+    {
+        $technique = Technique::factory()->create();
+        $implementation = Implementation::factory()->create();
+
+        $nodes = collect($this->getJson('/api/graph')->assertOk()->json('nodes'))->keyBy('id');
+
+        $this->assertTrue($nodes["technique-{$technique->id}"]['active']);
+        $this->assertTrue($nodes["implementation-{$implementation->id}"]['active']);
     }
 
     #[TestDox('圖的回應包含 nodes 與 edges')]
