@@ -152,11 +152,12 @@ class VisibleCountsTest extends TestCase
         $this->assertSame(2, $row['implementations_count']);
     }
 
-    /** 在 `$this->scope` 底下放一篇已發布、一篇草稿的文件（setUp 的文件掛在別的分類）。 */
+    /** 在 `$this->scope` 底下放一篇已發布、一篇草稿、一篇 `status` 為 NULL 的文件（NULL 也算草稿；setUp 的文件掛在別的分類）。 */
     private function documentationsInScope(): void
     {
         Documentation::factory()->create(['type' => $this->scope->id, 'status' => Documentation::STATUS_PUBLISHED]);
         Documentation::factory()->create(['type' => $this->scope->id, 'status' => 0]);
+        Documentation::factory()->create(['type' => $this->scope->id, 'status' => null]);
     }
 
     #[TestDox('訪客的分類詳情不數草稿文件')]
@@ -166,7 +167,7 @@ class VisibleCountsTest extends TestCase
 
         $body = $this->getJson("/api/scopes/{$this->scope->id}")->assertOk()->json();
 
-        $this->assertSame(1, $body['documentations_count']);
+        $this->assertSame(1, $body['documentations_count'], '草稿與 status 為 NULL 的文件都不數。');
         $this->assertSame(2, $body['entities_count'], '實體總數 = 已發布文件 1 + 公開專案 1。');
     }
 
@@ -178,7 +179,7 @@ class VisibleCountsTest extends TestCase
 
         $body = $this->getJson("/api/scopes/{$this->scope->id}")->assertOk()->json();
 
-        $this->assertSame(2, $body['documentations_count']);
+        $this->assertSame(3, $body['documentations_count'], '已發布、草稿、status 為 NULL 全部都數。');
     }
 
     #[TestDox('訪客的分類列表不數草稿文件')]
@@ -189,7 +190,7 @@ class VisibleCountsTest extends TestCase
         $row = collect($this->getJson('/api/scopes')->assertOk()->json('data'))
             ->firstWhere('id', $this->scope->id);
 
-        $this->assertSame(1, $row['documentations_count']);
+        $this->assertSame(1, $row['documentations_count'], '草稿與 status 為 NULL 的文件都不數。');
     }
 
     #[TestDox('登入後的分類列表數全部的文件')]
@@ -201,7 +202,7 @@ class VisibleCountsTest extends TestCase
         $row = collect($this->getJson('/api/scopes')->assertOk()->json('data'))
             ->firstWhere('id', $this->scope->id);
 
-        $this->assertSame(2, $row['documentations_count']);
+        $this->assertSame(3, $row['documentations_count'], '已發布、草稿、status 為 NULL 全部都數。');
     }
 
     #[TestDox('訪客的述詞詳情不數牽涉看不到之端點的邊，且等於邊清單的總數')]
