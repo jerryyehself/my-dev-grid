@@ -24,23 +24,16 @@ class GraphController extends Controller
     public const UNPUBLISHED_LABEL = '未公開';
 
     /**
-     * Build a nodes/edges graph across Documentation, Technique and
-     * Implementation.
+     * 組出文件、技術、實作三族節點與它們之間的邊。
      *
-     * Nodes are every row of the three domain entities. Edges come from
-     * the three typed pivot tables (documentation<->technique,
-     * documentation<->implementation, technique<->implementation) plus the
-     * generic entity_relations table (same-type relations, e.g.
-     * technique<->technique). Each edge's relation_id is resolved to the
-     * Relation's predicate name so the frontend doesn't need a second
-     * round trip.
+     * 節點是還沒被軟刪除的文件、技術、實作：未公開的文件也列出來（沒登入時遮掉標題與連結），
+     * 沒登入時看不到設為不公開的實作。邊來自三張 pivot（文件↔技術、文件↔實作、技術↔實作），
+     * 加上通用的 entity_relations（同型別之間的關係，例如技術↔技術）。每條邊的 relation_id
+     * 已解析成 Relation 的述詞名稱，前端不用再多打一次 API。
      *
-     * Shaped for a force-directed graph frontend: nodes as
-     * {id, type, label, created_at, subtype, url, active}, edges as {source, target, predicate,
-     * label, relation_id} where source/target reference node ids.
-     * created_at is only populated for implementation nodes (from
-     * git_repo_created_at) — documentation/technique have no equivalent
-     * field and always report null.
+     * 回應的形狀給力導向圖用：節點是 {id, type, label, created_at, subtype, url, active}，
+     * 邊是 {source, target, predicate, label, relation_id}，source／target 是節點 id。
+     * created_at 只有實作節點有值（來自 git_repo_created_at），文件與技術沒有對應欄位，一律 null。
      */
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
@@ -50,11 +43,14 @@ class GraphController extends Controller
     #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, subtype: string|null, url: string|null, active: bool}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null}>}')]
     public function index()
     {
+        // 登入態每個請求只在這裡判斷一次，往下傳給每個節點用，不在節點迴圈裡一個一個問
+        $canSeeDrafts = Documentation::viewerCanSeeDrafts();
+
         $nodes = collect()
             // 未公開的文件也列出來（`active` 為 false），沒登入時由 nodesFor() 遮掉標題與連結
-            ->concat($this->nodesFor(Documentation::with('scope')->get(), 'documentation'))
-            ->concat($this->nodesFor(Technique::all(), 'technique'))
-            ->concat($this->nodesFor(Implementation::visibleToViewer()->get(), 'implementation'))
+            ->concat($this->nodesFor(Documentation::with('scope')->get(), 'documentation', $canSeeDrafts))
+            ->concat($this->nodesFor(Technique::all(), 'technique', $canSeeDrafts))
+            ->concat($this->nodesFor(Implementation::visibleToViewer()->get(), 'implementation', $canSeeDrafts))
             ->values();
 
         $edges = $this->rawEdges()
@@ -89,7 +85,7 @@ class GraphController extends Controller
     // 同 index()：手動組的回應，在這裡寫明形狀。找不到路徑時 found 是 false、nodes／edges 是空陣列。
     #[Endpoint(
         title: '查詢最短路徑',
-        description: '以 `start`、`end`（節點 id，格式同 `GET /graph` 的 `id`，例如 `technique-12`；格式不符時回 422）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。路徑可以經過未公開的文件，未登入時它的 `label` 同樣是「未公開」。找不到路徑，或未登入時起訖點是不公開的實作時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
+        description: '以 `start`、`end`（節點 id，格式同 `GET /graph` 的 `id`，例如 `technique-12`；格式不符時回 422）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。路徑可以經過未公開的文件，未登入時它的 `label` 同樣是「未公開」。找不到路徑，或起訖點不存在（沒有這個 id，或文件已刪除），或未登入時起訖點是不公開的實作時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
     )]
     #[Response(200, type: 'array{found: bool, nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, storedDirection: "forward"|"reverse", hasDefinedReverse: bool}>}')]
     public function path(Request $request)
@@ -108,6 +104,12 @@ class GraphController extends Controller
             return response()->json(['found' => false, 'nodes' => [], 'edges' => []]);
         }
 
+        // 起訖點不存在（沒有這個 id，或已軟刪除）：也當成找不到。起訖點相同時 BFS 不會走任何一條邊，
+        // 沒有這道檢查，不存在的節點會被當成「只有自己」的路徑回傳。邊的那一側由 rawEdges() 另外排除已刪除的文件
+        if (! $this->nodeExists($start) || ! $this->nodeExists($end)) {
+            return response()->json(['found' => false, 'nodes' => [], 'edges' => []]);
+        }
+
         $adjacency = $this->buildUndirectedAdjacency($this->rawEdges());
 
         $hops = $this->shortestPathHops($adjacency, $start, $end);
@@ -121,7 +123,7 @@ class GraphController extends Controller
 
         return response()->json([
             'found' => true,
-            'nodes' => $this->nodesByIds($nodeIds),
+            'nodes' => $this->nodesByIds($nodeIds, Documentation::viewerCanSeeDrafts()),
             'edges' => collect($hops)->map(fn (array $hop) => $this->pathHopEdge($hop, $relationsById))->values(),
         ]);
     }
@@ -132,12 +134,15 @@ class GraphController extends Controller
     }
 
     /**
+     * 節點的標籤。
+     *
      * 技術的版本是獨立的一筆（title 相同、version 填主版號，2026-09-30），標籤要帶版本，
      * 不然圖上會出現兩個一模一樣的「Vue」。規則在 `Technique::label`，這裡不自己拼字串。
+     * 沒登入時，未公開的文件不回標題，改回 `UNPUBLISHED_LABEL`。
      */
-    private function labelFor($model): string
+    private function labelFor($model, bool $canSeeDrafts): string
     {
-        if ($model instanceof Documentation && ! $this->documentationIsOpenToViewer($model)) {
+        if ($model instanceof Documentation && ! $this->documentationIsOpenToViewer($model, $canSeeDrafts)) {
             return self::UNPUBLISHED_LABEL;
         }
 
@@ -147,18 +152,20 @@ class GraphController extends Controller
     /**
      * 這次請求能不能看這篇文件的標題與連結：已發布的誰都能看，未公開的要登入。
      * 判斷跟 `Documentation::scopeVisibleToViewer()` 一致，`status` 為 NULL 也算未公開。
+     *
+     * @param  bool  $canSeeDrafts  這次請求看不看得到草稿，由 action 判斷一次後往下傳
      */
-    private function documentationIsOpenToViewer(Documentation $documentation): bool
+    private function documentationIsOpenToViewer(Documentation $documentation, bool $canSeeDrafts): bool
     {
-        return $documentation->isPublished() || Documentation::viewerCanSeeDrafts();
+        return $documentation->isPublished() || $canSeeDrafts;
     }
 
-    private function nodesFor(Collection $models, string $type): Collection
+    private function nodesFor(Collection $models, string $type, bool $canSeeDrafts): Collection
     {
         return $models->map(fn ($model) => [
             'id' => $this->nodeId($type, $model->id),
             'type' => $type,
-            'label' => $this->labelFor($model),
+            'label' => $this->labelFor($model, $canSeeDrafts),
             // 只有 Implementation 有這個欄位（git_repo_created_at，來自 GitHub API），
             // Documentation/Technique 完全沒有對應的時間概念，一律回傳 null——不是
             // 每個節點都有意義的「熱度」資料，前端要誠實處理這個缺口，不是掰一個假時間。
@@ -169,18 +176,18 @@ class GraphController extends Controller
             // 這類參考資料）與外部網址。前端的節點彈窗靠這兩個決定連去哪：post 連文章頁、
             // 有網址的連外部網址。其他型別沒有這兩個概念，一律 null。沒登入時，未公開的文件
             // 兩個也都回 null：不給可以點進去的連結（文章頁對訪客本來就會回 404）
-            'subtype' => $type === 'documentation' && $this->documentationIsOpenToViewer($model) ? $model->scope?->name : null,
-            'url' => $type === 'documentation' && $this->documentationIsOpenToViewer($model) ? $model->url : null,
-            // 未公開的文件是 false，其他節點一律 true。登入與否不影響這個值
+            'subtype' => $type === 'documentation' && $this->documentationIsOpenToViewer($model, $canSeeDrafts) ? $model->scope?->name : null,
+            'url' => $type === 'documentation' && $this->documentationIsOpenToViewer($model, $canSeeDrafts) ? $model->url : null,
+            // `active` 是「這篇文件公開了沒有」的狀態，跟看不看得到標題無關，所以登入與否不影響這個值
             'active' => $type !== 'documentation' || $model->isPublished(),
         ]);
     }
 
     /**
-     * All raw edges with the Relation model still attached (not yet
-     * flattened to the public {source,target,predicate,...} shape) — index()
-     * flattens these for the response, path() needs the actual Relation to
-     * resolve reverse_id when a hop travels backward.
+     * 這次請求看得到的邊，Relation 還掛在上面（沒有攤平成公開的 {source,target,predicate,...}）。
+     * index() 攤平後回傳，path() 逆向走時要用 Relation 本身查 reverse_id。
+     *
+     * 端點是看不到的專案（`hiddenNodeIds()`）或已軟刪除的文件（`deletedDocumentationNodeIds()`）的邊都不回。
      */
     private function rawEdges(): Collection
     {
@@ -404,7 +411,20 @@ class GraphController extends Controller
         ];
     }
 
-    private function nodesByIds(array $nodeIds): array
+    /** 這個節點 id 對應的資料還在（沒有這筆，或已軟刪除都算不存在）。不看可見性，不公開的專案由 `hiddenNodeIds()` 另外擋。 */
+    private function nodeExists(string $nodeId): bool
+    {
+        [$type, $rawId] = explode('-', $nodeId, 2);
+        $model = match ($type) {
+            'documentation' => Documentation::class,
+            'technique' => Technique::class,
+            'implementation' => Implementation::class,
+        };
+
+        return $model::whereKey((int) $rawId)->exists();
+    }
+
+    private function nodesByIds(array $nodeIds, bool $canSeeDrafts): array
     {
         $idsByType = ['documentation' => [], 'technique' => [], 'implementation' => []];
         foreach ($nodeIds as $nodeId) {
@@ -419,14 +439,14 @@ class GraphController extends Controller
             'implementation' => Implementation::visibleToViewer()->whereIn('id', $idsByType['implementation'])->get()->keyBy('id'),
         ];
 
-        return collect($nodeIds)->map(function (string $nodeId) use ($models) {
+        return collect($nodeIds)->map(function (string $nodeId) use ($models, $canSeeDrafts) {
             [$type, $rawId] = explode('-', $nodeId, 2);
             $model = $models[$type]->get((int) $rawId);
 
             return [
                 'id' => $nodeId,
                 'type' => $type,
-                'label' => $model ? $this->labelFor($model) : null,
+                'label' => $model ? $this->labelFor($model, $canSeeDrafts) : null,
             ];
         })->values()->all();
     }
