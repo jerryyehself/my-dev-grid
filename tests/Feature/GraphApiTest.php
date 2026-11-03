@@ -9,8 +9,10 @@ use App\Models\Relation;
 use App\Models\Technique;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -172,7 +174,8 @@ class GraphApiTest extends TestCase
     }
 
     /**
-     * 已發布與草稿各一篇文件，各自連到技術、實作，彼此之間也有一條同型別的邊，然後兩篇都軟刪除。
+     * 已發布與草稿各一篇文件，各自連到技術、實作，彼此之間也有一條同型別的邊，另外沒刪的那篇也連到
+     * 已刪除的草稿（已刪除的文件只在邊的 target 端），然後兩篇都軟刪除。
      * 軟刪除不會動到連結表，所以這些連結列都還在。
      *
      * @return array{0: Documentation, 1: Documentation, 2: Documentation}
@@ -196,6 +199,12 @@ class GraphApiTest extends TestCase
             'object_id' => $draft->id,
             'relation_id' => $relation->id,
         ]);
+        // 已刪除的文件只在 target 端：只檢查邊的 source 端濾不掉這一條
+        EntityRelation::factory()->documentation()->create([
+            'subject_id' => $remaining->id,
+            'object_id' => $draft->id,
+            'relation_id' => $relation->id,
+        ]);
 
         $published->delete();
         $draft->delete();
@@ -212,6 +221,9 @@ class GraphApiTest extends TestCase
         foreach ($documentations as $documentation) {
             $nodeId = "documentation-{$documentation->id}";
             $this->assertNotContains($nodeId, $nodeIds);
+            // source 端與 target 端各自檢查，已刪除的文件只出現在其中一端時也要濾掉
+            $this->assertNotContains($nodeId, $edges->pluck('source'));
+            $this->assertNotContains($nodeId, $edges->pluck('target'));
             $this->assertNotContains($nodeId, $endpoints);
             $response->assertJsonMissing(['label' => $documentation->title]);
         }
@@ -259,6 +271,87 @@ class GraphApiTest extends TestCase
         $this->getJson("/api/graph/path?start=technique-{$technique->id}&end=implementation-{$implementation->id}")
             ->assertOk()
             ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
+    }
+
+    #[TestDox('帶無效 token 時，圖的查詢次數不隨文件筆數增加')]
+    public function test_graph_with_an_invalid_token_does_not_cost_extra_queries_per_documentation()
+    {
+        // 文件節點的可見性判斷依賴「登入態每個請求只判斷一次」：token 無效時 Sanctum 不會記住結果，
+        // 每個節點各判斷一次的話，文件每多一篇就多查一次 token 表。草稿與已發布的都要有，
+        // 沒有文件的話 scope 的 eager loading 也不會發查詢，基準值會不一樣
+        Documentation::factory()->create(['status' => 0]);
+        Documentation::factory()->create(['status' => 1]);
+
+        $countQueries = function (): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $this->withToken('1|not-a-real-token')->getJson('/api/graph')->assertOk();
+            $count = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $count;
+        };
+
+        $baseline = $countQueries();
+        Documentation::factory()->count(20)->create(['status' => 0]);
+        Documentation::factory()->count(20)->create(['status' => 1]);
+        $afterGrowth = $countQueries();
+
+        $this->assertSame($baseline, $afterGrowth, "文件多 40 篇後查詢數從 {$baseline} 次變成 {$afterGrowth} 次。");
+    }
+
+    /** @return array<string, array{0: bool}> */
+    public static function viewers(): array
+    {
+        return ['訪客' => [false], '登入' => [true]];
+    }
+
+    #[TestDox('起訖點是同一篇已刪除的文件時，路徑找不到')]
+    #[DataProvider('viewers')]
+    public function test_path_from_a_soft_deleted_documentation_to_itself_is_not_found(bool $signedIn)
+    {
+        $documentation = Documentation::factory()->create(['title' => '已刪除的文章', 'status' => 1]);
+        $documentation->delete();
+        if ($signedIn) {
+            Sanctum::actingAs(User::factory()->create());
+        }
+        $nodeId = "documentation-{$documentation->id}";
+
+        $this->getJson("/api/graph/path?start={$nodeId}&end={$nodeId}")
+            ->assertOk()
+            ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
+    }
+
+    #[TestDox('起訖點是同一個不存在的節點時，路徑找不到')]
+    #[DataProvider('viewers')]
+    public function test_path_from_a_nonexistent_node_to_itself_is_not_found(bool $signedIn)
+    {
+        if ($signedIn) {
+            Sanctum::actingAs(User::factory()->create());
+        }
+
+        $this->getJson('/api/graph/path?start=documentation-999999&end=documentation-999999')
+            ->assertOk()
+            ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
+    }
+
+    #[TestDox('沒有任何邊的現存節點查自己，路徑只有該節點')]
+    #[DataProvider('viewers')]
+    public function test_path_from_an_existing_node_without_edges_to_itself_is_found(bool $signedIn)
+    {
+        $documentation = Documentation::factory()->create(['title' => '沒有邊的文章', 'status' => 1]);
+        if ($signedIn) {
+            Sanctum::actingAs(User::factory()->create());
+        }
+        $nodeId = "documentation-{$documentation->id}";
+
+        $this->getJson("/api/graph/path?start={$nodeId}&end={$nodeId}")
+            ->assertOk()
+            ->assertExactJson([
+                'found' => true,
+                'nodes' => [['id' => $nodeId, 'type' => 'documentation', 'label' => '沒有邊的文章']],
+                'edges' => [],
+            ]);
     }
 
     #[TestDox('技術與實作節點的 active 一律為 true')]

@@ -95,7 +95,8 @@ class DraftVisibilityTest extends TestCase
 
         $nodes = collect($response->json('nodes'))->keyBy('id');
         $draftNode = $nodes["documentation-{$this->draft->id}"];
-        $this->assertSame(GraphController::UNPUBLISHED_LABEL, $draftNode['label']);
+        // 「未公開」是 API 的對外文字（前端直接顯示），這裡用字面值釘住，不跟著常數走
+        $this->assertSame('未公開', $draftNode['label']);
         $this->assertFalse($draftNode['active']);
         $this->assertNull($draftNode['subtype']);
         $this->assertNull($draftNode['url']);
