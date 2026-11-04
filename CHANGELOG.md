@@ -4,6 +4,12 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [1.1.3] - 2026-11-04
+
+### 安全性
+
+- 相依套件升級到 Symfony v8.1.11，修補 2026-11-04 公開的 7 則安全通報：`symfony/http-foundation` 從 v8.1.9、`symfony/http-kernel` 從 v8.1.6、`symfony/routing` 從 v8.1.6、`symfony/yaml`（僅開發環境）從 v8.1.9 升級。涵蓋 CVE-2026-118514、CVE-2026-118516，以及 GHSA-3h27-hjv7-fqjx、GHSA-xg2q-4rrq-657q、GHSA-5mx8-mwrp-5693、GHSA-wg5q-m2ww-f3c9、GHSA-hwfg-qwvh-2wfx。
+
 ## [1.1.2] - 2026-11-03
 
 ### 安全性
@@ -111,6 +117,7 @@ GitHub 同步
 - CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
+[1.1.3]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.3
 [1.1.2]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.2
 [1.1.1]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.1
 [1.1.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.0
