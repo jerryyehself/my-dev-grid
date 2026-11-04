@@ -57,6 +57,18 @@
   - 不會，或意思跟原本一樣 → 不處理。
 - **範圍跟著改動走。** 只改壞這次改到的程式，不是整個專案。
 
+**CI 會自動做一次（`.github/workflows/infection.yml`）。** 用 [Infection](https://infection.github.io/) 在每個 PR 上自動改壞「這個 PR 新增或修改的行」，再跑現有測試。
+
+- **只看報告，不擋 PR。** 沒被抓到的改法不會讓檢查變紅，也不設分數門檻；變紅只代表 Infection 本身出錯（例如現有測試沒過）。
+- **結果看哪裡。** PR「Files changed」上對應那一行的警告註解（每個沒被抓到的改法一則，內容是改壞前後的差異）；Actions 裡「Infection」這個 job 的 log 有完整清單；log 檔也附在該次執行的 `infection` artifact。
+- **看到註解怎麼辦。** 照上面的原則，只問「這行壞了，使用者會不會受影響？」會就補測試，不會就略過，不用為了讓註解消失而補。
+- **範圍。** PR 沒改到 `app/` 底下的 PHP 時這個檢查不會啟動；`develop` 到 `main` 的上線 PR 也不跑（每個改動在進 `develop` 的 PR 上已經跑過）。只在 SQLite 上跑。
+- **本機怎麼跑。** Infection 不在 `composer.json` 裡。從 [Infection 的 GitHub release](https://github.com/infection/infection/releases) 下載跟 workflow 同一版的 `infection.phar`（版本號看 `infection.yml` 的 `tools:`），本機要有 pcov 或 Xdebug 才能算覆蓋率，並且有 `.env`（`APP_KEY` 不能是空的）。在專案根目錄：
+  ```bash
+  php infection.phar --git-diff-lines --git-diff-base=origin/develop --show-mutations --threads=max
+  ```
+  還沒 commit 的改動也算。只想看某一個檔案：把 `--git-diff-lines --git-diff-base=…` 換成 `--filter=app/Rules/ReverseIsAvailable.php`。設定在根目錄的 `infection.json5`，報告寫到 `build/infection/`（已加進 `.gitignore`）。
+
 ## 目前已知不符的地方
 
 - `tests/Unit/ExampleTest.php` 是 Laravel 樣板，什麼都沒測，可以刪掉。

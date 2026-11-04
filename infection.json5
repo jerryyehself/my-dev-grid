@@ -1,0 +1,21 @@
+{
+    // Infection（變異測試）設定。CI 的 `.github/workflows/infection.yml` 與本機都讀這份；
+    // 怎麼跑、怎麼看結果見 docs/conventions/testing.md「把程式改壞來檢查測試」。
+    // Infection 不放進 composer.json，用 phar（setup-php 的 tools）安裝。
+    "source": {
+        "directories": ["app"]
+    },
+    "phpUnit": {
+        "configDir": "."
+    },
+    // 單一變體的測試時限（秒）。超時算「被抓到」，不影響報告成敗。
+    "timeout": 10,
+    // 只放報告，不設 minMsi／minCoveredMsi：沒被抓到的變體只提醒、不讓指令失敗。
+    "logs": {
+        "text": "build/infection/infection.log",
+        "summary": "build/infection/summary.log"
+    },
+    "mutators": {
+        "@default": true
+    }
+}
