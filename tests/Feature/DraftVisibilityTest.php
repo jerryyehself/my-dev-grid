@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\GraphController;
 use App\Models\Documentation;
 use App\Models\Implementation;
 use App\Models\Relation;
@@ -18,6 +19,9 @@ use Tests\TestCase;
  *
  * 讀取端點都是公開的，2026-09-30 之前草稿的標題與內文從 /api/documentations、/api/graph
  * 都拿得到，前端只是自己濾掉不顯示。每一支會帶出文章標題的公開端點都各守一條。
+ *
+ * 圖譜（/api/graph、/api/graph/path）例外：「有一篇未公開的文件」不用保密，草稿照樣是節點、
+ * 邊照常回傳，只是 `active` 為 false，沒登入時標籤換成「未公開」、不帶 `subtype` 與 `url`。
  *
  * 「登入」用 Sanctum::actingAs 模擬 my-dev-grid-front 的 Bearer token。匿名與登入分成
  * 不同的測試方法，免得同一個測試裡前一個請求的 guard 狀態殘留到下一個。
@@ -79,8 +83,8 @@ class DraftVisibilityTest extends TestCase
             ->assertJsonFragment(['title' => '草稿文章']);
     }
 
-    #[TestDox('訪客的圖不含草稿節點與其邊')]
-    public function test_guest_graph_drops_draft_nodes_and_their_edges()
+    #[TestDox('訪客的圖列出草稿節點與其邊，但不帶標題與連結')]
+    public function test_guest_graph_masks_draft_nodes_and_keeps_their_edges()
     {
         $technique = Technique::factory()->create();
         $relation = Relation::factory()->create(['name' => 'specs']);
@@ -89,27 +93,55 @@ class DraftVisibilityTest extends TestCase
 
         $response = $this->getJson('/api/graph')->assertOk();
 
-        $nodeIds = collect($response->json('nodes'))->pluck('id');
-        $this->assertContains("documentation-{$this->published->id}", $nodeIds);
-        $this->assertNotContains("documentation-{$this->draft->id}", $nodeIds);
+        $nodes = collect($response->json('nodes'))->keyBy('id');
+        $draftNode = $nodes["documentation-{$this->draft->id}"];
+        // 「未公開」是 API 的對外文字（前端直接顯示），這裡用字面值釘住，不跟著常數走
+        $this->assertSame('未公開', $draftNode['label']);
+        $this->assertFalse($draftNode['active']);
+        $this->assertNull($draftNode['subtype']);
+        $this->assertNull($draftNode['url']);
+
+        $publishedNode = $nodes["documentation-{$this->published->id}"];
+        $this->assertSame('已發布的文章', $publishedNode['label']);
+        $this->assertTrue($publishedNode['active']);
+        $this->assertNotNull($publishedNode['url']);
+        $this->assertTrue($nodes["technique-{$technique->id}"]['active']);
 
         $sources = collect($response->json('edges'))->pluck('source');
         $this->assertContains("documentation-{$this->published->id}", $sources);
-        $this->assertNotContains("documentation-{$this->draft->id}", $sources);
+        $this->assertContains("documentation-{$this->draft->id}", $sources);
         $response->assertJsonMissing(['label' => '草稿文章']);
+        $response->assertJsonMissing(['url' => $this->draft->url]);
     }
 
-    #[TestDox('登入後的圖包含草稿節點')]
-    public function test_signed_in_graph_includes_draft_nodes()
+    #[TestDox('登入後的圖照常顯示草稿標題，active 為 false')]
+    public function test_signed_in_graph_shows_draft_title_and_marks_it_inactive()
     {
         $this->signIn();
 
-        $nodeIds = collect($this->getJson('/api/graph')->assertOk()->json('nodes'))->pluck('id');
-        $this->assertContains("documentation-{$this->draft->id}", $nodeIds);
+        $nodes = collect($this->getJson('/api/graph')->assertOk()->json('nodes'))->keyBy('id');
+        $draftNode = $nodes["documentation-{$this->draft->id}"];
+        $this->assertSame('草稿文章', $draftNode['label']);
+        $this->assertFalse($draftNode['active']);
+        $this->assertSame($this->draft->url, $draftNode['url']);
+        $this->assertSame($this->draft->scope->name, $draftNode['subtype']);
+        $this->assertTrue($nodes["documentation-{$this->published->id}"]['active']);
     }
 
-    #[TestDox('訪客查經過草稿的路徑時找不到')]
-    public function test_guest_path_to_or_through_a_draft_is_not_found()
+    #[TestDox('status 為 NULL 的文件在圖上也算未公開')]
+    public function test_graph_treats_null_status_as_unpublished()
+    {
+        $nullStatus = Documentation::factory()->create(['title' => '沒有狀態的文章', 'status' => null]);
+
+        $node = collect($this->getJson('/api/graph')->assertOk()->json('nodes'))
+            ->firstWhere('id', "documentation-{$nullStatus->id}");
+
+        $this->assertSame(GraphController::UNPUBLISHED_LABEL, $node['label']);
+        $this->assertFalse($node['active']);
+    }
+
+    #[TestDox('訪客查路徑可以經過草稿或以它為起點，標籤是未公開')]
+    public function test_guest_path_to_or_through_a_draft_is_found_with_a_masked_label()
     {
         $technique = Technique::factory()->create();
         $implementation = Implementation::factory()->create();
@@ -117,15 +149,51 @@ class DraftVisibilityTest extends TestCase
         // 技術 ↔ 草稿 ↔ 專案：唯一的路徑經過草稿
         $this->draft->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
         $this->draft->implementations()->attach($implementation->id, ['relation_id' => $relation->id]);
+        $draftNode = [
+            'id' => "documentation-{$this->draft->id}",
+            'type' => 'documentation',
+            'label' => GraphController::UNPUBLISHED_LABEL,
+        ];
 
         $this->getJson("/api/graph/path?start=documentation-{$this->draft->id}&end=technique-{$technique->id}")
             ->assertOk()
-            ->assertJson(['found' => false])
+            ->assertJson(['found' => true])
+            ->assertJsonPath('nodes.0', $draftNode)
             ->assertJsonMissing(['label' => '草稿文章']);
 
         $this->getJson("/api/graph/path?start=technique-{$technique->id}&end=implementation-{$implementation->id}")
             ->assertOk()
-            ->assertJson(['found' => false]);
+            ->assertJson(['found' => true])
+            ->assertJsonPath('nodes.1', $draftNode)
+            ->assertJsonMissing(['label' => '草稿文章']);
+    }
+
+    #[TestDox('訪客以同一篇草稿為起訖點時找得到，標籤是未公開')]
+    public function test_guest_path_from_a_draft_to_itself_is_found_with_a_masked_label()
+    {
+        $nodeId = "documentation-{$this->draft->id}";
+
+        $this->getJson("/api/graph/path?start={$nodeId}&end={$nodeId}")
+            ->assertOk()
+            ->assertExactJson([
+                'found' => true,
+                'nodes' => [['id' => $nodeId, 'type' => 'documentation', 'label' => GraphController::UNPUBLISHED_LABEL]],
+                'edges' => [],
+            ]);
+    }
+
+    #[TestDox('登入後查以草稿為起點的路徑，回傳草稿標題')]
+    public function test_signed_in_path_starting_at_a_draft_shows_its_title()
+    {
+        $technique = Technique::factory()->create();
+        $relation = Relation::factory()->create(['name' => 'specs']);
+        $this->draft->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
+        $this->signIn();
+
+        $this->getJson("/api/graph/path?start=documentation-{$this->draft->id}&end=technique-{$technique->id}")
+            ->assertOk()
+            ->assertJson(['found' => true])
+            ->assertJsonPath('nodes.0.label', '草稿文章');
     }
 
     #[TestDox('訪客檢視技術與實作時看不到草稿文件')]
