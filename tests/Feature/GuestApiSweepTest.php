@@ -8,12 +8,10 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
-use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -49,6 +47,7 @@ class GuestApiSweepTest extends TestCase
         'technique' => 'sweep-live-technique',
         'implementation' => 'sweep-live-implementation',
         'scope' => 'sweep-live-scope',
+        'scope under a deleted parent' => 'sweep-live-orphaned-scope',
         'relation' => 'sweep-live-relation',
     ];
 
@@ -61,6 +60,7 @@ class GuestApiSweepTest extends TestCase
         'deleted technique' => 'sweep-deleted-technique',
         'deleted implementation' => 'sweep-deleted-implementation',
         'deleted scope' => 'sweep-deleted-scope',
+        'deleted top-level scope' => 'sweep-deleted-toplevel-scope',
         'deleted relation' => 'sweep-deleted-relation',
     ];
 
@@ -77,7 +77,7 @@ class GuestApiSweepTest extends TestCase
      * 每條 `api/` 路由（方法加網址）一筆。新增路由時照這裡的格式補一筆並寫明理由。
      *
      * - `auth`：訪客一律 401。可以另外用 `middleware` 列出必須掛著的 middleware。
-     * - `public`：訪客可讀。
+     * - `public`：訪客可讀。端點讀查詢參數（篩選、分頁）的，要在 `queries` 列出來，掃描會帶著打一遍。
      * - `special`：有自己規則，`cases` 逐一列出訪客在各種情況下得到的狀態碼
      *   （`origin` 表示有沒有帶前端的 `Origin`）。
      *
@@ -114,7 +114,7 @@ class GuestApiSweepTest extends TestCase
             'GET api/relations' => self::publicRead(),
             'GET api/relations/create' => self::publicRead('表單欄位定義。'),
             'GET api/relations/{relation}' => self::publicRead(),
-            'GET api/relations/{relation}/edges' => self::publicRead('使用某條述詞的邊（分頁）。'),
+            'GET api/relations/{relation}/edges' => self::publicRead('使用某條述詞的邊（分頁）。', ['per_page=100']),
             'POST api/relations' => self::auth(),
             'PUT api/relations/{relation}' => self::auth(),
             'PATCH api/relations/{relation}' => self::auth(),
@@ -137,7 +137,7 @@ class GuestApiSweepTest extends TestCase
             'DELETE api/techniques/{technique}' => self::auth(),
 
             // 實作
-            'GET api/implementations' => self::publicRead('設為不公開的實作只給登入的人看。'),
+            'GET api/implementations' => self::publicRead('設為不公開的實作只給登入的人看，帶 type 篩選也一樣。', ['type={scope}']),
             'GET api/implementations/{implementation}' => self::publicRead('不公開的實作對訪客等同不存在。'),
             'POST api/implementations' => self::auth(),
             'PUT api/implementations/{implementation}' => self::auth(),
@@ -146,7 +146,7 @@ class GuestApiSweepTest extends TestCase
 
             // 知識圖譜
             'GET api/graph' => self::publicRead('節點與邊，不含草稿與不公開的實作。'),
-            'GET api/graph/path' => self::publicRead('最短路徑，不能經過、也不能帶出看不到的節點。'),
+            'GET api/graph/path' => self::publicRead('最短路徑，起訖點與經過的節點不含草稿與不公開的實作。'),
         ];
     }
 
@@ -159,10 +159,14 @@ class GuestApiSweepTest extends TestCase
         return ['kind' => self::KIND_AUTH, 'why' => $why, 'middleware' => $middleware];
     }
 
-    /** @return array<string, mixed> */
-    private static function publicRead(string $why = '公開唯讀。'): array
+    /**
+     * @param  list<string>  $queries  端點讀的查詢參數，每一項是一條 query string；
+     *                                 `{scope}` 這類參數會換成夾具裡每一種分類的 id。
+     * @return array<string, mixed>
+     */
+    private static function publicRead(string $why = '公開唯讀。', array $queries = []): array
     {
-        return ['kind' => self::KIND_PUBLIC, 'why' => $why, 'middleware' => []];
+        return ['kind' => self::KIND_PUBLIC, 'why' => $why, 'middleware' => [], 'queries' => $queries];
     }
 
     /**
@@ -238,7 +242,7 @@ class GuestApiSweepTest extends TestCase
         $this->assertSame([], $failures);
     }
 
-    #[TestDox('對照表要求的 middleware（limiter、前端 Origin 檢查）都還掛在路由上')]
+    #[TestDox('對照表要求的 middleware 都還掛在路由上')]
     public function test_routes_keep_the_middleware_the_table_requires()
     {
         $this->assertSame([], $this->missingMiddleware(), '這些路由少了對照表要求的 middleware');
@@ -253,7 +257,7 @@ class GuestApiSweepTest extends TestCase
         foreach ($this->routesOfKind(self::KIND_PUBLIC) as $key => $route) {
             [$method, $uri] = explode(' ', $key, 2);
 
-            foreach ($this->callsFor($uri) as $call) {
+            foreach ($this->callsFor($key) as $call) {
                 $response = $this->guestCall($method, $call['url']);
                 $status = $response->getStatusCode();
                 $body = $this->withoutAllowedPredicateNames($uri, $response->getContent());
@@ -287,7 +291,7 @@ class GuestApiSweepTest extends TestCase
     #[TestDox('同一批資料，登入後看得到草稿與不公開的實作，所以訪客的掃描不是空轉')]
     public function test_signed_in_viewer_sees_the_rows_the_guest_sweep_checks_for()
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsOwner();
 
         $documentations = $this->getJson('/api/documentations')->assertOk()->getContent();
         $this->assertStringContainsString(self::HIDDEN_MARKERS['draft documentation'], $documentations);
@@ -298,7 +302,7 @@ class GuestApiSweepTest extends TestCase
         $this->assertStringContainsString(self::HIDDEN_MARKERS['hidden implementation'], $implementations);
         $this->assertStringNotContainsString(self::HIDDEN_MARKERS['deleted implementation'], $implementations);
 
-        // 看得到的技術與看得到的實作只有透過草稿文件才連得起來
+        // 登入後，經過草稿文件就連得起來
         $start = 'technique-'.$this->ids['technique']['live'];
         $end = 'implementation-'.$this->ids['implementation']['live'];
         $this->getJson("/api/graph/path?start={$start}&end={$end}")
@@ -339,6 +343,17 @@ class GuestApiSweepTest extends TestCase
             'name' => self::HIDDEN_MARKERS['deleted scope'], 'comment' => self::HIDDEN_MARKERS['deleted scope'], 'note' => self::HIDDEN_MARKERS['deleted scope'],
         ]);
 
+        // 已刪除的頂層分類，底下還有一筆看得到的子分類（刪除分類不會連帶刪子分類）：
+        // 表單選項（只列頂層）和子分類的 parent 都有機會把它帶出來
+        $deletedTopLevelScope = Scope::factory()->create([
+            'class_number' => 81, 'call_number' => '00', 'parent_class' => null,
+            'name' => self::HIDDEN_MARKERS['deleted top-level scope'], 'comment' => self::HIDDEN_MARKERS['deleted top-level scope'], 'note' => self::HIDDEN_MARKERS['deleted top-level scope'],
+        ]);
+        $orphanedScope = Scope::factory()->create([
+            'class_number' => 81, 'call_number' => '01', 'parent_class' => $deletedTopLevelScope->id,
+            'name' => self::LIVE_MARKERS['scope under a deleted parent'], 'comment' => self::LIVE_MARKERS['scope under a deleted parent'], 'note' => self::LIVE_MARKERS['scope under a deleted parent'],
+        ]);
+
         $relation = $this->makeRelation($scope, self::LIVE_MARKERS['relation'], '90');
         // 已刪除述詞的 reverse_id 指向看得到的述詞；建立時 Relation 會把看得到的述詞也反過來指向它
         $deletedRelation = $this->makeRelation($scope, self::HIDDEN_MARKERS['deleted relation'], '91', $relation->id);
@@ -362,8 +377,7 @@ class GuestApiSweepTest extends TestCase
         $documentation->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
         $documentation->techniques()->attach($technique->id, ['relation_id' => $deletedRelation->id]);
 
-        // 其餘的連線都連到看不到的列；技術與實作之間除了草稿文件之外沒有別的連線，
-        // 登入後才找得到路徑。
+        // 其餘的連線都連到看不到的列。
         foreach ([$draft, $nullStatus, $deletedDocumentation] as $hidden) {
             $hidden->techniques()->attach($technique->id, ['relation_id' => $relation->id]);
             $hidden->implementations()->attach($implementation->id, ['relation_id' => $relation->id]);
@@ -394,6 +408,7 @@ class GuestApiSweepTest extends TestCase
         $deletedTechnique->delete();
         $deletedImplementation->delete();
         $deletedScope->delete();
+        $deletedTopLevelScope->delete();
         $deletedRelation->delete();
 
         $this->ids = [
@@ -409,7 +424,13 @@ class GuestApiSweepTest extends TestCase
                 'hidden' => $hiddenImplementation->id,
                 'deleted' => $deletedImplementation->id,
             ],
-            'scope' => ['live' => $scope->id, 'live parent' => $parentScope->id, 'deleted' => $deletedScope->id],
+            'scope' => [
+                'live' => $scope->id,
+                'live parent' => $parentScope->id,
+                'live under a deleted parent' => $orphanedScope->id,
+                'deleted' => $deletedScope->id,
+                'deleted top-level' => $deletedTopLevelScope->id,
+            ],
             'relation' => ['live' => $relation->id, 'deleted' => $deletedRelation->id],
         ];
     }
@@ -474,7 +495,7 @@ class GuestApiSweepTest extends TestCase
     {
         $routes = [];
         foreach (Route::getRoutes()->getRoutes() as $route) {
-            if (! str_starts_with($route->uri(), 'api/')) {
+            if ($route->uri() !== 'api' && ! str_starts_with($route->uri(), 'api/')) {
                 continue;
             }
 
@@ -578,30 +599,67 @@ class GuestApiSweepTest extends TestCase
      *
      * @return list<array{label: string, url: string, live: bool}>
      */
-    private function callsFor(string $uri): array
+    private function callsFor(string $key): array
     {
+        $uri = explode(' ', $key, 2)[1];
+
         if ($uri === 'api/graph/path') {
             return $this->pathCalls();
         }
 
         if (! preg_match_all('/\{(\w+)\}/', $uri, $matches)) {
-            return [['label' => '無參數', 'url' => '/'.$uri, 'live' => true]];
+            $calls = [['label' => '無參數', 'url' => '/'.$uri, 'live' => true]];
+        } else {
+            $this->assertCount(1, $matches[1], "{$uri} 有多個路由參數，請擴充 GuestApiSweepTest::callsFor() 讓掃描涵蓋它。");
+            $parameter = $matches[1][0];
+            $this->assertArrayHasKey($parameter, $this->ids, "{$uri} 的路由參數 {{$parameter}} 沒有對應的夾具，請在 seedFixture() 補上。");
+
+            $calls = [];
+            foreach ($this->ids[$parameter] as $variant => $id) {
+                $calls[] = [
+                    'label' => $variant,
+                    'url' => '/'.str_replace('{'.$parameter.'}', (string) $id, $uri),
+                    'live' => str_starts_with($variant, 'live'),
+                ];
+            }
         }
 
-        $this->assertCount(1, $matches[1], "{$uri} 有多個路由參數，請擴充 GuestApiSweepTest::callsFor() 讓掃描涵蓋它。");
-        $parameter = $matches[1][0];
-        $this->assertArrayHasKey($parameter, $this->ids, "{$uri} 的路由參數 {{$parameter}} 沒有對應的夾具，請在 seedFixture() 補上。");
+        return [...$calls, ...$this->queryCalls($calls, self::expectations()[$key]['queries'] ?? [])];
+    }
 
-        $calls = [];
-        foreach ($this->ids[$parameter] as $variant => $id) {
-            $calls[] = [
-                'label' => $variant,
-                'url' => '/'.str_replace('{'.$parameter.'}', (string) $id, $uri),
-                'live' => str_starts_with($variant, 'live'),
-            ];
+    /**
+     * 帶查詢參數的請求：每個基本請求各帶每條 query string 打一次，
+     * query string 裡的 `{scope}` 這類參數再換成夾具裡每一種列的 id。
+     *
+     * @param  list<array{label: string, url: string, live: bool}>  $calls
+     * @param  list<string>  $queries
+     * @return list<array{label: string, url: string, live: bool}>
+     */
+    private function queryCalls(array $calls, array $queries): array
+    {
+        $withQueries = [];
+        foreach ($queries as $query) {
+            $variants = [$query => 'query'];
+            if (preg_match('/\{(\w+)\}/', $query, $match)) {
+                $this->assertArrayHasKey($match[1], $this->ids, "查詢參數 {$query} 的 {{$match[1]}} 沒有對應的夾具，請在 seedFixture() 補上。");
+                $variants = [];
+                foreach ($this->ids[$match[1]] as $variant => $id) {
+                    $variants[str_replace($match[0], (string) $id, $query)] = $variant;
+                }
+            }
+
+            foreach ($calls as $call) {
+                foreach ($variants as $resolved => $variant) {
+                    $withQueries[] = [
+                        'label' => "{$call['label']}，?{$resolved}（{$variant}）",
+                        'url' => $call['url'].'?'.$resolved,
+                        'live' => $call['live'],
+                    ];
+                }
+            }
         }
 
-        return $calls;
+        return $withQueries;
     }
 
     /**
