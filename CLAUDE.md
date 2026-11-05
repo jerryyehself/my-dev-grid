@@ -33,8 +33,11 @@
   - 上線 PR 裡把這一批寫進 `CHANGELOG.md` 的版本標題（`## [X.Y.Z] - YYYY-MM-DD`）。合併後 `release.yml` 在 `main` 上建 tag 與 Release，tag 會打在上線的那個 commit。
   - 上線 PR 說明要列出這一批所有的 migration（`git diff --name-only origin/main...origin/develop -- database/migrations`，沒有就寫「無」）。這一批只要有任何一項下面「高風險改動」列的東西，上線 PR 就照那一節寫回滾方式、驗證範圍與資料安全檢查；有 migration 的話，逐支照 `docs/zero-downtime-migrations.md` §7 再檢查一次。
   - 上線 PR 用 **squash 合併**（`main` 上一次上線就是一個 commit）。合併完一定要把 `main` 合回 `develop`：`git merge --no-ff origin/main`，一般 push，不是 force push。`develop` 的保護規則如果擋下直接 push（例如設了必要檢查），改開 `main` → `develop` 的 PR，用 merge commit 合併，不要 squash。不合回去，下次上線 PR 的歷史會對不上。
-  - 退版：程式碼先照下面「高風險改動」的回滾指令把流量切回上一個 revision，再用 `git revert <squash commit>` 開 PR 到 `main`（走下一條的修補流程）。
-- **緊急修補、安全性修補、Dependabot**：從 `main` 開分支、PR 對 `main`，合併前先問使用者，合併即部署；合完同樣把 `main` 合回 `develop`。要發版本的話，在這個 PR 的 `CHANGELOG.md` 加修訂號版本。Dependabot 的安全性更新只會開在 repo 的預設分支，所以 Dependabot 的 PR 本來就是對 `main`；之後如果加 `.github/dependabot.yml`，`target-branch` 也不要改成 `develop`。
+  - 退版：程式碼先照下面「高風險改動」的回滾指令把流量切回上一個 revision，再用 `git revert <squash commit>` 開 PR 到 `main`（走下面「嚴重安全問題的修補」的流程）。
+- **嚴重安全問題的修補**（D-174）：從 `main` 開分支、PR 對 `main`，合併前先問使用者，合併即部署；合完同樣把 `main` 合回 `develop`。要發版本的話，在這個 PR 的 `CHANGELOG.md` 加修訂號版本。退版用的 revert PR 也走這條。
+  - 「嚴重」指：自己程式碼的漏洞會外洩私人資料，或能繞過登入、授權；或相依套件公告為 high／critical，而且正式環境真的會跑到有漏洞的程式路徑。只有開發用的套件、或沒呼叫到的路徑，不算嚴重。判斷不出來就先問使用者，附上公告和判斷理由。
+  - 其他修補，包括一般 bug、不嚴重的安全性或相依套件更新，都從 `develop` 開，跟每週上線一起上。
+- **Dependabot**：安全性更新只會開在 repo 的預設分支，所以 Dependabot 的 PR 一定對 `main`；之後如果加 `.github/dependabot.yml`，`target-branch` 也不要改成 `develop`。嚴重的照上一條處理；不嚴重的先留著，上線日等上線 PR 合併後再合，接著照樣把 `main` 合回 `develop`。
 - **帶 migration 的 PR 合進 `develop`**：合進 `develop` 還不會碰到正式資料庫，真正跑 migration 的是上線那一次。這次的做法有明文規則或已記錄的決定涵蓋（`docs/conventions/data.md`、`docs/zero-downtime-migrations.md` 的規則，或 issue／PR 裡已經定案的設計），而且 CI 的 sqlite 與 pgsql 都過，就可以直接合進 `develop`，不用先問；找不到明文依據就先問。其他高風險改動（登入與授權、部署管線）合進 `develop` 前照舊先問。
 - **分次上線**：資料庫結構的 expand／contract 每一步要分開上線，不能跟前一步在同一個上線 PR 裡。後一步的 PR 要等前一步已經上線（部署成功、流量切到新版）之後才合進 `develop`；等不到下週一的話，先問使用者要不要另外加開一次上線。
 - **只有 `main` 會部署**：`deploy-cloud-run.yml` 的 push、每週排程、手動執行都只在 `main` 上部署，手動執行選了其他分支會跳過；`release.yml` 也只在 `main` 上建 Release。
