@@ -22,7 +22,8 @@ class PivotRelationApiTest extends TestCase
 
         $scope = Scope::factory()->create();
         $technique = Technique::factory()->create();
-        $relation = Relation::factory()->create();
+        // 連結的兩端要符合述詞的主詞與受詞（RelationFitsLinkedScopes），所以述詞照兩端的分類建
+        $relation = Relation::factory()->create(['subject_id' => $scope->id, 'object_id' => $technique->type]);
 
         $response = $this->postJson('/api/documentations', [
             'type' => $scope->id,
@@ -51,16 +52,17 @@ class PivotRelationApiTest extends TestCase
         $scope = Scope::factory()->create();
         $technique = Technique::factory()->create();
         $implementation = Implementation::factory()->create();
-        $relation = Relation::factory()->create();
+        $specs = Relation::factory()->create(['subject_id' => $scope->id, 'object_id' => $technique->type]);
+        $documents = Relation::factory()->create(['subject_id' => $scope->id, 'object_id' => $implementation->type]);
 
         $this->postJson('/api/documentations', [
             'type' => $scope->id,
             'title' => 'Laravel Docs',
             'techniques' => [
-                ['id' => $technique->id, 'relation_id' => $relation->id],
+                ['id' => $technique->id, 'relation_id' => $specs->id],
             ],
             'implementations' => [
-                ['id' => $implementation->id, 'relation_id' => $relation->id],
+                ['id' => $implementation->id, 'relation_id' => $documents->id],
             ],
         ])->assertCreated();
 
@@ -104,7 +106,7 @@ class PivotRelationApiTest extends TestCase
 
         $documentation = Documentation::factory()->create();
         $implementation = Implementation::factory()->create();
-        $relation = Relation::factory()->create();
+        $relation = Relation::factory()->create(['subject_id' => $documentation->type, 'object_id' => $implementation->type]);
 
         $response = $this->putJson("/api/documentations/{$documentation->id}", [
             'type' => $documentation->type,
@@ -130,8 +132,8 @@ class PivotRelationApiTest extends TestCase
 
         $documentation = Documentation::factory()->create();
         $techniqueA = Technique::factory()->create();
-        $techniqueB = Technique::factory()->create();
-        $relation = Relation::factory()->create();
+        $techniqueB = Technique::factory()->create(['type' => $techniqueA->type]);
+        $relation = Relation::factory()->create(['subject_id' => $documentation->type, 'object_id' => $techniqueA->type]);
 
         $documentation->techniques()->attach($techniqueA->id, ['relation_id' => $relation->id]);
 
