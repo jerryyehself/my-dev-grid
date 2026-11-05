@@ -2,6 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Documentation;
+use App\Models\Technique;
+use App\Rules\RelationFitsLinkedScopes;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -31,10 +34,20 @@ class UpdateImplementationRequest extends FormRequest
             'maintain_status' => 'nullable|boolean',
             'documentations' => 'sometimes|array',
             'documentations.*.id' => 'required|integer|exists:documentations,id',
-            'documentations.*.relation_id' => 'required|integer|exists:relations,id',
+            // 連結表 documentation_implementation 的主詞是文件、受詞是實作，所以這裡實作是受詞端
+            /** 連結用的關係 id。兩端實體的分類須符合該關係規定的主詞與受詞分類（子分類也算符合）。 */
+            'documentations.*.relation_id' => [
+                'required', 'integer', 'exists:relations,id',
+                new RelationFitsLinkedScopes(RelationFitsLinkedScopes::OWN_IS_OBJECT, Documentation::class, $this->route('implementation')?->type),
+            ],
             'techniques' => 'sometimes|array',
             'techniques.*.id' => 'required|integer|exists:techniques,id',
-            'techniques.*.relation_id' => 'required|integer|exists:relations,id',
+            // 連結表 technique_implementation 的主詞是技術、受詞是實作，所以這裡實作是受詞端
+            /** 連結用的關係 id。兩端實體的分類須符合該關係規定的主詞與受詞分類（子分類也算符合）。 */
+            'techniques.*.relation_id' => [
+                'required', 'integer', 'exists:relations,id',
+                new RelationFitsLinkedScopes(RelationFitsLinkedScopes::OWN_IS_OBJECT, Technique::class, $this->route('implementation')?->type),
+            ],
         ];
     }
 }

@@ -103,8 +103,10 @@ class AdminAuditLoggingTest extends TestCase
     {
         $user = $this->actingAsOwner();
         $implementation = Implementation::factory()->create();
-        [$kept, $removed, $added] = Technique::factory()->count(3)->create()->all();
-        $relation = Relation::factory()->create();
+        $techniqueScope = Scope::factory()->create();
+        [$kept, $removed, $added] = Technique::factory()->count(3)->create(['type' => $techniqueScope->id])->all();
+        // 連結的兩端要符合述詞的主詞與受詞（RelationFitsLinkedScopes）：技術是主詞端，實作是受詞端
+        $relation = Relation::factory()->create(['subject_id' => $techniqueScope->id, 'object_id' => $implementation->type]);
         $implementation->techniques()->sync([
             $kept->id => ['relation_id' => $relation->id],
             $removed->id => ['relation_id' => $relation->id],
