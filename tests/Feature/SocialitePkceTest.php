@@ -9,6 +9,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
@@ -152,7 +153,7 @@ class SocialitePkceTest extends TestCase
         $this->assertIsString($state);
         $history = $this->fakeProviderHttp($provider);
 
-        $response = $this->get("{$prefix}/{$provider}/callback?state=".urlencode($state.'-wrong')."&code=pkce-code");
+        $response = $this->get("{$prefix}/{$provider}/callback?state=".urlencode($state.'-wrong').'&code=pkce-code');
 
         $this->assertRejectedCallbackDidNotAuthenticate($response, $prefix, $history);
     }
@@ -180,7 +181,7 @@ class SocialitePkceTest extends TestCase
     }
 
     private function assertRejectedCallbackDidNotAuthenticate(
-        \Illuminate\Testing\TestResponse $response,
+        TestResponse $response,
         string $prefix,
         \ArrayObject $history,
     ): void {
