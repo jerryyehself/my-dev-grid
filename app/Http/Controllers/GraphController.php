@@ -38,7 +38,7 @@ class GraphController extends Controller
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
         title: '取得知識圖譜',
-        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype` 與 `url` 為 null。已刪除的文件不會出現，連到它的邊也不會。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
+        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype` 與 `url` 為 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
     )]
     #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, subtype: string|null, url: string|null, active: bool}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null}>}')]
     public function index()
@@ -105,7 +105,7 @@ class GraphController extends Controller
         }
 
         // 起訖點不存在（沒有這個 id，或已軟刪除）：也當成找不到。起訖點相同時 BFS 不會走任何一條邊，
-        // 沒有這道檢查，不存在的節點會被當成「只有自己」的路徑回傳。邊的那一側由 rawEdges() 另外排除已刪除的文件
+        // 沒有這道檢查，不存在的節點會被當成「只有自己」的路徑回傳。邊的那一側由 rawEdges() 另外排除已刪除的文件、技術、實作
         if (! $this->nodeExists($start) || ! $this->nodeExists($end)) {
             return response()->json(['found' => false, 'nodes' => [], 'edges' => []]);
         }
@@ -187,11 +187,14 @@ class GraphController extends Controller
      * 這次請求看得到的邊，Relation 還掛在上面（沒有攤平成公開的 {source,target,predicate,...}）。
      * index() 攤平後回傳，path() 逆向走時要用 Relation 本身查 reverse_id。
      *
-     * 端點是看不到的專案（`hiddenNodeIds()`）或已軟刪除的文件（`deletedDocumentationNodeIds()`）的邊都不回。
+     * 端點是看不到的專案（`hiddenNodeIds()`）或已軟刪除的文件（`deletedDocumentationNodeIds()`）、
+     * 技術與實作（`deletedTechniqueAndImplementationNodeIds()`）的邊都不回。
      */
     private function rawEdges(): Collection
     {
-        $excluded = $this->hiddenNodeIds() + $this->deletedDocumentationNodeIds();
+        $excluded = $this->hiddenNodeIds()
+            + $this->deletedDocumentationNodeIds()
+            + $this->deletedTechniqueAndImplementationNodeIds();
 
         return $this->allRawEdges()
             ->reject(fn (array $e) => isset($excluded[$e['source']]) || isset($excluded[$e['target']]))
@@ -232,6 +235,27 @@ class GraphController extends Controller
             ->pluck('id')
             ->mapWithKeys(fn (int $id) => [$this->nodeId('documentation', $id) => true])
             ->all();
+    }
+
+    /**
+     * 已軟刪除的技術與實作，以 node id 為 key，不管這次請求有沒有登入。
+     *
+     * 理由同 `deletedDocumentationNodeIds()`：連結表與 entity_relations 的列不會跟著軟刪除，
+     * 不排除的話，邊會指向不在 nodes 裡的節點，路徑查詢也會經過已刪除的技術或實作。
+     * 實作要另外處理，是因為 `hiddenNodeIds()` 走的是 Implementation 的 SoftDeletes scope，已刪除的實作不在裡面。
+     *
+     * @return array<string, true>
+     */
+    private function deletedTechniqueAndImplementationNodeIds(): array
+    {
+        $ids = [];
+        foreach (['technique' => Technique::class, 'implementation' => Implementation::class] as $type => $model) {
+            foreach ($model::onlyTrashed()->pluck('id') as $id) {
+                $ids[$this->nodeId($type, $id)] = true;
+            }
+        }
+
+        return $ids;
     }
 
     private function allRawEdges(): Collection

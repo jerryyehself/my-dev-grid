@@ -351,7 +351,7 @@ class GraphApiTest extends TestCase
     #[DataProvider('viewers')]
     public function test_path_with_a_soft_deleted_technique_at_either_end_is_not_found(bool $signedIn)
     {
-        // 技術的 pivot 邊不會因為技術軟刪除就被 rawEdges() 排除，所以只有起訖點的存在檢查擋得住
+        // 起訖點本身已刪除：由起訖點的存在檢查擋下（邊的那一側另有 rawEdges() 排除，見下面中間節點的測試）
         $technique = Technique::factory()->create();
         $documentation = Documentation::factory()->create(['status' => 1]);
         $relation = Relation::factory()->create(['name' => 'specs']);
@@ -365,6 +365,151 @@ class GraphApiTest extends TestCase
 
         foreach ([[$techniqueId, $documentationId], [$documentationId, $techniqueId]] as [$start, $end]) {
             $this->getJson("/api/graph/path?start={$start}&end={$end}")
+                ->assertOk()
+                ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
+        }
+    }
+
+    /** @return array<string, array{0: string, 1: bool}> */
+    public static function softDeletableEntityTypesAndViewers(): array
+    {
+        $cases = [];
+        foreach (['technique', 'implementation'] as $type) {
+            $cases["{$type}／訪客"] = [$type, false];
+            $cases["{$type}／登入"] = [$type, true];
+        }
+
+        return $cases;
+    }
+
+    private function createEntity(string $type, array $attributes = []): Technique|Implementation
+    {
+        return match ($type) {
+            'technique' => Technique::factory()->create($attributes),
+            'implementation' => Implementation::factory()->create($attributes),
+        };
+    }
+
+    /** 文件連到技術或實作的 pivot 邊（文件是 source、技術或實作是 target）。 */
+    private function linkDocumentationTo(Documentation $documentation, Technique|Implementation $entity, Relation $relation): void
+    {
+        $links = $entity instanceof Technique ? $documentation->techniques() : $documentation->implementations();
+        $links->attach($entity->id, ['relation_id' => $relation->id]);
+    }
+
+    /**
+     * 唯一的一條兩步路徑，中間是技術或實作：
+     * 技術為中間時是 文件 → 技術 → 實作，實作為中間時是 文件 → 實作 ← 技術（實作是兩條邊的 target）。
+     * 中間節點用獨特的標題，方便檢查整個回應有沒有帶出它。
+     *
+     * @return array{0: string, 1: string, 2: Technique|Implementation} 起點 id、終點 id、中間的實體
+     */
+    private function twoHopPathThrough(string $type): array
+    {
+        $relation = Relation::factory()->create(['name' => 'specs']);
+        $documentation = Documentation::factory()->create(['status' => 1]);
+        $middle = $this->createEntity($type, ['title' => "中間的{$type}節點標記"]);
+
+        $this->linkDocumentationTo($documentation, $middle, $relation);
+        if ($middle instanceof Technique) {
+            $end = Implementation::factory()->create();
+            $middle->implementations()->attach($end->id, ['relation_id' => $relation->id]);
+            $endId = "implementation-{$end->id}";
+        } else {
+            $end = Technique::factory()->create();
+            $end->implementations()->attach($middle->id, ['relation_id' => $relation->id]);
+            $endId = "technique-{$end->id}";
+        }
+
+        return ["documentation-{$documentation->id}", $endId, $middle];
+    }
+
+    /** 回傳的圖裡沒有這個節點，也沒有任何一條邊以它為 source 或 target，而且每條邊的兩端都是回傳的節點。 */
+    private function assertGraphOmitsNode(TestResponse $response, string $nodeId, string $label): void
+    {
+        $nodeIds = collect($response->json('nodes'))->pluck('id');
+        $edges = collect($response->json('edges'));
+
+        $this->assertNotContains($nodeId, $nodeIds);
+        // source 端與 target 端各自檢查，只出現在其中一端時也要濾掉
+        $this->assertNotContains($nodeId, $edges->pluck('source'));
+        $this->assertNotContains($nodeId, $edges->pluck('target'));
+        $response->assertJsonMissing(['label' => $label]);
+        $this->assertEmpty($edges->pluck('source')->concat($edges->pluck('target'))->diff($nodeIds));
+    }
+
+    #[TestDox('已刪除的技術或實作在路徑中間時，圖不含它，路徑也找不到')]
+    #[DataProvider('softDeletableEntityTypesAndViewers')]
+    public function test_soft_deleted_entity_in_the_middle_of_a_path_is_omitted_from_graph_and_path(string $type, bool $signedIn)
+    {
+        [$startId, $endId, $middle] = $this->twoHopPathThrough($type);
+        if ($signedIn) {
+            Sanctum::actingAs(User::factory()->create());
+        }
+        $middleId = "{$type}-{$middle->id}";
+
+        // 對照組：沒刪之前路徑走得通，下面的「找不到」才是刪除造成的，不是資料沒接起來
+        $this->getJson("/api/graph/path?start={$startId}&end={$endId}")
+            ->assertOk()
+            ->assertJsonPath('found', true)
+            ->assertJsonPath('nodes.1.id', $middleId);
+
+        $middle->delete();
+
+        $graph = $this->getJson('/api/graph')->assertOk();
+        $this->assertGraphOmitsNode($graph, $middleId, $middle->title);
+        // 兩端沒刪，照常是節點
+        $this->assertContains($startId, collect($graph->json('nodes'))->pluck('id'));
+        $this->assertContains($endId, collect($graph->json('nodes'))->pluck('id'));
+
+        foreach ([[$startId, $endId], [$endId, $startId]] as [$from, $to]) {
+            $this->getJson("/api/graph/path?start={$from}&end={$to}")
+                ->assertOk()
+                ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
+        }
+    }
+
+    #[TestDox('已刪除的技術或實作只在邊的 target 端時，圖不含它的邊，路徑也不經過它')]
+    #[DataProvider('softDeletableEntityTypesAndViewers')]
+    public function test_soft_deleted_entity_that_is_only_an_edge_target_is_omitted(string $type, bool $signedIn)
+    {
+        // 已刪除的實體在每一條邊上都只是 target：兩篇文件的 pivot 邊，加上同型別的 entity_relations 邊。
+        // 只濾掉 source 端的話，這些邊全都留得下來
+        $relation = Relation::factory()->create(['name' => 'specs']);
+        $target = $this->createEntity($type, ['title' => "只當 target 的{$type}標記"]);
+        $other = $this->createEntity($type);
+        $docA = Documentation::factory()->create(['status' => 1]);
+        $docB = Documentation::factory()->create(['status' => 1]);
+        $this->linkDocumentationTo($docA, $target, $relation);
+        $this->linkDocumentationTo($docB, $target, $relation);
+        EntityRelation::factory()->create([
+            'entity_type' => $type,
+            'subject_id' => $other->id,
+            'object_id' => $target->id,
+            'relation_id' => $relation->id,
+        ]);
+        if ($signedIn) {
+            Sanctum::actingAs(User::factory()->create());
+        }
+        $targetId = "{$type}-{$target->id}";
+        $docAId = "documentation-{$docA->id}";
+        $docBId = "documentation-{$docB->id}";
+        $otherId = "{$type}-{$other->id}";
+
+        // 對照組：沒刪之前，三個活著的節點都靠這個 target 連起來
+        $this->getJson("/api/graph/path?start={$docAId}&end={$docBId}")->assertOk()->assertJsonPath('found', true);
+        $this->getJson("/api/graph/path?start={$otherId}&end={$docAId}")->assertOk()->assertJsonPath('found', true);
+
+        $target->delete();
+
+        $graph = $this->getJson('/api/graph')->assertOk();
+        $this->assertGraphOmitsNode($graph, $targetId, $target->title);
+        $this->assertContains($docAId, collect($graph->json('nodes'))->pluck('id'));
+        $this->assertContains($otherId, collect($graph->json('nodes'))->pluck('id'));
+        $this->assertSame([], $graph->json('edges'));
+
+        foreach ([[$docAId, $docBId], [$otherId, $docAId]] as [$from, $to]) {
+            $this->getJson("/api/graph/path?start={$from}&end={$to}")
                 ->assertOk()
                 ->assertExactJson(['found' => false, 'nodes' => [], 'edges' => []]);
         }
