@@ -47,7 +47,9 @@ php artisan test                        # 全套測試
 
 ## 前端
 
-[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)（Vue 3 SPA，部署在 Cloudflare，網址 `jerrylib.com`，正式公開前用 Cloudflare Access 鎖住）是這個 API 的公開網站，也是現在的正式管理介面：文章、`Scope`（階層分類號）、`Relation`（述詞）都在那邊新增/編輯。舊的內嵌 Vue 後台 Triple（`resources/js`，session cookie 登入）還在，但只是還沒被移除（D-48），不是主要維護目標，也沒有 Triple 沒有而 `my-dev-grid-front` 有的資料——兩邊管的都只是 `Scope`／`Relation`。
+[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)（Vue 3 SPA，部署在 Cloudflare，網址 `jerrylib.com`，正式公開前用 Cloudflare Access 鎖住）是這個 API 的公開網站，也是唯一的管理介面：文章、`Scope`（階層分類號）、`Relation`（述詞）都在那邊新增/編輯。
+
+這個 repo 只提供 API，不建置也不提供任何網頁，建置與部署都不需要 Node／npm（只有本機的 `composer run dev` 用 `npx concurrently` 同時開幾個程序）。原本內嵌在 Laravel 裡的 Vue 後台 Triple 已經移除（D-48），以前它的網址（例如 `/`）現在回 404。
 
 ## API
 
@@ -61,7 +63,7 @@ php artisan test                        # 全套測試
 | `GET/POST/PUT/DELETE /api/relations` | 述詞。15 條全部成對可逆，`reverse_id` 互指；被任何邊引用後大部分欄位鎖定唯讀（僅 `note` 可改）。寫入需要登入 |
 | `GET /api/relations/{id}/edges` | 一條述詞底下的邊，分頁 |
 | `GET/POST/PUT/DELETE /api/documentations` | 文件／文章。`body` 欄位存 Markdown 原文。寫入需要登入 |
-| `GET/POST/PUT/DELETE /api/techniques` | 技術。寫入 API 已經有了（需要登入），但兩個前端（含 Triple）都還沒有管理畫面，實際資料靠 GitHub sync 自動 find-or-create，列為技術債 |
+| `GET/POST/PUT/DELETE /api/techniques` | 技術。寫入 API 已經有了（需要登入），但 `my-dev-grid-front` 還沒有管理畫面，實際資料靠 GitHub sync 自動 find-or-create，列為技術債 |
 | `GET/POST/PUT/DELETE /api/implementations` | 實作／專案。同上 |
 
 ### 認證
@@ -74,7 +76,7 @@ php artisan test                        # 全套測試
 
 跨 origin 的 SPA 要用 cookie 模式，前後端得共用同一個根網域。前端在 `jerrylib.com`，後端目前用 Cloud Run 的 `*.run.app` 網址；要等後端也掛上 `api.jerrylib.com` 這類子網域，才重新評估要不要換成 cookie 模式（目前記成低優先度技術債）。
 
-Triple 是同源的內嵌後台，繼續用它原本的 session cookie（`SessionAuthController`，社群登入走 `/auth/{provider}/*`）。兩套認證刻意不共用同一支 controller。
+另外還有一組同源 session cookie 的登入（`SessionAuthController`：`POST /auth/login`、`POST /auth/logout`，社群登入走 `/auth/{provider}/*`），原本給已移除的 Triple 後台用，目前沒有前端在用。兩套認證刻意不共用同一支 controller。
 
 ### 文章的內文
 

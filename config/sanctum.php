@@ -56,7 +56,7 @@ return [
     //
     // 這個值 Sanctum 會套用到「所有」API token（看 created_at），包含改版前發出、
     // 沒有 expires_at 的舊 token——部署後那些舊 token 會一併失效，這是刻意的。
-    // Triple 後台走 session cookie，不受這個值影響（上面註解的 first-party sessions）。
+    // 同源的 session cookie 登入（/auth/*）不受這個值影響（上面註解的 first-party sessions）。
     // App\Services\RefreshTokenFamilies 發 token 時也是讀這個值。
     'expiration' => (int) env('SANCTUM_ACCESS_TOKEN_EXPIRATION', 15),
 

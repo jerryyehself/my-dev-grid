@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Enums\SecurityEvent;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Logging\SecurityLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ class SessionAuthController extends Controller
         SecurityLog::loginSucceeded(Auth::id(), 'password', 'session');
 
         return response()->json([
-            'data' => $request->user(),
+            'data' => new UserResource($request->user()),
         ]);
     }
 

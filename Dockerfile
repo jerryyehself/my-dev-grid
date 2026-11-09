@@ -3,29 +3,13 @@
 # Production image for Cloud Run: nginx + php-fpm + supervisord in a single
 # container (Cloud Run only runs one container per revision, so the web
 # server and the PHP runtime are supervised together instead of split into
-# sidecars). Two build stages keep Node/npm out of the final runtime image.
+# sidecars). The app is API-only (no front-end assets to build), so there is a
+# single stage and no Node/npm anywhere in the build.
 #
 # Local dev keeps using SQLite (see .env.example) and `php artisan serve` /
 # `composer run dev` — this file is production-only, built and pushed by
 # .github/workflows/deploy-cloud-run.yml.
 
-##############################
-# Stage 1: frontend assets   #
-##############################
-FROM node:24-alpine AS frontend
-
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN npm ci
-
-COPY resources ./resources
-COPY vite.config.js ./
-RUN npm run build
-
-##############################
-# Stage 2: runtime image     #
-##############################
 FROM php:8.4-fpm-alpine AS app
 
 # System packages:
@@ -102,13 +86,10 @@ RUN composer install \
 
 # Now bring in the application code.
 COPY . .
-COPY --from=frontend /app/public/build ./public/build
 
 # Run composer's normal post-install scripts now that the full app (and all
-# extensions) are present, then drop the dev-only asset source that already
-# got compiled above.
+# extensions) are present.
 RUN composer run-script post-autoload-dump \
-    && rm -rf resources/js resources/css \
     && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/testing storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache

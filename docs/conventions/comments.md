@@ -30,7 +30,7 @@ PHP 的原生型別（參數、回傳、屬性）能表達的，就不要再用 
 - **要寫 `@param`／`@return`／`@var` 的情況：原生型別表達不出內容。**
   - 陣列與集合的內容：`@return array<string, mixed>`、`@return Collection<int, RefreshToken>`、`@var list<string>`。
   - 固定 key 的陣列：`@return array{0: RefreshTokenOutcome, 1: TokensDTO|null}`。
-  - 型別對、但缺一句話就看不懂的參數：`@param  string  $mode  session（Triple 後台）或 token（my-dev-grid-front）`。
+  - 型別對、但缺一句話就看不懂的參數：`@param  string  $mode  session（同源 cookie）或 token（my-dev-grid-front）`。
 - **不要寫的：** `@return void`、跟原生型別一模一樣的 `@param string $name`。這類重複的 tag，Pint 的 `no_superfluous_phpdoc_tags` 會自動刪掉。原生型別寫不出來時（方法沒有宣告回傳型別），`@return Provider` 這種只有型別的 tag 才有用（`SocialiteDriver::for()`）；能補上原生型別就補，再刪掉 tag。
 - `@throws`：呼叫端必須知道、而且從方法簽名看不出來的例外才寫（PSR-19 建議每個 throw 都寫；我們只寫對呼叫端有意義的，例如驗證類的例外交給框架處理，不用列）。目前 repo 還沒有這種寫法。
 - 格式照 Laravel：`@param` 後面空兩格、型別、空兩格、變數名、空兩格、說明（Pint 會對齊）。tag 之間依 `@param`、`@return`、`@throws` 的順序，不同種類的 tag 之間空一行。

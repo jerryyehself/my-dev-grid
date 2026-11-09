@@ -17,12 +17,12 @@ class DocumentationController extends Controller
 
     #[Endpoint(
         title: '列出文件',
-        description: '回傳所有文件，依標題排序，每筆含所屬分類與關聯的技術、實作。未登入時只看得到已發布的文件，草稿要登入才會出現。',
+        description: '回傳所有文件，依標題排序，每筆含所屬分類與關聯的技術、實作。未登入時只看得到已發布的文件，草稿要登入才會出現；關聯的實作也不含設為不公開的。',
     )]
     public function index()
     {
         $documentations = Documentation::visibleToViewer()
-            ->with(['scope', 'techniques', 'implementations'])
+            ->with(['scope', 'techniques', 'implementations' => fn ($query) => $query->visibleToViewer()])
             ->orderBy('title')
             ->get();
 
@@ -62,14 +62,14 @@ class DocumentationController extends Controller
 
     #[Endpoint(
         title: '取得文件',
-        description: '回傳單一文件，含所屬分類與關聯的技術、實作。草稿對未登入的人等同不存在，回 404。',
+        description: '回傳單一文件，含所屬分類與關聯的技術、實作（未登入時不含設為不公開的實作）。草稿對未登入的人等同不存在，回 404。',
     )]
     public function show(Documentation $documentation)
     {
         // 草稿對沒登入的人等於不存在：回 404 而不是 403，不透露「這個 id 有一篇草稿」
         abort_unless($documentation->isPublished() || Documentation::viewerCanSeeDrafts(), 404);
 
-        $documentation->load(['scope', 'techniques', 'implementations']);
+        $documentation->load(['scope', 'techniques', 'implementations' => fn ($query) => $query->visibleToViewer()]);
 
         return response()->json(new DocumentationResource($documentation));
     }

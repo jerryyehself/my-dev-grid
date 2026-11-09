@@ -155,8 +155,8 @@ class PivotRelationTest extends TestCase
         ]);
 
         // 2026-09-17：`errors` 的 key 從通用的 `locked` 改成**被鎖住的欄位名**。
-        // 狀態碼一直是對的，但 `locked` 對不上 Triple 任何一個輸入欄位的 key
-        // （`AppInputField.vue` 用的是 `errors[inputKey]`），所以那則訊息從來沒有
+        // 狀態碼一直是對的，但 `locked` 對不上表單任何一個輸入欄位的 key
+        // （表單用欄位名去 `errors` 裡查訊息），所以那則訊息從來沒有
         // 渲染到畫面上——使用者只看到「按了儲存沒反應」。詳見
         // App\Exceptions\RelationLockedException 與 RelationLockedResponseTest。
         $response->assertStatus(422)->assertJsonStructure([

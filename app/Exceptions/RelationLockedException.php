@@ -47,10 +47,9 @@ class RelationLockedException extends RuntimeException
     /**
      * 422，而且 `errors` 要**以被鎖住的欄位名當 key**。
      *
-     * 這不是形狀上的偏好，是這個修正的重點。Triple 的錯誤顯示是這樣串起來的：
-     * `useFetchAPI.js` 把 422 body 的 `errors` 丟給 `useErrorsStore.setErrors()`，
-     * 它把 `{欄位: [訊息]}` 攤平成 `{欄位: 訊息}`，`AppInputField.vue` 再用
-     * `errors[inputKey]` 把訊息渲染在**那個欄位底下**。
+     * 這不是形狀上的偏好，是這個修正的重點。表單的錯誤顯示是用輸入欄位名去
+     * `errors` 裡查訊息、渲染在**那個欄位底下**（Laravel 驗證錯誤的慣用接法，
+     * 修正當時的 Triple 後台就是這樣接的）。
      *
      * 原本 controller 回的是 `errors: { locked: [...] }`——`locked` 對不上任何一個
      * 輸入欄位的 key，所以那則訊息渲染不到任何地方：使用者按了儲存，畫面毫無反應，

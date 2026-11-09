@@ -135,12 +135,12 @@ GitHub 的 repo id 是數字，但這欄是 `string`。
 
 現況：`status` 可為 null，預設值 1。
 
-**先確認 null 代表什麼**：`GraphController::hiddenNodeIds()` 把 `status IS NULL` 當成「未發布」，不給未登入的人看〔實測：讀程式碼〕。所以回填要填 `0`（草稿），**不能填預設值 `1`**，否則原本藏起來的草稿會直接公開〔推論〕。
+**先確認 null 代表什麼**：`Documentation::scopeDraft()` 與 `isPublished()` 把 `status IS NULL` 當成「未發布」，未登入的人看不到它的標題（圖譜上顯示成「未公開」節點）〔實測：讀程式碼〕。所以回填要填 `0`（草稿），**不能填預設值 `1`**，否則原本藏起來的草稿會直接公開〔推論〕。
 
 | 次 | migration | 程式 |
 | --- | --- | --- |
 | 1 | — | 寫入端保證不會寫 null（FormRequest 或 model 補值）。null 會寫進去，是因為 Eloquent 會把 `null` 明確寫進 INSERT，DB 預設值只套在沒出現在 INSERT 裡的欄位（`2026_09_23_010518_make_call_number_nullable...` 的註解記過這個坑） |
-| 2 | 回填 `UPDATE documentations SET status = 0 WHERE status IS NULL`，然後加 NOT NULL（下面兩種寫法擇一） | `GraphController` 的 `orWhereNull` 可以留到下一次再拿掉 |
+| 2 | 回填 `UPDATE documentations SET status = 0 WHERE status IS NULL`，然後加 NOT NULL（下面兩種寫法擇一） | `Documentation::scopeDraft()` 的 `orWhereNull` 可以留到下一次再拿掉 |
 
 **小表的寫法**（現在的 `documentations` 屬於這種）。在 PostgreSQL 與 SQLite 上都跑過 `up`／`down`〔實測〕：
 

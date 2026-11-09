@@ -4,7 +4,7 @@
 
 這個 repo 裡已經做好的部分（不用再動）：
 
-- `Dockerfile` — 多階段建置（Node 負責前端資源，PHP 負責應用程式），用 supervisord 同時跑 nginx 和 php-fpm，啟動時讀取 `$PORT`。
+- `Dockerfile` — 單一階段建置（只有 PHP；這個 repo 只提供 API，沒有前端資源要建置），用 supervisord 同時跑 nginx 和 php-fpm，啟動時讀取 `$PORT`。
 - `docker/` — nginx 設定範本、supervisord 設定、entrypoint 腳本。
 - `.env.production.example` — 列出 Cloud Run 服務需要的每個環境變數和機密（應用程式不會讀這個檔，只是說明用）。
 - `.github/workflows/deploy-cloud-run.yml` — 建置 → 推送 → 跑 migration → 跑預設資料 seeder → 部署（先不接流量）→ 檢查 → 切流量 → 更新每天同步 GitHub 用的 Cloud Run Job，用 Workload Identity Federation 登入 GCP。
@@ -172,7 +172,7 @@ Repo → Settings → Secrets and variables → Actions → **Variables** 分頁
 | `CLOUD_SQL_CONNECTION_NAME` | `PROJECT_ID:asia-east1:my-dev-grid-db` |
 | `DB_DATABASE` | `my_dev_grid` |
 | `DB_USERNAME` | `my_dev_grid_app` |
-| `SANCTUM_STATEFUL_DOMAINS` | 提供 Triple 後台的正式環境主機（例如 `my-dev-grid-api-xxxxx.a.run.app`，或之後接自訂網域就換成那個） |
+| `SANCTUM_STATEFUL_DOMAINS` | 同源 session 登入（`/auth/*`，原本給已移除的 Triple 後台用）的正式環境主機（例如 `my-dev-grid-api-xxxxx.a.run.app`，或之後接自訂網域就換成那個） |
 | `GOOGLE_CLIENT_ID` | 你在 Google Cloud Console 建立的 Google OAuth 應用程式提供 |
 | `GOOGLE_REDIRECT_URI` | 例如 `https://your-service-url/auth/google/callback` |
 | `LINE_CLIENT_ID` | 你在 LINE Developers 建立的 LINE Login channel 提供 |

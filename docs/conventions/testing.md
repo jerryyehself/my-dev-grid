@@ -30,12 +30,44 @@
    $response->assertCreated()->assertJsonFragment(['title' => 'Laravel Docs']);
    $this->assertDatabaseHas('documentations', ['title' => 'Laravel Docs', 'type' => $scope->id]);
    ```
-2. **功能壞了測試要會失敗。** 寫完試著想：把被測的那行改壞，這個測試會不會變紅？
-3. **涵蓋拒絕的情況。** 每個寫入端點至少測：沒登入回 401、驗證失敗回 422、成功。讀取端點要測沒登入看不到草稿（`DraftVisibilityTest`）。
+2. **功能壞了測試要會失敗。** 寫完試著想：把被測的那行改壞，這個測試會不會變紅？做法與判斷見下面「把程式改壞來檢查測試」。
+3. **涵蓋拒絕的情況。** 每個寫入端點至少測：沒登入回 401、驗證失敗回 422、成功。讀取端點要測沒登入看不到草稿（`DraftVisibilityTest`）。其他邊界見下面「邊界必測清單」。
 4. **彼此獨立、結果穩定。** 不打真的外部服務：GitHub API 用 `Http::fake()`（`GitServiceTest`），或用 fixture（`GitHubReposSnapshotSeeder`）。需要時間時用 `$this->travel()`／`Carbon::setTestNow()`，結束後還原。
 5. **效能退化也要測。** 預先載入關聯是為了避免 N+1 時，用查詢次數驗證：`DB::enableQueryLog()`，資料增加後查詢次數不能跟著增加（`ScopeCountsTest::test_scope_index_does_not_n_plus_one`）。
 6. **日誌也是行為。** 安全事件與稽核紀錄用 `Tests\Concerns\CapturesSecurityEvents` 檢查：有記到該記的事件，也沒有記到不該記的值（token、密碼）。
 7. **好讀。** 一個測試驗證一件事；準備資料、執行、驗證三段分清楚。
+
+## 邊界必測清單
+
+新增或修改下列東西時，測試要涵蓋對應的案例。同一個行為要跑多組資料時，用 `#[DataProvider]` 列成一張表（每組資料取名字），一眼看得出哪些情況列到了。
+
+- **接 id 的端點或查詢**：存在、不存在、已軟刪除，三個分開測。Laravel 的路由模型綁定預設不取軟刪除的資料，用了 `withTrashed()` 就會改變這個行為，所以「不存在」和「已刪除」不能互相代替。有草稿概念的再加上草稿，用訪客與登入者各測一次。
+- **起訖或範圍**：起訖相同、起訖反過來、剛好在邊界上，以及邊界前後各一。
+- **可為 NULL 的欄位**：NULL 與空字串分開測。
+- **多種型別或列舉**：每一種都要列到，不能只測一種（例：圖的每一種節點型別）。
+- **關聯**：關聯另一端的資料被刪除或變成看不到時，這一端的回應不能把它帶出來。用一個獨特的字串當標記建這筆資料，再用 `assertDontSee`／`assertJsonMissing` 檢查整個回應，不只檢查某一個欄位。
+
+## 把程式改壞來檢查測試
+
+把被測的程式故意改壞一點（例如把 `>` 改成 `>=`、`||` 改成 `&&`、刪掉一行、拿掉一個 middleware），再跑測試：測試變紅，表示它守住了這行；還是綠的，就是測試的漏洞。手動改，或用工具自動改（變異測試），都是同一件事。
+
+- **只往上檢查一層。** 測試檢查程式；改壞程式檢查測試。改壞程式這一步本身不寫測試，也不再找別的東西檢查它：它只是拿現有的測試去跑被改壞的程式，沒有新的判斷可以出錯。測試裡如果需要確認自己不是空轉（例如已登入的對照組要看得到草稿），寫成那個測試裡的一個斷言，不另外寫測試。
+- **不追分數。** 有些改法跟原本意思一樣（例如整數的 `>= 1` 改成 `> 0`），測試不可能抓到；日誌文字、排版這類被改壞也沒有人受影響。每一個沒被抓到的改法只問一件事：「這行壞了，使用者會不會受影響？」
+  - 會（登入與授權、可見範圍、邊界條件、會改資料的地方）→ 補測試。
+  - 不會，或意思跟原本一樣 → 不處理。
+- **範圍跟著改動走。** 只改壞這次改到的程式，不是整個專案。
+
+**CI 會自動做一次（`.github/workflows/infection.yml`）。** 用 [Infection](https://infection.github.io/) 在每個 PR 上自動改壞「這個 PR 新增或修改的行」，再跑現有測試。
+
+- **只看報告，不擋 PR。** 沒被抓到的改法不會讓檢查變紅，也不設分數門檻；變紅只代表 Infection 本身出錯（例如現有測試沒過）。
+- **結果看哪裡。** PR「Files changed」上對應那一行的警告註解（每個沒被抓到的改法一則，內容是改壞前後的差異）；Actions 裡「Infection」這個 job 的 log 有完整清單；log 檔也附在該次執行的 `infection` artifact。
+- **看到註解怎麼辦。** 照上面的原則，只問「這行壞了，使用者會不會受影響？」會就補測試，不會就略過，不用為了讓註解消失而補。
+- **範圍。** PR 沒改到 `app/` 底下的 PHP 時這個檢查不會啟動；`develop` 到 `main` 的上線 PR 也不跑（每個改動在進 `develop` 的 PR 上已經跑過）。只在 SQLite 上跑。
+- **本機怎麼跑。** Infection 不在 `composer.json` 裡。從 [Infection 的 GitHub release](https://github.com/infection/infection/releases) 下載跟 workflow 同一版的 `infection.phar`（版本號看 `infection.yml` 的 `tools:`），本機要有 pcov 或 Xdebug 才能算覆蓋率，並且有 `.env`（`APP_KEY` 不能是空的）。在專案根目錄：
+  ```bash
+  php infection.phar --git-diff-lines --git-diff-base=origin/develop --show-mutations --threads=max
+  ```
+  還沒 commit 的改動也算。只想看某一個檔案：把 `--git-diff-lines --git-diff-base=…` 換成 `--filter=app/Rules/ReverseIsAvailable.php`。設定在根目錄的 `infection.json5`，報告寫到 `build/infection/`（已加進 `.gitignore`）。
 
 ## 目前已知不符的地方
 

@@ -38,6 +38,28 @@ class TokenLoginControllerTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 1);
     }
 
+    #[TestDox('登入回應的使用者只有 id、name、email')]
+    public function test_login_returns_only_the_listed_user_fields()
+    {
+        $user = User::factory()->create([
+            'email' => 'owner@example.com',
+            'password' => 'correct-password',
+        ]);
+        // 模擬 users 表之後多了一個欄位：從資料庫讀出的 User 都多帶一個 extra。
+        User::retrieved(fn (User $retrieved) => $retrieved->setAttribute('extra', 'x'));
+
+        $response = $this->postJson('/api/auth/login', [
+            'email' => 'owner@example.com',
+            'password' => 'correct-password',
+        ]);
+
+        $response->assertOk()
+            ->assertExactJsonStructure(['data' => ['id', 'name', 'email'], 'token', 'expires_in'])
+            ->assertJsonPath('data.id', $user->id)
+            ->assertJsonPath('data.name', $user->name)
+            ->assertJsonPath('data.email', $user->email);
+    }
+
     #[TestDox('密碼錯誤時登入回 422')]
     public function test_login_rejects_wrong_password()
     {

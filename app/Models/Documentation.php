@@ -34,7 +34,7 @@ class Documentation extends Model
      *
      * 讀取端點（index/show、/api/graph、述詞底下的邊）完全公開、沒有掛 auth middleware，
      * 所以要自己看請求有沒有帶登入態。`auth('sanctum')` 同時認 Bearer token
-     * （my-dev-grid-front）與同源 session（Triple）。門檻跟寫入的 DocumentationPolicy
+     * （my-dev-grid-front）與同源 session。門檻跟寫入的 DocumentationPolicy
      * 一樣：有登入就行。
      *
      * 2026-09-30 之前沒有這道檢查：草稿的標題與內文從公開的 `/api/documentations`、
@@ -42,13 +42,25 @@ class Documentation extends Model
      */
     public static function viewerCanSeeDrafts(): bool
     {
-        return auth('sanctum')->check();
+        return User::viewerIsSignedIn();
     }
 
     /** 沒登入的請求只留已發布的。 */
     public function scopeVisibleToViewer(Builder $query): Builder
     {
         return self::viewerCanSeeDrafts() ? $query : $query->where('status', self::STATUS_PUBLISHED);
+    }
+
+    /**
+     * 草稿，不管這次請求有沒有登入。用來算出要從公開計數拿掉的端點。
+     *
+     * `status` 為 NULL 也算草稿，條件跟 `isPublished()` 一致（圖譜用它決定節點的 `active`）。
+     */
+    public function scopeDraft(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $draft) => $draft
+            ->where($query->qualifyColumn('status'), '!=', self::STATUS_PUBLISHED)
+            ->orWhereNull($query->qualifyColumn('status')));
     }
 
     public function isPublished(): bool

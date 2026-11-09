@@ -16,11 +16,9 @@ use Tests\TestCase;
  *
  * 規格（本體論編輯規格 · B2）原本把這件事寫成「會回 500」。**那個描述不準確**，
  * 查證後的實情更精確，也更難發現：`RelationController@update` 本來就有一段 try/catch
- * 會回 422，所以狀態碼一直是對的——**但那個 422 的內容在 Triple 上渲染不到任何地方。**
+ * 會回 422，所以狀態碼一直是對的——**但那個 422 的內容在當時的後台（Triple）上渲染不到任何地方。**
  *
- * 串起來是這樣的：`useFetchAPI.js` 把 422 body 的 `errors` 丟給
- * `useErrorsStore.setErrors()`，它把 `{欄位: [訊息]}` 攤平成 `{欄位: 訊息}`，
- * `AppInputField.vue` 再用 `errors[inputKey]` 把訊息渲染在**那個欄位底下**。
+ * 表單是用輸入欄位名去 `errors` 裡查訊息、渲染在**那個欄位底下**，
  * 而 controller 回的 key 是 `locked`，對不上任何一個輸入欄位——於是使用者按下儲存，
  * 畫面毫無反應、沒有任何錯誤提示，資料也沒存進去。**靜默失敗，不是 500。**
  *
@@ -93,7 +91,7 @@ class RelationLockedResponseTest extends TestCase
      * **這支測試就是這個修正的重點。**
      *
      * `errors` 的 key 必須是被鎖住的欄位名（這裡是 `name`），不是一個像 `locked`
-     * 這種對不上任何輸入欄位的通用 key——否則 Triple 的 `errors[inputKey]` 查不到，
+     * 這種對不上任何輸入欄位的通用 key——否則表單用欄位名去 `errors` 裡查不到，
      * 訊息不會出現在畫面上，使用者只會看到「按了沒反應」。
      */
     #[TestDox('422 的 errors 以被鎖定的欄位名稱為 key')]
@@ -110,7 +108,7 @@ class RelationLockedResponseTest extends TestCase
         $this->assertArrayHasKey(
             'name',
             $body['errors'],
-            'errors 要以被鎖住的欄位名當 key，Triple 才顯示得出來。'
+            'errors 要以被鎖住的欄位名當 key，表單才顯示得出來。'
         );
         $this->assertArrayNotHasKey(
             'locked',

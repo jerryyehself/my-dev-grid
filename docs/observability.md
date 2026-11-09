@@ -93,13 +93,13 @@ jsonPayload.context.event="authn_login_fail"
 
 | 事件 | 等級 | 什麼時候 | 欄位 |
 |---|---|---|---|
-| `authn_login_success` | INFO | OAuth callback 找到綁定（Google、LINE；Triple 的 session 模式與前端的 token 模式）、帳密登入成功 | `user_id`、`auth_method`（`google`／`line`／`password`）、`auth_mode`（`session`／`token`） |
+| `authn_login_success` | INFO | OAuth callback 找到綁定（Google、LINE；同源的 session 模式與前端的 token 模式）、帳密登入成功 | `user_id`、`auth_method`（`google`／`line`／`password`）、`auth_mode`（`session`／`token`） |
 | `authn_login_fail` | WARNING | 見下方「失敗原因」 | `auth_method`、`auth_mode`、`reason`、`source_ip`，依原因另有 `user_id`、`provider_user_id`、`provider_error`、`error_class`、`access_token_id` |
 | `authn_token_created` | INFO | 發 token：登入開新的 refresh token 家族（`reason=login`）、refresh 換發（`rotation`）、OAuth 回呼的短效 token（`oauth_callback`） | `user_id`、`reason`、`family_id`、`refresh_token_id`、`access_token_id`、`abilities` |
 | `authn_token_revoked` | INFO | 撤銷整個 refresh token 家族，`reason` 是 `logout`、`reuse`、`max_lifetime` | `user_id`、`reason`、`family_id`、`refresh_tokens_revoked`（刪掉幾支） |
 | `authn_token_reuse` | CRITICAL | 已用掉的 refresh token 在寬限秒數之後又被送來（視為被偷，整個家族撤銷） | `user_id`、`family_id`、`refresh_token_id`、`source_ip` |
 | `session_expired` | INFO | 換發時超過 90 天絕對上限 | `user_id`、`reason=max_lifetime`、`family_id` |
-| `session_logout` | INFO | `POST /auth/logout`（Triple）、`POST /api/auth/logout`（前端） | `auth_mode`；認得出是誰時有 `user_id`；token 模式另有 `access_token_id` |
+| `session_logout` | INFO | `POST /auth/logout`（session 模式）、`POST /api/auth/logout`（前端） | `auth_mode`；認得出是誰時有 `user_id`；token 模式另有 `access_token_id` |
 | `authz_fail` | WARNING | 任何 403：Origin 檢查（`EnsureFrontendOrigin`）、`abort(403)`、Policy 拒絕 | `http_method`、`route`（路由樣板）、`resource`（路徑，不含 query string）、`reason`（程式裡寫的固定訊息）、`source_ip`；已驗證的請求有 `user_id` |
 | `excess_rate_limit_exceeded` | WARNING | 任何 429 | `http_method`、`route`、`max`（limiter 上限：login 5、social-login 20、token-refresh 30、api 60）、`retry_after`、`source_ip`；已驗證的請求有 `user_id` |
 | `authz_admin` | WARNING | 已登入使用者在 HTTP 請求裡新增、修改、刪除 Scope／Relation／Documentation／Technique／Implementation，或改它們之間的 pivot | `user_id`、`action`（`create`／`update`／`delete`／`sync`）、`object`（`scope`…）、`object_id`；`update` 有 `fields`（改了哪些欄位）；`sync` 有 `relation`、`attached`、`detached`、`updated`（id 清單） |

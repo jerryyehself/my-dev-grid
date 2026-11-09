@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\AssignRequestId;
-use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -35,37 +34,15 @@ class RequestIdTest extends TestCase
             'logging.channels.cloud_run.level' => 'debug',
         ]);
 
-        $this->registerRoutesBeforeSpaCatchAll([
-            Route::get('/_test/log', function () {
-                Log::info('first line');
-                Log::warning('second line', ['foo' => 'bar']);
+        Route::get('/_test/log', function () {
+            Log::info('first line');
+            Log::warning('second line', ['foo' => 'bar']);
 
-                return response()->json(['ok' => true]);
-            }),
-            Route::get('/_test/boom', function () {
-                throw new RuntimeException('kaboom');
-            }),
-        ]);
-    }
-
-    /**
-     * `routes/web.php` 結尾的 `/{any}` catch-all 會吃掉所有 GET；測試期間才註冊的路由排在它後面，
-     * 永遠輪不到，所以把這幾條重排到路由表最前面。
-     *
-     * @param  list<\Illuminate\Routing\Route>  $mine
-     */
-    private function registerRoutesBeforeSpaCatchAll(array $mine): void
-    {
-        $others = array_filter(Route::getRoutes()->getRoutes(), fn ($route) => ! in_array($route, $mine, true));
-
-        $collection = new RouteCollection;
-        foreach ([...$mine, ...$others] as $route) {
-            $collection->add($route);
-        }
-        $collection->refreshNameLookups();
-        $collection->refreshActionLookups();
-
-        Route::setRoutes($collection);
+            return response()->json(['ok' => true]);
+        });
+        Route::get('/_test/boom', function () {
+            throw new RuntimeException('kaboom');
+        });
     }
 
     protected function tearDown(): void
@@ -102,9 +79,7 @@ class RequestIdTest extends TestCase
         // 這裡明確指定，測試才不依賴 .env。
         $origin = 'http://localhost:5173';
         config(['cors.allowed_origins' => [$origin]]);
-        $this->registerRoutesBeforeSpaCatchAll([
-            Route::get('/api/_test/ping', fn () => response()->json(['ok' => true])),
-        ]);
+        Route::get('/api/_test/ping', fn () => response()->json(['ok' => true]));
 
         $response = $this->getJson('/api/_test/ping', ['Origin' => $origin]);
 

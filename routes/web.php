@@ -9,27 +9,18 @@ use Illuminate\Support\Facades\Route;
 // 它把 store/update/destroy 收在 `auth:sanctum` 底下。
 //
 // 2026-09-16 移除了原本的 `Route::resources(['scopes', 'relations', 'projects'])`：
-// 那三組是死碼，沒有任何消費者——Triple 後台（resources/js）全部打 `/api/*`
-// （11 處呼叫點，例如 useDataStore.js、AppTripleEdit.vue），tests/ 裡也沒有
-// 任何測試打這些路徑，且整個專案沒有用過 route() 具名解析。它們回傳的 JSON
-// 跟 api.php 完全相同（controller 一律 response()->json()），差別只在**少了
-// auth:sanctum**——寫入之所以沒被打穿，純粹是因為每個 controller 方法內部
-// 有 $this->authorize()，等於安全靠「controller 剛好有寫」而不是路由層。
+// 它們回傳的 JSON 跟 api.php 完全相同，差別只在**少了 auth:sanctum**——寫入之所以
+// 沒被打穿，純粹是因為每個 controller 方法內部有 $this->authorize()，等於安全靠
+// 「controller 剛好有寫」而不是路由層。不要加回來（tests/Feature/WebRoutesTest.php 釘著）。
 //
-// 順帶消掉一顆地雷：`projects` 是以完整 resource 註冊的，會生出
-// `projects.create` 與 `projects.edit`，但 TechniqueController 根本沒有
-// create()/edit() 方法，所以 GET /projects/create 一被打到就是 500。
+// 這個檔案也不再渲染任何網頁：舊的內嵌 Vue 後台 Triple 跟它的 `/{any}` catch-all
+// 已經移除，管理介面在 my-dev-grid-front（D-48）。沒有註冊的路徑一律 404。
 
-// 登入/登出（Google/LINE OAuth + email+password 備援，見
-// D-34）。一定要放在下面的萬用 catch-all 之前——排在它後面的路由都是死碼。
+// 登入/登出（Google/LINE OAuth + email+password 備援，見 D-34），session cookie 模式。
 //
-// 這裡刻意不對 {provider} 加 ->whereIn(...) 路由層級限制：這個專案的
-// catch-all `/{any}` 會吃掉任何在它之前沒有路由「匹配成功」的路徑，
-// 如果在這裡用 whereIn 限制、遇到不認識的 provider 值，Laravel 不會回
-// 404，而是直接跳過這條路由、讓請求落到後面的 catch-all，變成默默把
-// SPA 殼頁面渲染出來，不是我們要的「未知 provider 就 404」效果。改成
-// 讓 {provider} 先原封不動吃下任何值，實際驗證交給 controller 自己的
-// abort_unless()，才能確保未知 provider 真的回 404。
+// {provider} 不加 ->whereIn(...) 路由層級限制，先原封不動吃下任何值，實際驗證交給
+// controller 自己的 abort_unless()：未知 provider 回 404 的行為集中在 controller 一處，
+// 不分散到路由定義。
 //
 // Rate limit（2026-10-02 站長決定，limiter 定義在 AppServiceProvider）：
 // email+password 登入用 'login'（每分鐘 5 次/IP）；社群登入用較寬的
@@ -51,7 +42,7 @@ Route::post('/auth/logout', [SessionAuthController::class, 'logout'])->name('aut
 // 是因為 Socialite 的 state 防偽驗證需要 session 支援，api.php 走的是
 // 無 session 的 stateless 'api' middleware group；email/password 登入
 // 跟登出不需要 Socialite，所以那兩支在 routes/api.php（見該檔案）。
-// 路徑多一段 /token/，跟上面 Triple 用的 /auth/{provider}/* 區分開，
+// 路徑多一段 /token/，跟上面 session 模式的 /auth/{provider}/* 區分開，
 // 兩組 controller 刻意不共用（見 TokenSocialAuthController 的類別註解）。
 Route::middleware('throttle:social-login')->group(function () {
     Route::get('/auth/token/{provider}/redirect', [TokenSocialAuthController::class, 'redirect'])
@@ -59,9 +50,3 @@ Route::middleware('throttle:social-login')->group(function () {
     Route::get('/auth/token/{provider}/callback', [TokenSocialAuthController::class, 'callback'])
         ->name('auth.token.social.callback');
 });
-
-// SPA 殼頁面的 catch-all。排除兩種路徑：
-// - `api`、`api/*`：不存在的 API 路徑要回 404（problem details），不是 200 的 HTML 殼頁面。
-// - `docs/api`、`docs/api.json`：API 文件（Scramble）。它的路由在所有路由檔之後才註冊，
-//   不排除的話會先被這條接走。
-Route::get('/{any}', fn () => view('app'))->where('any', '(?!api(?:/|$)|docs/api(?:\.json)?$).*');

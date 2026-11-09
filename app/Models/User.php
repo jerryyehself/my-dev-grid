@@ -19,6 +19,9 @@ class User extends AuthenticatableUser
     /** @use HasFactory<UserFactory> */
     use HasFactory;
 
+    /** viewerIsSignedIn() 記住結果用的 request attribute 名稱。 */
+    private const VIEWER_SIGNED_IN_ATTRIBUTE = 'viewer_is_signed_in';
+
     /** @var list<string> */
     protected $fillable = [
         'name',
@@ -31,6 +34,25 @@ class User extends AuthenticatableUser
         'password',
         'remember_token',
     ];
+
+    /**
+     * 這次請求有沒有帶有效的登入態（Bearer token 或同源 session），每個請求只判斷一次。
+     *
+     * 公開讀取端點靠它決定看不看得到草稿文章與不公開的專案（`Documentation::viewerCanSeeDrafts()`、
+     * `Implementation::viewerCanSeeHidden()`），而 Resource 每序列化一列就會問一次。
+     * Sanctum 的 guard 只記住「有登入」的結果，token 無效時每問一次就查一次 token 表，
+     * 所以結果記在這次請求的 attributes 上。
+     */
+    public static function viewerIsSignedIn(): bool
+    {
+        $attributes = request()->attributes;
+
+        if (! $attributes->has(self::VIEWER_SIGNED_IN_ATTRIBUTE)) {
+            $attributes->set(self::VIEWER_SIGNED_IN_ATTRIBUTE, auth('sanctum')->check());
+        }
+
+        return $attributes->get(self::VIEWER_SIGNED_IN_ATTRIBUTE);
+    }
 
     /** @return array<string, string> */
     protected function casts(): array

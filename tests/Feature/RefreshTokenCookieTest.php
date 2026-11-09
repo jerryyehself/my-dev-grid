@@ -208,6 +208,22 @@ class RefreshTokenCookieTest extends TestCase
         $this->assertSame(1, RefreshToken::query()->distinct()->count('family_id'));
     }
 
+    #[TestDox('換發回應的使用者只有 id、name、email')]
+    public function test_refresh_returns_only_the_listed_user_fields()
+    {
+        $user = $this->createUser();
+        $refresh = $this->refreshCookie($this->login())->getValue();
+        // 模擬 users 表之後多了一個欄位：從資料庫讀出的 User 都多帶一個 extra。
+        User::retrieved(fn (User $retrieved) => $retrieved->setAttribute('extra', 'x'));
+
+        $this->send('POST', '/api/auth/refresh', $this->cookieJar($refresh))
+            ->assertOk()
+            ->assertExactJsonStructure(['data' => ['id', 'name', 'email'], 'token', 'expires_in'])
+            ->assertJsonPath('data.id', $user->id)
+            ->assertJsonPath('data.name', $user->name)
+            ->assertJsonPath('data.email', $user->email);
+    }
+
     #[TestDox('寬限期後重放舊 refresh token 會撤銷整個家族')]
     public function test_replaying_a_used_refresh_token_after_the_grace_period_revokes_the_whole_family()
     {
@@ -521,6 +537,26 @@ class RefreshTokenCookieTest extends TestCase
         // 新的一組都能用
         $this->send('GET', '/api/user', headers: ['Authorization' => 'Bearer '.$response->json('token')])->assertOk();
         $this->send('POST', '/api/auth/refresh', $this->cookieJar($cookie->getValue()))->assertOk();
+    }
+
+    #[TestDox('建立登入狀態回應的使用者只有 id、name、email')]
+    public function test_session_returns_only_the_listed_user_fields()
+    {
+        $user = $this->createUser();
+        $callbackToken = $user->createToken(
+            TokenSocialAuthController::CALLBACK_TOKEN_NAME,
+            ['*'],
+            now()->addMinutes(15),
+        )->plainTextToken;
+        // 模擬 users 表之後多了一個欄位：從資料庫讀出的 User 都多帶一個 extra。
+        User::retrieved(fn (User $retrieved) => $retrieved->setAttribute('extra', 'x'));
+
+        $this->send('POST', '/api/auth/session', headers: ['Authorization' => "Bearer {$callbackToken}"])
+            ->assertOk()
+            ->assertExactJsonStructure(['data' => ['id', 'name', 'email'], 'token', 'expires_in'])
+            ->assertJsonPath('data.id', $user->id)
+            ->assertJsonPath('data.name', $user->name)
+            ->assertJsonPath('data.email', $user->email);
     }
 
     #[TestDox('回呼 token 被並行用掉時不再換出新組')]

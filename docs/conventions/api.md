@@ -32,8 +32,10 @@
 
 ## API 文件（Scramble）
 
-controller 的 PHPDoc、`#[Endpoint]` 文字，以及 Resource 與 FormRequest 陣列 key 正上方的註解，都會原樣公開在 `/docs/api`。
+controller 的 PHPDoc、`#[Endpoint]` 文字，以及 Resource 與 FormRequest 陣列 key 正上方的註解，都會原樣寫進 API 文件。這個 repo 是公開的，CI 匯出的文件檔有 GitHub 帳號的人都能下載，所以這些文字一律當成公開內容寫。
 
+- 文件只在本機開發環境（`APP_ENV=local`）提供：本機跑起來後開 `/docs/api`（文件頁）或 `/docs/api.json`（OpenAPI JSON）。其他環境（包括正式環境）由 `config/scramble.php` 的 `RestrictedDocsAccess` 回 403，登入也一樣。
+- 需要文件檔時，到 GitHub Actions 的 Tests workflow 找那次執行的 `openapi` artifact，裡面是 `scramble:export` 匯出的 `api.json`（SQLite 那一組產生，保留天數依 repo 的 artifact 設定）。本機要匯出就跑 `php artisan scramble:export`，檔案寫到 repo 根目錄的 `api.json`。
 - `routes/api.php` 的每個 action 都要有 `#[\Dedoc\Scramble\Attributes\Endpoint(title: …)]`，標題寫簡短的中文給 API 使用者看；有補充價值時再加一句 `description`。`description` 有填時，會蓋掉 PHPDoc 的描述。
   ```php
   #[Endpoint(

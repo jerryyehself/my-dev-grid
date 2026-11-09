@@ -9,13 +9,14 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
  * Google／LINE 登入的 PKCE（issue #103），兩種登入模式都測：
- * Triple 的 session 模式（/auth/*，SocialAuthController）跟
+ * session 模式（/auth/*，SocialAuthController）跟
  * my-dev-grid-front 的 token 模式（/auth/token/*，TokenSocialAuthController）。
  *
  * 不用 Socialite::fake()：fake 的 redirect() 回固定網址、user() 直接回假使用者，
@@ -130,6 +131,33 @@ class SocialitePkceTest extends TestCase
         $this->assertArrayNotHasKey('code_verifier', $fields);
     }
 
+    #[DataProvider('loginModeAndProviderProvider')]
+    #[TestDox('回呼缺少 state 時不登入也不換 token')]
+    public function test_callback_rejects_missing_state_before_exchanging_token(string $prefix, string $provider)
+    {
+        $this->get("{$prefix}/{$provider}/redirect");
+        $this->assertIsString(session('state'));
+        $history = $this->fakeProviderHttp($provider);
+
+        $response = $this->get("{$prefix}/{$provider}/callback?code=pkce-code");
+
+        $this->assertRejectedCallbackDidNotAuthenticate($response, $prefix, $history);
+    }
+
+    #[DataProvider('loginModeAndProviderProvider')]
+    #[TestDox('回呼 state 不符時不登入也不換 token')]
+    public function test_callback_rejects_mismatched_state_before_exchanging_token(string $prefix, string $provider)
+    {
+        $this->get("{$prefix}/{$provider}/redirect");
+        $state = session('state');
+        $this->assertIsString($state);
+        $history = $this->fakeProviderHttp($provider);
+
+        $response = $this->get("{$prefix}/{$provider}/callback?state=".urlencode($state.'-wrong').'&code=pkce-code');
+
+        $this->assertRejectedCallbackDidNotAuthenticate($response, $prefix, $history);
+    }
+
     /**
      * 把這個 provider 對外的 HTTP 換成假回應（先換 token，再拿使用者資料），
      * 回傳的陣列會在請求送出後填入實際請求，供斷言用。
@@ -150,5 +178,28 @@ class SocialitePkceTest extends TestCase
         config(["services.{$provider}.guzzle" => ['handler' => $stack]]);
 
         return $history;
+    }
+
+    private function assertRejectedCallbackDidNotAuthenticate(
+        TestResponse $response,
+        string $prefix,
+        \ArrayObject $history,
+    ): void {
+        $this->assertCount(0, $history);
+
+        $location = $response->headers->get('Location');
+        if ($prefix === '/auth') {
+            $this->assertFalse($response->isRedirect('/'));
+        } else {
+            $this->assertFalse(
+                $response->isRedirect()
+                && is_string($location)
+                && str_starts_with($location, config('app.frontend_url').'/auth/callback#token='),
+            );
+        }
+
+        $this->assertGuest('web');
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+        $this->assertDatabaseCount('personal_refresh_tokens', 0);
     }
 }

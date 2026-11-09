@@ -50,7 +50,7 @@ class TokenRefreshController extends Controller
         title: '換發 token',
         description: '用 refresh cookie 換發新的 access token 與 refresh cookie，不需帶 `Authorization`。refresh token 無效、過期或已被撤銷回 401；剛被用掉不久（並發換發）回 409，稍後重試即可。請求的 `Origin` 必須是前端網址。',
     )]
-    #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
+    #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Http\\Resources\\UserResource, token: string, expires_in: int|null}')]
     #[Response(401, 'refresh token 無效、過期、已被撤銷，或超過 90 天上限；同時清除 refresh cookie。')]
     public function refresh(Request $request, RefreshTokenFamilies $families): JsonResponse
     {
@@ -86,7 +86,7 @@ class TokenRefreshController extends Controller
         title: '建立登入狀態',
         description: '把 OAuth 登入完成後取得的短效 token（放在 `Authorization: Bearer`）換成正式的 access token，並設定 refresh cookie。這個短效 token 只能用一次；用其他 token 呼叫回 403。請求的 `Origin` 必須是前端網址。',
     )]
-    #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Models\\User, token: string, expires_in: int|null}')]
+    #[Response(200, '換發成功：`data` 是使用者，`token` 是 access token，`expires_in` 是它還剩幾秒；refresh token 另外以 cookie 設定。', type: 'array{data: \\App\\Http\\Resources\\UserResource, token: string, expires_in: int|null}')]
     public function session(Request $request): JsonResponse
     {
         $user = $request->user();

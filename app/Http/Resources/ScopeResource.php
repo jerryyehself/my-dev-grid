@@ -20,10 +20,9 @@ class ScopeResource extends JsonResource
      * 的計數功能更早存在，只是從來沒有人量過——`ScopeCountsTest` 的查詢數測試是這次
      * 才把它逼出來的。
      *
-     * 實際的消費端只有一個，而且只打 show：Triple 的 `fetchCallNumberByClass()`
-     * （`AppTripleEdit.vue` / `AppTripleNew.vue`）打 `/api/scopes/{id}`，拿它來預填
-     * 新增表單的子類號。清單頁、巢狀的 parent/children 都沒有任何人讀這個欄位。
-     * `my-dev-grid-front` 整個 repo 也沒有出現過這個欄位名。
+     * 實際的消費端只有一個，而且只打 show：my-dev-grid-front 的分類編輯頁對選到的
+     * 父層打 `/api/scopes/{id}`，拿它來預填新增表單的子類號。清單頁、巢狀的
+     * parent/children 都沒有任何人讀這個欄位。
      */
     protected bool $withFormHints = false;
 
@@ -81,7 +80,7 @@ class ScopeResource extends JsonResource
             // 屬於這個 scope 的實體。三族分開給，不要只給一個總數——
             // 一個 scope 實際上只會有其中一族（頂層三族都是 0），分開給才看得出
             // 是哪一族，也免得呼叫端自己去猜。
-            /** 屬於這個分類的文件筆數；技術、實作分別是 `techniques_count`、`implementations_count`。 */
+            /** 屬於這個分類的文件筆數；技術、實作分別是 `techniques_count`、`implementations_count`；未登入時 `documentations_count` 不含草稿、`implementations_count` 不含設為不公開的專案。 */
             'documentations_count' => $this->whenCounted('documentations'),
             'techniques_count' => $this->whenCounted('techniques'),
             'implementations_count' => $this->whenCounted('implementations'),

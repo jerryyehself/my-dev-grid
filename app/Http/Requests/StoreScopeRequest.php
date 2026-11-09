@@ -24,8 +24,8 @@ class StoreScopeRequest extends FormRequest
             //
             // 2026-09-17 之前這裡叫 class_number,但收的是 id,而 UpdateScopeRequest
             // 的同名欄位收的是字面分類號——同一個欄位名、兩種語意,表單不能共用 payload。
-            // Triple 當初是用繞的:新增表單用 select 挑父層、編輯表單把同一個欄位換成
-            // number 直接編(見 AppTripleEdit.vue 的註解),等於把 API 的不一致往前端推。
+            // 當時的後台是用繞的:新增表單用 select 挑父層、編輯表單把同一個欄位換成
+            // number 直接編,等於把 API 的不一致往前端推。
             /** 父分類的 id，必須是頂層分類。類號會依父分類自動帶入，不用傳。 */
             'parent_class' => [
                 'required',

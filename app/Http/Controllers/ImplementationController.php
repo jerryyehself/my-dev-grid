@@ -18,11 +18,12 @@ class ImplementationController extends Controller
 
     #[Endpoint(
         title: '列出實作',
-        description: '回傳所有實作，依標題排序，每筆含所屬分類與關聯的技術。可用 `type` 查詢參數依類型篩選。',
+        description: '回傳所有實作，依標題排序，每筆含所屬分類與關聯的技術。可用 `type` 查詢參數依類型篩選。未登入時不含設為不公開的實作。',
     )]
     public function index(Request $request)
     {
-        $implementations = Implementation::with(['scope', 'techniques'])
+        $implementations = Implementation::visibleToViewer()
+            ->with(['scope', 'techniques'])
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->query('type')))
             ->orderBy('title')
             ->get();
@@ -63,10 +64,13 @@ class ImplementationController extends Controller
 
     #[Endpoint(
         title: '取得實作',
-        description: '回傳單一實作，含所屬分類、關聯的技術，以及關聯的文件（未登入時不含草稿）。',
+        description: '回傳單一實作，含所屬分類、關聯的技術，以及關聯的文件（未登入時不含草稿）。設為不公開的實作對未登入的人等同不存在，回 404。',
     )]
     public function show(Implementation $implementation)
     {
+        // 不公開的專案對沒登入的人等於不存在：回 404 而不是 403，不透露「這個 id 有一個專案」
+        abort_unless($implementation->is_visible || Implementation::viewerCanSeeHidden(), 404);
+
         $implementation->load(['scope', 'documentations' => fn ($query) => $query->visibleToViewer(), 'techniques']);
 
         return response()->json(new ImplementationResource($implementation));

@@ -25,7 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(AssignRequestId::class);
 
         // Sanctum SPA session-cookie 模式（不是 API token 模式）：
-        // frontend（Triple 後台，resources/js）跟這個 Laravel app 同源，
+        // 給同源的 session 登入（routes/web.php 的 /auth/*）用；原本的消費端是
+        // 內嵌的 Triple 後台，後台已移除，這組設定跟 session 登入要不要留是同一件事。
         // 官方文件（Laravel 13 / Sanctum 4.x）指定用這個 helper 方法，
         // 它會把 EnsureFrontendRequestsAreStateful 中間件 prepend 進 'api' group。
         $middleware->statefulApi();

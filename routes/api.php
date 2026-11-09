@@ -12,7 +12,7 @@ use App\Http\Controllers\TechniqueController;
 use Illuminate\Support\Facades\Route;
 
 // 前端（SPA）開機時拿這支確認目前的登入狀態——未登入回 401，
-// 已登入回目前的 User。`auth:sanctum` 對 Triple（session cookie）跟
+// 已登入回目前的 User。`auth:sanctum` 對同源 session cookie 跟
 // my-dev-grid-front（bearer token）一視同仁，兩種認證方式都吃。
 // 用 controller 不用 closure：production 跑 route:cache，closure 上的 #[Endpoint]
 // Scramble 讀不到（見 CurrentUserController）。
@@ -21,7 +21,7 @@ Route::get('/user', CurrentUserController::class)->middleware('auth:sanctum');
 // my-dev-grid-front 版的 email+password 登入/登出，發 Sanctum API token，
 // 不是 session（D-56）。OAuth 版在 routes/web.php
 // （Socialite 需要 session 支援 state 防偽，這裡的 'api' middleware group
-// 沒有 session）。跟 Triple 用的 /auth/login、/auth/logout（routes/web.php，
+// 沒有 session）。跟 session 模式的 /auth/login、/auth/logout（routes/web.php，
 // SessionAuthController）刻意不共用，見 TokenLoginController 的類別註解。
 // 登入另外套 'login' limiter（每分鐘 5 次、依 IP），疊在整組 api 的 60 次之上。
 Route::post('/auth/login', [TokenLoginController::class, 'login'])
@@ -55,15 +55,14 @@ Route::get('/graph', [GraphController::class, 'index']);
 // 起訖點之間的最短路徑查詢，跟 /graph 同一份公開資料、同一種公開等級。
 Route::get('/graph/path', [GraphController::class, 'path']);
 
-// 表單欄位定義（Triple 後台的新增/編輯表單靠這兩支決定欄位、型別與選項）。
+// 表單欄位定義（新增/編輯表單的欄位、型別與選項；原本給已移除的 Triple 後台用）。
 //
 // 一定要註冊在下面的 apiResources 之前——那組會註冊 /api/scopes/{scope}，
 // 「create」會被當成 {scope} 的值去查資料庫，回 404。
 //
 // 這兩支在 2026-09-17 之前是靠 routes/web.php 的 Route::resources 提供的
-// （Triple 呼叫的是不帶 /api 前綴的 /scopes/create）。PR #55 把那組當成死碼移除，
-// 沒注意到這個呼叫點——當時的 grep 只找含 `/api` 的字串，所以看不到它。
-// 移到 api.php 並讓 Triple 改打帶前綴的路徑，跟它其餘 11 處呼叫一致。
+// （當時的後台呼叫的是不帶 /api 前綴的 /scopes/create）。PR #55 把那組當成死碼移除，
+// 沒注意到這個呼叫點，之後才移到 api.php。
 Route::get('scopes/create', [ScopeController::class, 'create']);
 Route::get('relations/create', [RelationController::class, 'create']);
 
@@ -71,8 +70,7 @@ Route::get('relations/create', [RelationController::class, 'create']);
 // 多一段 /edges，所以不會跟下面 apiResources 的 /api/relations/{relation} 打架。
 Route::get('relations/{relation}/edges', [RelationController::class, 'edges']);
 
-// 讀（index/show）維持完全公開——my-dev-grid-front 跟 Triple 後台都要
-// 在不登入的情況下讀得到這些資料。
+// 讀（index/show）維持完全公開——my-dev-grid-front 要在不登入的情況下讀得到這些資料。
 Route::apiResources([
     'scopes' => ScopeController::class,
     'relations' => RelationController::class,

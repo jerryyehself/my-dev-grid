@@ -31,4 +31,21 @@ class CurrentUserTest extends TestCase
             ->assertOk()
             ->assertJsonPath('id', $user->id);
     }
+
+    #[TestDox('目前使用者只回傳 id、name、email')]
+    public function test_current_user_returns_only_the_listed_fields(): void
+    {
+        $user = User::factory()->create();
+        // 模擬 users 表之後多了一個欄位。
+        $user->setAttribute('extra', 'x');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/user')
+            ->assertOk()
+            ->assertExactJson([
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ]);
+    }
 }

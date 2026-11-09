@@ -1,0 +1,103 @@
+name: Infection
+
+# 變異測試（Infection）：只在 pull request 上跑，只改壞「這個 PR 改到的行」，
+# 看現有測試會不會變紅。沒被抓到的改法（escaped mutants）會變成 PR「Files changed」
+# 上的警告註解，也印在這個 job 的 log 裡；它們只是提醒，不會讓 job 失敗。
+# 怎麼判斷要不要補測試、本機怎麼跑：docs/conventions/testing.md「把程式改壞來檢查測試」。
+#
+# 綠燈與紅燈怎麼分：
+# - 沒被抓到的變體 → 綠燈。不設 --min-msi／--min-covered-msi，Infection 在這種情況下
+#   以 exit 0 結束，只留警告註解。
+# - Infection 自己出錯（初始測試沒過、設定檔錯、當掉）→ 紅燈。Infection 在這些情況
+#   以非 0 結束，這裡不用 continue-on-error 蓋掉，不然真的壞掉也看不出來。
+# - PR 沒改到 app/ 底下的 PHP → 綠燈，而且很快：下面的 paths 篩選直接不啟動這個 workflow；
+#   只改到設定檔而 app/ 沒變時，Infection 找不到改動的來源檔，印訊息後 exit 0。
+#
+# 為什麼獨立一個 workflow，不放進 tests.yml：tests.yml 同時跑 push 與 pull request、
+# 有 SQLite／PostgreSQL 兩條線；這個只在 pull request 跑、只有 SQLite 一條線，
+# 分開以後 tests.yml 的觸發條件與矩陣都不用動，也不會在 push 事件上出現一個被略過的 job。
+#
+# Infection 用 setup-php 的 tools 裝 phar（版本釘死），不加進 composer.json／composer.lock。
+# 覆蓋率用 pcov（比 xdebug 快很多）。資料庫用 phpunit.xml 設的 SQLite :memory:，
+# 每個平行的 worker 各有一份，不會互相干擾。
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "app/**"
+      - "infection.json5"
+      - "phpunit.xml"
+      - ".github/workflows/infection.yml"
+
+permissions:
+  contents: read
+
+# 同一個 PR 又推了新 commit 時，取消還在跑的舊那次。
+concurrency:
+  group: infection-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  infection:
+    name: Infection (changed lines)
+    # develop -> main 的上線 PR 帶的是一整週已經各自跑過的改動，不再整批重跑。
+    if: github.head_ref != 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # 要完整歷史：Infection 用 git merge-base 找出這個 PR 從哪裡分出來。
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: sqlite3, pdo_sqlite, pgsql, pdo_pgsql, mbstring, bcmath, ctype, fileinfo, tokenizer, xml
+          coverage: pcov
+          tools: infection:0.35.8
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Prepare environment file
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # --git-diff-lines 只改壞相對於 base 新增或修改的行；--logger-github 把沒被抓到的
+      # 變體標成警告註解；--show-mutations 讓 log 裡也看得到改壞的內容。
+      # 刻意不加 --min-msi／--min-covered-msi，也不加 continue-on-error（見檔案開頭）。
+      - name: Run Infection on changed lines
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          infection \
+            --git-diff-lines \
+            --git-diff-base="origin/${BASE_REF}" \
+            --logger-github \
+            --show-mutations \
+            --threads=max \
+            --no-progress \
+            --no-interaction
+
+      - name: Upload Infection logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infection
+          path: build/infection/
+          if-no-files-found: ignore
+          retention-days: 14

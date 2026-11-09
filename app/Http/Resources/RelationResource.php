@@ -17,9 +17,9 @@ class RelationResource extends JsonResource
      * 只是 `RelationReferenceLockTest` 守的是查詢數上限（12），沒有守「筆數成長時
      * 查詢數不准跟著長」，所以一直沒被看見。
      *
-     * 消費端只有一個而且只打 show：Triple 的 `fetchCallNumberByClass()`
-     * （`AppTripleEdit.vue` / `AppTripleNew.vue`）打 `/api/relations/{id}` 預填新增
-     * 表單的子類號。清單頁與巢狀資源沒有人讀。
+     * 只在 show 開：原本的消費端是已移除的 Triple 後台，新增表單打
+     * `/api/relations/{id}` 預填子類號；my-dev-grid-front 目前沒有讀這個欄位。
+     * 清單頁與巢狀資源沒有人讀。
      */
     protected bool $withFormHints = false;
 
@@ -70,8 +70,9 @@ class RelationResource extends JsonResource
             // 自己的邊與反向的邊分開給：一條述詞自己的邊數可以很大、它的反向是 0，
             // 兩者都 is_referenced=true，但清單長度不同，畫面上要講的也是兩件不同的事。
             // 邊的清單本身在 GET /api/relations/{id}/edges（分頁），不塞進這裡。
-            /** 使用這條述詞的邊數。邊的清單見 `GET /relations/{relation}/edges`。 */
+            /** 使用這條述詞的邊數。邊的清單見 `GET /relations/{relation}/edges`；不含任一端已刪除的邊；未登入時另外不含連到草稿文件或設為不公開之實作的邊。與該清單的 `total` 一致。 */
             'own_edges_count' => $this->ownEdgesCount(),
+            /** 反向述詞的邊數；計算方式同 `own_edges_count`。沒有反向述詞，或反向是自己時為 0。 */
             'reverse_edges_count' => $this->reverseEdgesCount(),
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),

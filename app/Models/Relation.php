@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Exceptions\RelationLockedException;
 use App\Traits\SetCURIEAttribute;
+use Closure;
 use Database\Factories\RelationFactory;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -55,6 +57,18 @@ class Relation extends Model
         'documentationTechniqueLinks',
         'techniqueImplementationLinks',
         'entityRelations',
+    ];
+
+    /** 另外預載的「看得到的邊數」（跟邊清單同一套規則），欄位名是在原本的 `*_count` 前面加這個前綴。 */
+    public const VISIBLE_COUNT_PREFIX = 'visible_';
+
+    /**
+     * 三張 pivot 連結表的兩端：外鍵欄位 => 實體型別。`entity_relations` 兩端同型別，由 `onlyEdgesVisibleToViewer()` 另外處理。
+     */
+    private const PIVOT_ENDPOINTS = [
+        'documentationImplementationLinks' => ['documentation_id' => 'documentation', 'implementation_id' => 'implementation'],
+        'documentationTechniqueLinks' => ['documentation_id' => 'documentation', 'technique_id' => 'technique'],
+        'techniqueImplementationLinks' => ['technique_id' => 'technique', 'implementation_id' => 'implementation'],
     ];
 
     public const LOCKED_FIELDS = ['subject_id', 'object_id', 'name', 'class_number', 'call_number', 'parent_class'];
@@ -306,15 +320,28 @@ class Relation extends Model
      *
      * 跟 hasOwnReferences() 一樣，預載過（withReferenceCounts）就直接讀，沒預載才
      * 退回查一次；清單頁一定要預載，否則每一列各查四次。
+     *
+     * 數字要跟 `GET /relations/{relation}/edges` 的 `total` 一致（見 `RelationEdgeQuery`）：
+     * 任一端已軟刪除的邊不數（不論有沒有登入）；沒登入時再加上不數連到草稿文件或不公開之實作的邊。
      */
     public function ownEdgesCount(): int
     {
         return collect(self::LINK_RELATIONS)->sum(function (string $relation) {
             $countKey = Str::snake($relation).'_count';
+            $visibleKey = self::VISIBLE_COUNT_PREFIX.$countKey;
 
-            return array_key_exists($countKey, $this->attributes)
-                ? (int) $this->attributes[$countKey]
-                : $this->{$relation}()->count();
+            // 預載的 visible_ 版本是濾掉看不到之端點（已軟刪除、訪客看不到的草稿與不公開專案）
+            // 的邊數，要跟邊清單一致。兩者不能混用：isReferenced() 讀的 *_count 一定要是
+            // 未過濾的，鎖定看的是「有沒有邊用到這個名字」，不是此刻數得到幾筆。
+            if (array_key_exists($visibleKey, $this->attributes)) {
+                return (int) $this->attributes[$visibleKey];
+            }
+
+            // 沒預載才退回查一次；一樣套用 visible_ 版本的過濾，不讀未過濾的 *_count。
+            $query = $this->{$relation}();
+            self::onlyEdgesVisibleToViewer($relation)($query);
+
+            return $query->count();
         });
     }
 
@@ -342,7 +369,69 @@ class Relation extends Model
     public function scopeWithReferenceCounts($query)
     {
         return $query
-            ->withCount(self::LINK_RELATIONS)
-            ->with(['reverse' => fn ($q) => $q->withCount(self::LINK_RELATIONS)]);
+            ->withCount(self::referenceCounts())
+            ->with(['reverse' => fn ($q) => $q->withCount(self::referenceCounts())]);
+    }
+
+    /**
+     * `withCount()`／`loadCount()` 要數的連結表。
+     *
+     * 未過濾的四個 `*_count` 一定要有（`isReferenced()` 靠它們判斷鎖定，連到已軟刪除之實體的
+     * 邊也算「有用到這個名字」）。另外四個 `visible_*_count` 是跟邊清單同一套規則的版本，
+     * 給 `ownEdgesCount()` 用；已軟刪除的端點不分登入與否都要濾，所以登入後也要載。
+     *
+     * @return array<int|string, string|Closure>
+     */
+    public static function referenceCounts(): array
+    {
+        $visible = [];
+        foreach (self::LINK_RELATIONS as $relation) {
+            $visible[$relation.' as '.self::VISIBLE_COUNT_PREFIX.Str::snake($relation).'_count'] = self::onlyEdgesVisibleToViewer($relation);
+        }
+
+        return [...self::LINK_RELATIONS, ...$visible];
+    }
+
+    /**
+     * 只留兩端都「此刻看得到」的邊：沒有軟刪除，而且沒登入時不是草稿文件、不是不公開的專案。
+     *
+     * 規則跟 `RelationEdgeQuery` 是同一條（它 join 兩端、要求 `deleted_at IS NULL`，再
+     * 套 `hideFromViewer()`），只是那邊是裸的 query builder 的 UNION，這裡要塞進
+     * `withCount()` 的相關子查詢。兩端各用「id 在看得到的實體裡」的子查詢（`IN`），不先撈出來
+     * 再丟進 PHP，筆數多也還是同一句 SQL。子查詢走 Eloquent，軟刪除的全域 scope 會自動
+     * 排除已刪除的實體；已軟刪除的草稿因此也不在裡面，不會因為刪了就讓邊冒出來。連到
+     * 不存在之實體的邊也一併排除，跟邊清單的 join 一致。
+     *
+     * `entity_relations` 的兩端沒有 Eloquent 關聯，型別由 `entity_type` 決定，所以另外處理。
+     */
+    private static function onlyEdgesVisibleToViewer(string $linkRelation): Closure
+    {
+        return function ($query) use ($linkRelation) {
+            $table = $query->getModel()->getTable();
+
+            // 每次呼叫回傳新的子查詢。
+            $visibleIds = fn (string $type): EloquentBuilder => match ($type) {
+                'documentation' => Documentation::query()->visibleToViewer()->select('id'),
+                'technique' => Technique::query()->select('id'),
+                'implementation' => Implementation::query()->visibleToViewer()->select('id'),
+            };
+
+            if ($linkRelation === 'entityRelations') {
+                $query->where(function ($edges) use ($table, $visibleIds) {
+                    foreach (array_keys(EntityRelation::ENTITY_TYPES) as $type) {
+                        $edges->orWhere(fn ($edge) => $edge
+                            ->where($table.'.entity_type', $type)
+                            ->whereIn($table.'.subject_id', $visibleIds($type))
+                            ->whereIn($table.'.object_id', $visibleIds($type)));
+                    }
+                });
+
+                return;
+            }
+
+            foreach (self::PIVOT_ENDPOINTS[$linkRelation] as $column => $type) {
+                $query->whereIn($table.'.'.$column, $visibleIds($type));
+            }
+        };
     }
 }

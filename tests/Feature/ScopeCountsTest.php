@@ -16,8 +16,8 @@ use Tests\TestCase;
  * Scope 詳情／一覽要的那一排計數（規格「本體論編輯規格」B4）。
  *
  * 在此之前 `/api/scopes/{id}` 回的是 `children` / `siblings` / `subject_of` / `object_of`
- * 的**完整集合**，沒有任何實體計數——Triple 的「記錄數量」之所以寫死成 0
- * （`AppTripleDetailStatic.vue` 的 `computed(() => 0)`），就是因為後端根本拿不到這個數字。
+ * 的**完整集合**，沒有任何實體計數——當時後台（Triple）的「記錄數量」之所以寫死成 0，
+ * 就是因為後端根本拿不到這個數字。
  *
  * 這裡刻意不用 seeder 造資料，自己建：seeder 的內容會變，而這幾支測的是
  * 「數出來對不對」，需要一組自己說得準的資料。

@@ -1,0 +1,42 @@
+name: Codex 範圍檢查
+
+# `codex/` 分支（Codex 依 AGENTS.md 開的 PR）目前只能改 `tests/` 底下的檔案。
+#
+# 為什麼用 pull_request_target：一般的 pull_request 會執行 PR 分支上的 workflow，
+# Codex 只要在分支上改掉這個檔案，檢查就消失了。pull_request_target 執行的是
+# 目標分支（develop／main）上的版本，PR 改不到它。
+#
+# pull_request_target 有權限也拿得到密鑰，所以這裡刻意不 checkout、不執行 PR 的
+# 任何程式碼，只透過 API 讀「改了哪些檔案」的清單；token 也只給唯讀權限。
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [develop, main]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  scope:
+    if: startsWith(github.event.pull_request.head.ref, 'codex/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 檢查改到的路徑
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | .filename, (.previous_filename // empty)')"
+          printf '改到的檔案：\n%s\n\n' "$files"
+
+          # 跟 AGENTS.md「能改的檔案」一致：只允許 tests/ 底下。
+          # 改名的檔案連舊路徑一起查，免得把 tests/ 外的檔案搬進 tests/ 混過去
+          outside="$(printf '%s\n' "$files" | grep -v -E '^tests/' | grep -v '^$' || true)"
+
+          if [ -n "$outside" ]; then
+            echo "::error::codex/ 分支只能改 tests/ 底下的檔案（見 AGENTS.md）：$(echo $outside)"
+            exit 1
+          fi
+          echo "範圍檢查通過"

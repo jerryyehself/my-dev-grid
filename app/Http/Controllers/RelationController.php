@@ -17,7 +17,7 @@ class RelationController extends Controller
 {
     #[Endpoint(
         title: '列出述詞',
-        description: '回傳所有述詞，依類號、子類號排序，每筆含父層、主體與客體分類，以及被引用的狀態。',
+        description: '回傳所有述詞，依類號、子類號排序，每筆含父層、主體與客體分類，以及被引用的狀態與使用它的邊數。未登入時邊數不含連到草稿文件或設為不公開之實作的邊。',
     )]
     public function index()
     {
@@ -127,7 +127,7 @@ class RelationController extends Controller
         );
 
         return response()->json([
-            'data' => new RelationResource($relation->loadCount(Relation::LINK_RELATIONS)->load(['parent', 'children', 'reverse' => fn ($q) => $q->withCount(Relation::LINK_RELATIONS)])),
+            'data' => new RelationResource($relation->loadCount(Relation::referenceCounts())->load(['parent', 'children', 'reverse' => fn ($q) => $q->withCount(Relation::referenceCounts())])),
             'message' => $relation->wasRecentlyCreated
                 ? 'Relation created.'
                 : 'Relation already exists.',
@@ -136,7 +136,7 @@ class RelationController extends Controller
 
     #[Endpoint(
         title: '取得述詞',
-        description: '回傳單一述詞，含父層、子述詞、反向述詞，以及它被使用的邊數與是否被引用。另附建立子述詞時可用的下一個子類號。',
+        description: '回傳單一述詞，含父層、子述詞、反向述詞，以及它被使用的邊數與是否被引用（未登入時邊數不含連到草稿文件或設為不公開之實作的邊）。另附建立子述詞時可用的下一個子類號。',
     )]
     public function show(Relation $relation)
     {
@@ -144,12 +144,11 @@ class RelationController extends Controller
 
         // own_edges_count / reverse_edges_count / is_referenced 都靠這組計數。
         // 不預載的話它們會各自去查連結表,而且反向那條還要再查一輪。
-        $relation->loadCount(Relation::LINK_RELATIONS)
-            ->load(['reverse' => fn ($query) => $query->withCount(Relation::LINK_RELATIONS)]);
+        $relation->loadCount(Relation::referenceCounts())
+            ->load(['reverse' => fn ($query) => $query->withCount(Relation::referenceCounts())]);
 
-        // withFormHints()：只有這支端點算 new_child_call_number。Triple 的
-        // fetchCallNumberByClass() 打的就是這裡。清單頁不開，那是 N+1 的來源
-        // （見 RelationResource 的註解）。
+        // withFormHints()：只有這支端點算 new_child_call_number（預填新增表單的
+        // 子類號用）。清單頁不開，那是 N+1 的來源（見 RelationResource 的註解）。
         return response()->json(
             (new RelationResource($relation))->withFormHints()
         );
@@ -168,7 +167,7 @@ class RelationController extends Controller
     // Scramble 都推不出來，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
         title: '列出述詞使用的邊',
-        description: '分頁列出使用這條述詞的邊（文件、技術、實作之間的連結），每筆含兩端的類型、id 與標題。公開唯讀，不需登入。',
+        description: '分頁列出使用這條述詞的邊（文件、技術、實作之間的連結），每筆含兩端的類型、id 與標題。公開唯讀，不需登入；未登入時不含連到草稿文件或設為不公開之實作的邊。',
     )]
     #[QueryParameter('page', '頁碼，從 1 開始。', type: 'int', default: 1)]
     #[QueryParameter('per_page', '每頁筆數，預設 '.RelationEdgeQuery::DEFAULT_PER_PAGE.'，最多 '.RelationEdgeQuery::MAX_PER_PAGE.'。', type: 'int', default: RelationEdgeQuery::DEFAULT_PER_PAGE)]
@@ -198,7 +197,7 @@ class RelationController extends Controller
 
         // RelationLockedException 不在這裡攔。它自己有 render()，會回一個
         // 以「被鎖住的欄位名」為 key 的 422——原本這裡攔下來組的 `errors.locked`
-        // 對不上 Triple 任何一個輸入欄位的 key，訊息因此渲染不到畫面上。
+        // 對不上表單任何一個輸入欄位的 key，訊息因此渲染不到畫面上。
         // 詳見 App\Exceptions\RelationLockedException 的註解。
         $isUpdated = $relation->update($validatedData);
 
