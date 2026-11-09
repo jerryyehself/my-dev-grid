@@ -124,13 +124,12 @@ class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
      * 不能用 `is_numeric()`：`1.5`、`1e20` 也算數字，但拿去查 PostgreSQL 的 bigint 欄位會直接丟
      * `invalid input syntax`，變成 500；SQLite 不會報錯，只有 PostgreSQL 看得到。不合格的值
      * 由 `integer`、`exists` 這些欄位自己的規則回 422。
+     *
+     * 判斷要跟 `integer` 規則完全一致（同樣是 `filter_var(..., FILTER_VALIDATE_INT)`）：布林 `true`
+     * 能通過 `integer` 規則、之後被當成 1 寫進去，這裡也就要當成 1 檢查，不能放行。
      */
     private static function asId(mixed $value): ?int
     {
-        if (is_bool($value)) {
-            return null;
-        }
-
         $id = filter_var($value, FILTER_VALIDATE_INT);
 
         return $id === false ? null : $id;

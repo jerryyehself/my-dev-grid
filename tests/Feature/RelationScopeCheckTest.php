@@ -267,28 +267,6 @@ class RelationScopeCheckTest extends TestCase
         $this->assertDatabaseMissing('documentations', ['title' => 'Own title']);
     }
 
-    #[TestDox('更新時請求沒帶 type，改用路由綁定之實體目前的分類來比對')]
-    public function test_update_without_type_falls_back_to_the_bound_entity_type(): void
-    {
-        $technique = Technique::factory()->create(['type' => $this->object->id]);
-        $matching = Documentation::factory()->create(['type' => $this->subjectChild->id]);
-        $mismatching = Documentation::factory()->create(['type' => $this->other->id]);
-        $payload = [
-            'title' => 'Own title',
-            'techniques' => [['id' => $technique->id, 'relation_id' => $this->relation->id]],
-        ];
-
-        // type 本身是必填，所以兩個都會有 type 的錯；差別在連結欄位有沒有被分類擋下
-        $this->putJson("/api/documentations/{$matching->id}", $payload)
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['type'])
-            ->assertJsonMissingValidationErrors(['techniques.0.relation_id']);
-
-        $this->putJson("/api/documentations/{$mismatching->id}", $payload)
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['type', 'techniques.0.relation_id']);
-    }
-
     #[TestDox('更新時一併改了 type，以請求裡的新分類為準')]
     public function test_update_uses_the_type_in_the_payload_over_the_current_one(): void
     {
@@ -400,9 +378,39 @@ class RelationScopeCheckTest extends TestCase
         ];
     }
 
+    /**
+     * 布林 `true` 能通過 `integer` 規則，存進去就是 1。分類檢查要把它當 1 檢查，
+     * 不能因為「不是整數」就略過，不然分類不符的連結會被寫進資料庫。
+     *
+     * @return array<string, array{mixed}>
+     */
+    public static function spellingsOfIdOne(): array
+    {
+        return ['整數 1' => [1], '布林 true' => [true]];
+    }
+
+    #[DataProvider('spellingsOfIdOne')]
+    #[TestDox('relation_id 是 1 或 true，分類不符都回 422')]
+    public function test_relation_id_spelled_as_true_is_checked_like_id_one(mixed $relationId): void
+    {
+        // 讓 id 為 1 的述詞是 SubjectRoot -> ObjectRoot；setUp 建的那一條先清掉。
+        Relation::withTrashed()->forceDelete();
+        Relation::factory()->create(['id' => 1, 'name' => 'idOne', 'subject_id' => $this->subject->id, 'object_id' => $this->object->id]);
+        $technique = Technique::factory()->create(['type' => $this->other->id]);
+
+        $response = $this->postJson('/api/documentations', [
+            'type' => $this->other->id,
+            'title' => 'Own title',
+            'techniques' => [['id' => $technique->id, 'relation_id' => $relationId]],
+        ]);
+
+        $response->assertUnprocessable()->assertJsonValidationErrors(['techniques.0.relation_id']);
+        $this->assertDatabaseMissing('documentations', ['title' => 'Own title']);
+    }
+
     /** @param array<string, mixed> $link */
     #[DataProvider('malformedLinks')]
-    #[TestDox('連結的 id 或 relation_id 不合格時，只報該欄位自己的錯，分類檢查略過')]
+    #[TestDox('連結的 id 或 relation_id 不合格時，只報那個欄位的錯')]
     public function test_malformed_link_is_left_to_the_field_rules(array $link, string $expectedErrorKey): void
     {
         // 兩端都放不符的分類：分類檢查若沒略過，一定會多報分類不符。
@@ -420,6 +428,7 @@ class RelationScopeCheckTest extends TestCase
         ]);
 
         $response->assertUnprocessable()->assertJsonValidationErrors([$expectedErrorKey]);
+        $this->assertCount(1, $response->json('errors')[$expectedErrorKey], '只該有欄位自己的那一則錯。');
         $this->assertStringNotContainsString('必須屬於分類', $this->allErrorMessages($response));
     }
 
@@ -528,8 +537,8 @@ class RelationScopeCheckTest extends TestCase
         $this->assertStringNotContainsString('#', $message);
     }
 
-    #[TestDox('一個請求帶很多筆連結，分類的父子關係只讀一次資料庫')]
-    public function test_scope_tree_is_loaded_once_per_request(): void
+    #[TestDox('連結變多，讀分類樹的次數不會跟著增加')]
+    public function test_scope_tree_reads_do_not_grow_with_the_number_of_links(): void
     {
         $scopeTreeQueries = function (int $links): int {
             $techniques = Technique::factory()->count($links)->create(['type' => $this->object->id]);

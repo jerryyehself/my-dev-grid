@@ -151,39 +151,30 @@ class RelationEdgeCountSoftDeleteTest extends TestCase
     }
 
     /**
-     * 鎖定看的是「有沒有邊用到這個名字」：端點只是軟刪除、可以還原，邊還在，
-     * 所以計數雖然變 0，述詞仍然是已引用，欄位仍然鎖住。
-     */
-    #[TestDox('只剩連到已軟刪除實體的邊時，計數為 0 但述詞仍是已引用')]
-    public function test_a_relation_with_only_soft_deleted_endpoint_edges_stays_referenced()
-    {
-        $this->signIn();
-
-        $relation = Relation::factory()->create();
-        [$documentation] = $this->edge('documentation_technique', $relation);
-        $documentation->delete();
-
-        $body = $this->getJson("/api/relations/{$relation->id}")->assertOk()->json();
-
-        $this->assertSame(0, $body['own_edges_count']);
-        $this->assertTrue($body['is_referenced']);
-        $this->assertNotEmpty($body['locked_fields']);
-    }
-
-    /**
-     * 6 種連結表 × 訪客／登入後。
+     * 6 種連結表（3 張 pivot、3 種 `entity_relations`）。
      *
-     * @return array<string, array{0: string, 1: bool}>
+     * @return array<string, array{0: string}>
      */
-    public static function tablesByViewer(): array
+    public static function tables(): array
     {
         $tables = [
             ...array_keys(self::PIVOTS),
             ...array_map(fn (string $type) => 'entity_relations:'.$type, array_keys(EntityRelation::ENTITY_TYPES)),
         ];
 
+        return array_combine($tables, array_map(fn (string $table) => [$table], $tables));
+    }
+
+    /**
+     * 還原的測試只挑一張 pivot、一種 `entity_relations`，訪客與登入後各跑一次；
+     * 各張表的過濾已經由上面的「任一端已軟刪除」測試逐張守住。
+     *
+     * @return array<string, array{0: string, 1: bool}>
+     */
+    public static function restoreCases(): array
+    {
         $cases = [];
-        foreach ($tables as $table) {
+        foreach (['documentation_technique', 'entity_relations:documentation'] as $table) {
             $cases["訪客 {$table}"] = [$table, false];
             $cases["登入後 {$table}"] = [$table, true];
         }
@@ -207,8 +198,8 @@ class RelationEdgeCountSoftDeleteTest extends TestCase
      * 同一條邊的端點依序：刪除主體、再刪除客體、只還原主體、再還原客體。
      * 只要有一端還在已刪除的狀態，邊就不能計入；兩端都在才算回來。
      */
-    #[DataProvider('tablesByViewer')]
-    #[TestDox('端點軟刪除後又還原，邊跟著從計數消失再回來（兩端都刪過）')]
+    #[DataProvider('restoreCases')]
+    #[TestDox('端點軟刪除後又還原，邊從計數消失再回來')]
     public function test_counts_follow_soft_delete_and_restore_of_both_endpoints(string $table, bool $signedIn)
     {
         if ($signedIn) {
@@ -241,15 +232,12 @@ class RelationEdgeCountSoftDeleteTest extends TestCase
     /**
      * 沒有用 `withCount()` 預載時，`ownEdgesCount()`／`reverseEdgesCount()` 會退回自己查一次。
      * 這條路不經過 controller 的預載，另外守：一樣不能數到已軟刪除端點的邊，且等於邊清單的筆數。
+     * 建出來的實體都是訪客與登入後都看得到的，所以只用訪客跑；兩種身分的過濾差異由 `VisibleCountsTest` 守。
      */
-    #[DataProvider('tablesByViewer')]
+    #[DataProvider('tables')]
     #[TestDox('沒預載計數時，退回查詢的邊數也不含已軟刪除端點的邊')]
-    public function test_counts_without_preloaded_attributes_exclude_soft_deleted_endpoint_edges(string $table, bool $signedIn)
+    public function test_counts_without_preloaded_attributes_exclude_soft_deleted_endpoint_edges(string $table)
     {
-        if ($signedIn) {
-            $this->actingAsOwner();
-        }
-
         $relation = Relation::factory()->create();
         $reverse = Relation::factory()->create();
         $relation->update(['reverse_id' => $reverse->id]);

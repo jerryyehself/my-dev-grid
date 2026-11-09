@@ -35,7 +35,7 @@ class NonIntegerIdValidationTest extends TestCase
     ];
 
     /**
-     * 每種實體的請求 × 新增／更新 × 外鍵欄位，再 × 不合格的值。
+     * 每種請求（三種實體、述詞、分類）× 新增／更新 × 外鍵欄位，再 × 不合格的值。
      *
      * @return iterable<string, array{string, string, string, mixed}>
      */
@@ -60,6 +60,9 @@ class NonIntegerIdValidationTest extends TestCase
                 $cases[] = [$mode, $own, $paths];
             }
             $cases[] = [$mode, 'relation', ['subject_id', 'object_id', 'reverse_id']];
+            // 更新分類時 `call_number` 的唯一性規則也會拿 `parent_class` 去查父分類，所以同時帶與不帶都要測。
+            $cases[] = [$mode, 'scope', ['parent_class']];
+            $cases[] = [$mode, 'scope without call_number', ['parent_class']];
         }
 
         foreach ($cases as [$mode, $own, $paths]) {
@@ -78,14 +81,20 @@ class NonIntegerIdValidationTest extends TestCase
         $this->actingAsOwner();
         $scope = Scope::factory()->create();
 
-        if ($own === 'relation') {
+        if (str_starts_with($own, 'scope')) {
+            $payload = ['name' => 'newScope', 'comment' => 'comment', 'parent_class' => Scope::factory()->create(['parent_class' => null])->id];
+            if ($own === 'scope') {
+                $payload['call_number'] = '10';
+            }
+            $url = $mode === 'store' ? '/api/scopes' : '/api/scopes/'.Scope::factory()->create()->id;
+        } elseif ($own === 'relation') {
             $payload = ['name' => 'newName', 'subject_id' => $scope->id, 'object_id' => $scope->id, 'class_number' => '01', 'call_number' => '00'];
             $existing = Relation::factory()->create();
             $url = $mode === 'store' ? '/api/relations' : "/api/relations/{$existing->id}";
         } else {
             $relation = Relation::factory()->create();
             $payload = ['type' => $scope->id, 'title' => 'Own title'];
-            foreach (explode(',', 'documentations,techniques,implementations') as $field) {
+            foreach (['documentations', 'techniques', 'implementations'] as $field) {
                 $class = self::MODELS[Str::singular($field)];
 
                 if ($class !== self::MODELS[$own]) {

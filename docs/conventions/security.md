@@ -18,7 +18,8 @@
 
 - 每個寫入端點都用 FormRequest 驗證，存進資料庫的只能是 `$request->validated()`，不要用 `$request->all()`。
 - 每個 model 都用 `$fillable` 列出可以批次寫入的欄位，不要用 `$guarded = []`。
-- 外鍵用 `exists:` 驗證，前面一定先放 `integer` 並加 `bail`：`'type' => 'bail|required|integer|exists:scopes,id'`。沒有 `integer`，非數字的值（`abc`、`1.5`）會原封不動送進 PostgreSQL 的 bigint 欄位查詢而回 500；SQLite 不會報錯，只有 CI 的 PostgreSQL 那一輪才看得到。
+- 外鍵用 `exists:` 或 `Rule::exists()` 驗證，前面一定先放 `integer` 並加 `bail`：`'type' => 'bail|required|integer|exists:scopes,id'`、`'parent_class' => ['bail', 'required', 'integer', Rule::exists('scopes', 'id')]`。沒有 `integer`，非數字的值（`abc`、`1.5`）會原封不動送進 PostgreSQL 的 bigint 欄位查詢而回 500；SQLite 不會報錯，只有 CI 的 PostgreSQL 那一輪才看得到。
+- 自訂規則與 closure 裡也一樣：拿請求的值去 `find()`、`where()` 之前，先確認它是整數（`filter_var($value, FILTER_VALIDATE_INT)`，判斷要跟 `integer` 規則一致），不是就不查。`bail` 只擋同一個欄位後面的規則，擋不到別的欄位的規則或 closure 去讀這個值（例：`UpdateScopeRequest` 的 `call_number` 會讀 `parent_class`，`RelationFitsLinkedScopes` 會讀連結的 `id` 與 `type`）。
 - 可以從其他欄位推出來的值，不收呼叫端傳來的：`class_number` 一律從父分類推（`ScopeController::store`）。
 - 寫原始 SQL（`DB::raw`、`whereRaw`）時，值一律用 binding（`whereRaw('lower(title) = ?', [...])`）；非得把字串直接放進 SQL 的，只能放程式裡寫死的值，而且要先過白名單檢查（`RelationEdgeQuery::quoted()`）。
 - Markdown 內文（`body`）存原文，不在後端改動或轉成 HTML：`TrimStrings` 刻意排除它（`bootstrap/app.php`）。內容怎麼安全地顯示，由前端負責。
