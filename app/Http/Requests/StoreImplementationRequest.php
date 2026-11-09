@@ -20,7 +20,7 @@ class StoreImplementationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => 'required|exists:scopes,id',
+            'type' => 'bail|required|integer|exists:scopes,id',
             'title' => 'required|string|max:255',
             'sub_title' => 'nullable|string|max:255',
             'description' => 'nullable|string|max:255',

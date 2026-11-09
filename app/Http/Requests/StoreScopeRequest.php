@@ -28,7 +28,9 @@ class StoreScopeRequest extends FormRequest
             // number 直接編,等於把 API 的不一致往前端推。
             /** 父分類的 id，必須是頂層分類。類號會依父分類自動帶入，不用傳。 */
             'parent_class' => [
+                'bail',
                 'required',
+                'integer',
                 Rule::exists('scopes', 'id')->whereNull('parent_class'),
             ],
             'call_number' => 'nullable|numeric',

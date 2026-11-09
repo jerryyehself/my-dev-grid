@@ -20,7 +20,7 @@ class StoreDocumentationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => 'required|exists:scopes,id',
+            'type' => 'bail|required|integer|exists:scopes,id',
             'title' => 'required|string|max:255',
             // 只收 http／https：這個欄位會被當成可點的連結輸出，不限 scheme 的話
             // javascript:、data: 這類網址存進來，點下去就可能在瀏覽器裡執行

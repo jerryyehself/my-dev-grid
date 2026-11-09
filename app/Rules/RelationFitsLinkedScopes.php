@@ -61,7 +61,8 @@ class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        $relation = is_numeric($value) ? Relation::withTrashed()->find($value) : null;
+        $relationId = self::asId($value);
+        $relation = $relationId === null ? null : Relation::withTrashed()->find($relationId);
 
         // 連到已軟刪除的述詞，`exists:relations,id` 目前會放行，這裡照樣檢查它的兩端。
         if (! $relation) {
@@ -69,8 +70,8 @@ class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
         }
 
         $item = Str::beforeLast($attribute, '.relation_id');
-        $linkedId = data_get($this->data, $item.'.id');
-        $linked = is_numeric($linkedId) ? $this->linkedModel::withTrashed()->find($linkedId) : null;
+        $linkedId = self::asId(data_get($this->data, $item.'.id'));
+        $linked = $linkedId === null ? null : $this->linkedModel::withTrashed()->find($linkedId);
         $ownType = $this->ownType();
 
         if (! $linked || $ownType === null) {
@@ -106,14 +107,31 @@ class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
      * 請求自己的實體在這次寫入之後的分類。
      *
      * 請求帶了 `type` 就以它為準（更新時分類也可能一起改）；沒帶才退回路由綁定之實體目前的值。
-     * `type` 不是數字時回 null，讓 `type` 自己的規則去報錯。
+     * `type` 不是整數時回 null，讓 `type` 自己的規則去報錯。
      */
     private function ownType(): ?int
     {
         if (array_key_exists('type', $this->data)) {
-            return is_numeric($this->data['type']) ? (int) $this->data['type'] : null;
+            return self::asId($this->data['type']);
         }
 
         return $this->currentOwnType;
+    }
+
+    /**
+     * 整數（或整數字串）才當 id 用，其餘一律回 null。
+     *
+     * 不能用 `is_numeric()`：`1.5`、`1e20` 也算數字，但拿去查 PostgreSQL 的 bigint 欄位會直接丟
+     * `invalid input syntax`，變成 500；SQLite 不會報錯，只有 PostgreSQL 看得到。不合格的值
+     * 由 `integer`、`exists` 這些欄位自己的規則回 422。
+     *
+     * 判斷要跟 `integer` 規則完全一致（同樣是 `filter_var(..., FILTER_VALIDATE_INT)`）：布林 `true`
+     * 能通過 `integer` 規則、之後被當成 1 寫進去，這裡也就要當成 1 檢查，不能放行。
+     */
+    private static function asId(mixed $value): ?int
+    {
+        $id = filter_var($value, FILTER_VALIDATE_INT);
+
+        return $id === false ? null : $id;
     }
 }

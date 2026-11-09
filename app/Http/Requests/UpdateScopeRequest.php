@@ -26,7 +26,9 @@ class UpdateScopeRequest extends FormRequest
             // = 99,製造出實際資料裡一筆都不存在的不一致(實測 16 筆全部一致)。
             /** 父分類的 id，必須是頂層分類。類號會依父分類自動帶入，不用傳。 */
             'parent_class' => [
+                'bail',
                 'required',
+                'integer',
                 Rule::exists('scopes', 'id')->whereNull('parent_class'),
             ],
             'call_number' => [
@@ -38,7 +40,9 @@ class UpdateScopeRequest extends FormRequest
                     ->ignore($this->scope?->id)
                     ->where(fn ($query) => $query->where(
                         'class_number',
-                        Scope::find($this->parent_class)?->class_number
+                        // parent_class 不是整數時不能拿去查（PostgreSQL 會丟 bigint 的語法錯誤）；
+                        // 它自己的規則會回 422。
+                        $this->parentClassNumber()
                     )),
             ],
             'name' => [
@@ -49,5 +53,13 @@ class UpdateScopeRequest extends FormRequest
             'comment' => 'max:100',
             'note' => 'max:255',
         ];
+    }
+
+    /** 請求指定的父分類的類號；`parent_class` 不是整數、或找不到父分類時是 null。 */
+    private function parentClassNumber(): ?string
+    {
+        $parentId = filter_var($this->input('parent_class'), FILTER_VALIDATE_INT);
+
+        return $parentId === false ? null : Scope::find($parentId)?->class_number;
     }
 }
