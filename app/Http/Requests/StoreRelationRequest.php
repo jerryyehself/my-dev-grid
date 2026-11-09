@@ -19,8 +19,8 @@ class StoreRelationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'subject_id' => 'required|exists:scopes,id',
-            'object_id' => 'required|exists:scopes,id',
+            'subject_id' => 'bail|required|integer|exists:scopes,id',
+            'object_id' => 'bail|required|integer|exists:scopes,id',
             'class_number' => 'required|numeric',
             'call_number' => 'nullable|numeric',
             'name' => 'required|unique:relations',
@@ -29,7 +29,7 @@ class StoreRelationRequest extends FormRequest
             // 與 Relation::syncReverse() 的註解。建立一對的做法是:先建 A(reverse 留空),
             // 再建 B 並把 reverse_id 指向 A,雙向會自動補齊。
             /** 反向述詞的 id，可留空。必須是尚未配對的述詞；建立後雙方會互相指向。 */
-            'reverse_id' => ['nullable', 'exists:relations,id', new ReverseIsAvailable, new ReverseIsSwapped],
+            'reverse_id' => ['bail', 'nullable', 'integer', 'exists:relations,id', new ReverseIsAvailable, new ReverseIsSwapped],
         ];
     }
 }

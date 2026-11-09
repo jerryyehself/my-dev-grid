@@ -20,7 +20,7 @@ class StoreTechniqueRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => 'required|exists:scopes,id',
+            'type' => 'bail|required|integer|exists:scopes,id',
             'title' => 'required|string|max:255',
             'version' => 'nullable|string|max:255',
             'note' => 'nullable|string|max:255',

@@ -18,7 +18,7 @@
 
 - 每個寫入端點都用 FormRequest 驗證，存進資料庫的只能是 `$request->validated()`，不要用 `$request->all()`。
 - 每個 model 都用 `$fillable` 列出可以批次寫入的欄位，不要用 `$guarded = []`。
-- 外鍵用 `exists:` 驗證：`'type' => 'required|exists:scopes,id'`。
+- 外鍵用 `exists:` 驗證，前面一定先放 `integer` 並加 `bail`：`'type' => 'bail|required|integer|exists:scopes,id'`。沒有 `integer`，非數字的值（`abc`、`1.5`）會原封不動送進 PostgreSQL 的 bigint 欄位查詢而回 500；SQLite 不會報錯，只有 CI 的 PostgreSQL 那一輪才看得到。
 - 可以從其他欄位推出來的值，不收呼叫端傳來的：`class_number` 一律從父分類推（`ScopeController::store`）。
 - 寫原始 SQL（`DB::raw`、`whereRaw`）時，值一律用 binding（`whereRaw('lower(title) = ?', [...])`）；非得把字串直接放進 SQL 的，只能放程式裡寫死的值，而且要先過白名單檢查（`RelationEdgeQuery::quoted()`）。
 - Markdown 內文（`body`）存原文，不在後端改動或轉成 HTML：`TrimStrings` 刻意排除它（`bootstrap/app.php`）。內容怎麼安全地顯示，由前端負責。
