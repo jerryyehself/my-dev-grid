@@ -4,6 +4,33 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [1.2.0] - 2026-11-09
+
+### 新增
+
+- `GET /api/graph`、`GET /api/graph/path` 的節點新增 `active` 欄位：未公開（草稿）的文件不再對訪客整個藏起來，改成標示狀態的節點（`active` 為 `false`），未登入時 `label` 固定是「未公開」，`subtype` 與 `url` 為 `null`，連到它的邊照常回傳；其他節點的 `active` 一律為 `true`（#149）。
+- 建立或更新文件、技術、實作的連結時，檢查兩端實體的分類是否符合述詞的主詞與受詞（子分類算符合）；不符回 422，錯誤指出是哪一筆連結、哪一端、需要什麼分類（#157）。
+- CI 加入 Infection 變異測試：只改壞 PR 改到的行，只報告、不擋 PR；測試慣例補上邊界必測清單（#154, #151）。
+- 新增訪客掃描測試：所有 `api/` 路由都必須歸類，公開路由不得帶出草稿、不公開與已刪除的資料（#153）。
+
+### 變更
+
+- 設為不公開（`is_visible = false`）的專案，未登入時不再出現在任何公開讀取：實作清單與詳情（詳情回 404）、文件與技術載入的關聯實作、圖譜與路徑、連結清單；帶有效 token 時照常看得到（#137）。
+- 未登入時，公開計數只數看得到的內容：`implementations_count`、`own_edges_count`、`reverse_edges_count` 不含不公開的專案、草稿與連到它們的連結；分類的 `documentations_count` 不含草稿文件，數字與對應清單一致（#143, #145）。
+- 登入、換發 token、建立登入狀態、session 登入與 `GET /api/user` 回應裡的使用者改用 `UserResource`，只回傳 `id`、`name`、`email`；回應最外層的形狀不變（#136）。
+- 正式環境不再提供 `/docs/api` 與 `/docs/api.json`（回 403），文件只在本機環境提供，CI 另外匯出 OpenAPI JSON 為 artifact（#139）。
+- 後端移除內嵌的舊後台（Triple）：沒有註冊的路徑一律回 404，Docker 映像檔不再包含 Node 建置階段，後端只提供 API。`/auth/*` 與 `/up` 不受影響（#132）。
+- smoke-test 的 sandbox 模式重用現成的 `vendor`，不再整個重裝（#138）。
+
+### 修正
+
+- 述詞的 `own_edges_count`、`reverse_edges_count` 不再數到任一端已軟刪除的連結，與邊清單的 `total` 一致（#163）。
+- 圖譜與路徑查詢排除已軟刪除的技術與實作：不再出現指向不存在節點的邊，路徑也不會經過已刪除的中間節點（#161）。
+
+### 移除
+
+- 內嵌的舊後台（Triple）的頁面、Vue 原始碼與 Node／Vite 建置（#132）。
+
 ## [1.1.3] - 2026-11-04
 
 ### 安全性
@@ -117,6 +144,7 @@ GitHub 同步
 - CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
+[1.2.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.2.0
 [1.1.3]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.3
 [1.1.2]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.2
 [1.1.1]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.1
