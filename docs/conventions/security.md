@@ -18,10 +18,13 @@
 
 - 每個寫入端點都用 FormRequest 驗證，存進資料庫的只能是 `$request->validated()`，不要用 `$request->all()`。
 - 每個 model 都用 `$fillable` 列出可以批次寫入的欄位，不要用 `$guarded = []`。
-- 外鍵用 `exists:` 或 `Rule::exists()` 驗證，前面一定先放 `integer` 並加 `bail`：`'type' => 'bail|required|integer|exists:scopes,id'`、`'parent_class' => ['bail', 'required', 'integer', Rule::exists('scopes', 'id')]`。沒有 `integer`，非數字的值（`abc`、`1.5`）會原封不動送進 PostgreSQL 的 bigint 欄位查詢而回 500；SQLite 不會報錯，只有 CI 的 PostgreSQL 那一輪才看得到。
+- 外鍵欄位的規則一律用 `App\Rules\ForeignId::rules()` 產生，不要自己寫 `exists:` 字串或 `Rule::exists()`：`'type' => ['required', ...ForeignId::rules('scopes')]`。要對 `exists` 多加條件時傳第二個參數（`StoreScopeRequest` 的 `parent_class` 只收頂層分類）。它回傳 `bail`、`integer`，加上排除軟刪除的 `exists`，少一項都會出事：
+  - 沒有 `integer`，非數字的值（`abc`、`1.5`）會原封不動送進 PostgreSQL 的 bigint 欄位查詢而回 500；SQLite 不會報錯，只有 CI 的 PostgreSQL 那一輪才看得到。
+  - `exists` 直接查資料表，不知道 model 有軟刪除；不排除的話，已刪除的分類、述詞、實體還能被新資料連上。指到已軟刪除的資料一律回 422。
+  - `SoftDeletedForeignKeyTest` 會讀每支 FormRequest 的規則：直接寫 `exists`、漏了其中一項，或新的外鍵欄位沒列進那份測試，測試都會失敗。
 - 會拿去跟 id 欄位比較的查詢參數（`?type=`）也要先驗證是整數，用 `Index<Model>Request`：`IndexImplementationRequest`。
 - 網址上的 id 不是合法的正整數（含超出 bigint 範圍）時，回 404，不拿去查資料庫。這由 model 的 `ResolvesPositiveIntegerRouteKeys` trait 負責，每個會被路由綁定的 model 都要套用；`GuestApiSweepTest` 會檢查每條帶 id 的路由，漏套的話測試會失敗。
-- 自訂規則與 closure 裡也一樣：拿請求的值去 `find()`、`where()` 之前，先確認它是整數（`filter_var($value, FILTER_VALIDATE_INT)`，判斷要跟 `integer` 規則一致），不是就不查。`bail` 只擋同一個欄位後面的規則，擋不到別的欄位的規則或 closure 去讀這個值（例：`UpdateScopeRequest` 的 `call_number` 會讀 `parent_class`，`RelationFitsLinkedScopes` 會讀連結的 `id` 與 `type`）。
+- 自訂規則與 closure 裡也一樣：拿請求的值去 `find()`、`where()` 之前，先確認它是整數（`filter_var($value, FILTER_VALIDATE_INT)`，判斷要跟 `integer` 規則一致），不是就不查。查的時候用一般的 `find()`，不加 `withTrashed()`：已軟刪除的資料當作不存在，由欄位自己的規則回報。`bail` 只擋同一個欄位後面的規則，擋不到別的欄位的規則或 closure 去讀這個值（例：`UpdateScopeRequest` 的 `call_number` 會讀 `parent_class`，`RelationFitsLinkedScopes` 會讀連結的 `id` 與 `type`）。
 - 可以從其他欄位推出來的值，不收呼叫端傳來的：`class_number` 一律從父分類推（`ScopeController::store`）。
 - 寫原始 SQL（`DB::raw`、`whereRaw`）時，值一律用 binding（`whereRaw('lower(title) = ?', [...])`）；非得把字串直接放進 SQL 的，只能放程式裡寫死的值，而且要先過白名單檢查（`RelationEdgeQuery::quoted()`）。
 - Markdown 內文（`body`）存原文，不在後端改動或轉成 HTML：`TrimStrings` 刻意排除它（`bootstrap/app.php`）。內容怎麼安全地顯示，由前端負責。
