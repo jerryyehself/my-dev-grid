@@ -42,7 +42,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # 要完整歷史才找得到「寫上日期的那個 commit」，也要有既有 tag 才能判斷哪些版本建過了
           fetch-depth: 0
