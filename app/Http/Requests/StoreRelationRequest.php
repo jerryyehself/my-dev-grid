@@ -22,7 +22,11 @@ class StoreRelationRequest extends FormRequest
             'subject_id' => 'bail|required|integer|exists:scopes,id',
             'object_id' => 'bail|required|integer|exists:scopes,id',
             'class_number' => 'required|numeric',
-            'call_number' => 'nullable|numeric',
+            // controller 靠 call_number 判斷是不是頂層述詞（'00'）、要不要接父層，所以一定要有這個
+            // 欄位。present 只要求欄位有送，值可以是 null（空字串會被框架轉成 null）；
+            // 少了 present，欄位沒送也算通過驗證，validated() 裡就沒有這個 key。
+            /** 子類號。一定要送出這個欄位：`00` 是頂層述詞，其他值會接到同一個類號的頂層述詞底下；留空（null）時不指定子類號，同樣接到頂層述詞底下。 */
+            'call_number' => 'present|nullable|numeric',
             'name' => 'required|unique:relations',
             'note' => '',
             // reverse_id 必須雙向,而且只能指向還沒配對的關係——見 App\Rules\ReverseIsAvailable

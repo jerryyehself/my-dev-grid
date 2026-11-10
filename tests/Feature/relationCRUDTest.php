@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Relation;
 use App\Models\Scope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -378,6 +379,81 @@ class relationCRUDTest extends TestCase
         ]);
 
         $response->assertUnauthorized();
+    }
+
+    #[TestDox('新增述詞沒帶 call_number 回 422')]
+    public function test_create_relation_requires_the_call_number_field()
+    {
+        $this->actingAsOwner();
+        [$subject, $object] = Scope::factory()->count(2)->create();
+
+        $this->postJson('/api/relations', [
+            'subject_id' => $subject->id,
+            'object_id' => $object->id,
+            'name' => 'Test',
+            'class_number' => '77',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('call_number');
+
+        $this->assertDatabaseMissing('relations', ['name' => 'Test']);
+    }
+
+    /**
+     * 欄位有送、但沒有值：JSON 的 null，以及空字串（框架會把空字串轉成 null）。
+     *
+     * @return iterable<string, array{string|null}>
+     */
+    public static function emptyCallNumbers(): iterable
+    {
+        yield 'null' => [null];
+        yield '空字串' => [''];
+    }
+
+    #[DataProvider('emptyCallNumbers')]
+    #[TestDox('call_number 有送但留空時，照常新增成子述詞並接到頂層述詞')]
+    public function test_create_relation_accepts_an_empty_call_number(?string $callNumber)
+    {
+        $this->actingAsOwner();
+        [$subject, $object] = Scope::factory()->count(2)->create();
+        $topLevel = Relation::factory()->create([
+            'subject_id' => $subject->id,
+            'object_id' => $object->id,
+            'class_number' => '77',
+            'call_number' => '00',
+            'name' => 'top-level-relation',
+        ]);
+
+        $this->postJson('/api/relations', [
+            'subject_id' => $subject->id,
+            'object_id' => $object->id,
+            'name' => 'Test',
+            'class_number' => '77',
+            'call_number' => $callNumber,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('relations', [
+            'name' => 'Test',
+            'call_number' => null,
+            'parent_class' => $topLevel->id,
+        ]);
+    }
+
+    #[TestDox('call_number 是 00 時新增成頂層述詞，不接父層')]
+    public function test_create_relation_with_call_number_00_has_no_parent()
+    {
+        $this->actingAsOwner();
+        [$subject, $object] = Scope::factory()->count(2)->create();
+
+        $this->postJson('/api/relations', [
+            'subject_id' => $subject->id,
+            'object_id' => $object->id,
+            'name' => 'Test',
+            'class_number' => '77',
+            'call_number' => '00',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('relations', ['name' => 'Test', 'call_number' => '00', 'parent_class' => null]);
     }
 
     #[TestDox('可檢視單一關係')]
