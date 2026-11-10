@@ -26,7 +26,8 @@ use Illuminate\Support\Str;
  * `technique_implementation` 的主詞是技術（圖譜與 `RelationEdgeQuery` 都這樣讀）。
  * 所以呼叫端要說明「請求自己的實體」站在哪一端，另一端就是欄位連到的實體。
  *
- * 兩端都不符時會各報一則；不存在的述詞或實體由 `exists` 規則負責回報，這裡不重複報。
+ * 兩端都不符時會各報一則；不存在或已軟刪除的述詞、實體由欄位自己的規則（`ForeignId::rules()`）
+ * 回報，這裡不重複報。
  */
 class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
 {
@@ -62,16 +63,17 @@ class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         $relationId = self::asId($value);
-        $relation = $relationId === null ? null : Relation::withTrashed()->find($relationId);
+        $relation = $relationId === null ? null : Relation::find($relationId);
 
-        // 連到已軟刪除的述詞，`exists:relations,id` 目前會放行，這裡照樣檢查它的兩端。
         if (! $relation) {
             return;
         }
 
         $item = Str::beforeLast($attribute, '.relation_id');
         $linkedId = self::asId(data_get($this->data, $item.'.id'));
-        $linked = $linkedId === null ? null : $this->linkedModel::withTrashed()->find($linkedId);
+        // `<欄位>.*.id` 是另一個欄位，它沒過驗證時這條規則照樣會跑；已軟刪除的實體由它自己的規則
+        // 回 422，這裡找不到就不檢查。
+        $linked = $linkedId === null ? null : $this->linkedModel::find($linkedId);
         $ownType = $this->ownType();
 
         if (! $linked || $ownType === null) {
@@ -123,7 +125,7 @@ class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
      *
      * 不能用 `is_numeric()`：`1.5`、`1e20` 也算數字，但拿去查 PostgreSQL 的 bigint 欄位會直接丟
      * `invalid input syntax`，變成 500；SQLite 不會報錯，只有 PostgreSQL 看得到。不合格的值
-     * 由 `integer`、`exists` 這些欄位自己的規則回 422。
+     * 由欄位自己的規則（`ForeignId::rules()`）回 422。
      *
      * 判斷要跟 `integer` 規則完全一致（同樣是 `filter_var(..., FILTER_VALIDATE_INT)`）：布林 `true`
      * 能通過 `integer` 規則、之後被當成 1 寫進去，這裡也就要當成 1 檢查，不能放行。

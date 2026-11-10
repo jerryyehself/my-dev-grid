@@ -331,34 +331,37 @@ class RelationScopeCheckTest extends TestCase
     }
 
     /**
-     * `exists:relations,id` 不排除軟刪除，已刪除的述詞照樣能通過，所以規則要自己用 `withTrashed()` 找到它。
+     * 已軟刪除的述詞跟不存在的一樣，由 `relation_id` 自己的規則擋下，分類檢查不再跑。
      * （刪除分類時會連帶軟刪除以它為主詞、受詞的述詞，這種述詞是真的會出現的。）
      */
-    #[TestDox('述詞已軟刪除時，分類不符照樣回 422 並指出哪一端')]
-    public function test_a_soft_deleted_relation_is_still_checked(): void
+    #[TestDox('述詞已軟刪除時只報 relation_id 無效，不會多報分類不符')]
+    public function test_a_soft_deleted_relation_reports_only_the_exists_error(): void
     {
         $this->relation->delete();
 
+        // 分類也不符（主詞端），但述詞已經不能用，不用再報這一則。
         [$response] = $this->send('store', 'documentation', 'techniques', $this->other->id, $this->object->id);
 
         $response->assertUnprocessable()->assertJsonValidationErrors(['techniques.0.relation_id']);
-        $this->assertStringContainsString('主詞端', $this->allErrorMessages($response));
+        $this->assertSame(['techniques.0.relation_id'], array_keys($response->json('errors')));
+        $this->assertCount(1, $response->json('errors')['techniques.0.relation_id']);
+        $this->assertStringNotContainsString('分類', $this->allErrorMessages($response));
     }
 
     #[DataProvider('linkFields')]
-    #[TestDox('連結到的實體已軟刪除時，分類不符照樣回 422')]
-    public function test_a_soft_deleted_linked_entity_is_still_checked(string $mode, string $own, string $field, bool $ownIsSubject): void
+    #[TestDox('連結到的實體已軟刪除時只報 id 無效，不會多報分類不符')]
+    public function test_a_soft_deleted_linked_entity_reports_only_the_id_error(string $mode, string $own, string $field, bool $ownIsSubject): void
     {
-        // 不符的是「連結到的實體」這一端；自己這一端符合。
+        // 「連結到的實體」這一端的分類也不符；自己這一端符合。
         [$ownType, $linkedType] = $ownIsSubject
             ? [$this->subject->id, $this->other->id]
             : [$this->object->id, $this->other->id];
 
-        [$response, $linked] = $this->send($mode, $own, $field, $ownType, $linkedType, linkedDeleted: true);
+        [$response] = $this->send($mode, $own, $field, $ownType, $linkedType, linkedDeleted: true);
 
-        $key = "{$field}.0.relation_id";
-        $response->assertUnprocessable()->assertJsonValidationErrors([$key]);
-        $this->assertStringContainsString('所連結的 '.class_basename($linked)."（id {$linked->id}）", $response->json('errors')[$key][0]);
+        $response->assertUnprocessable()->assertJsonValidationErrors(["{$field}.0.id"]);
+        $this->assertSame(["{$field}.0.id"], array_keys($response->json('errors')));
+        $this->assertStringNotContainsString('分類', $this->allErrorMessages($response));
     }
 
     /**
@@ -512,7 +515,8 @@ class RelationScopeCheckTest extends TestCase
     }
 
     /**
-     * 述詞規定的分類被刪除時，述詞跟著被軟刪除（見 `Scope::booted()`），所以這裡的述詞也是已刪除的；
+     * 刪除分類不會動到底下的實體，所以實體的分類可能是已刪除的；述詞規定的分類也可能已刪除
+     * （這裡在刪除之後才用 factory 建述詞，它不會被 `Scope::booted()` 連帶刪掉）。
      * 重點是訊息要查得到已刪除分類的名稱。
      */
     #[TestDox('錯誤訊息裡的分類名稱，已軟刪除的分類也顯示名稱而不是 id')]
@@ -520,15 +524,16 @@ class RelationScopeCheckTest extends TestCase
     {
         $goneRequired = Scope::factory()->create(['name' => 'GoneRequired', 'parent_class' => null]);
         $goneActual = Scope::factory()->create(['name' => 'GoneActual', 'parent_class' => null]);
-        $relation = Relation::factory()->create([
-            'name' => 'goneLink',
-            'subject_id' => $goneRequired->id,
-            'object_id' => $this->object->id,
-        ]);
         $goneRequired->delete();
         $goneActual->delete();
+        $relation = Relation::factory()->create([
+            'name' => 'goneLink',
+            'subject_id' => $this->subject->id,
+            'object_id' => $goneRequired->id,
+        ]);
 
-        [$response] = $this->send('store', 'documentation', 'techniques', $goneActual->id, $this->object->id, $relation);
+        // 連結到的技術屬於已刪除的分類 GoneActual，述詞的受詞端規定的是已刪除的 GoneRequired。
+        [$response] = $this->send('store', 'documentation', 'techniques', $this->subject->id, $goneActual->id, $relation);
 
         $response->assertUnprocessable()->assertJsonValidationErrors(['techniques.0.relation_id']);
         $message = $response->json('errors')['techniques.0.relation_id'][0];

@@ -19,7 +19,8 @@ use Tests\TestCase;
  *
  * `exists:scopes,id` 之類的規則會拿值去查 bigint 欄位。SQLite 對 `'abc'`、`1.5` 都不報錯，
  * PostgreSQL 卻會丟 `invalid input syntax for type bigint`，整個請求變成 500。
- * 所以每個外鍵欄位在 `exists` 前面都要先過 `integer`（並加 `bail`，失敗就不再往下跑）；
+ * 所以每個外鍵欄位在 `exists` 前面都要先過 `integer`（並加 `bail`，失敗就不再往下跑），
+ * 這組規則由 `App\Rules\ForeignId::rules()` 產生；
  * 自訂規則 `RelationFitsLinkedScopes` 也不能拿非整數的值去 `find()`。
  *
  * 這個測試在 SQLite 上本來就會過，要在 PostgreSQL 上跑才守得住這件事（CI 的 pgsql 那一輪）。
