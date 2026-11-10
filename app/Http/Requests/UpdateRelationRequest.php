@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\ForeignId;
 use App\Rules\ReverseIsAvailable;
 use App\Rules\ReverseIsSwapped;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -20,8 +21,8 @@ class UpdateRelationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'subject_id' => 'bail|required|integer|exists:scopes,id',
-            'object_id' => 'bail|required|integer|exists:scopes,id',
+            'subject_id' => ['required', ...ForeignId::rules('scopes')],
+            'object_id' => ['required', ...ForeignId::rules('scopes')],
             'class_number' => 'required|numeric',
             'call_number' => 'nullable|numeric',
             'name' => [
@@ -32,7 +33,7 @@ class UpdateRelationRequest extends FormRequest
             // 同 StoreRelationRequest。這裡多傳 $this->relation 進去,因為「目標已經指向
             // 正在編輯的這一筆」跟「目標就是自己(對稱關係)」都是合法的,要認得出來。
             /** 反向述詞的 id，可留空。必須是尚未配對的述詞，或已經指向這一條的述詞；對稱的述詞可指向自己。 */
-            'reverse_id' => ['bail', 'nullable', 'integer', 'exists:relations,id', new ReverseIsAvailable($this->relation), new ReverseIsSwapped($this->relation)],
+            'reverse_id' => ['nullable', ...ForeignId::rules('relations'), new ReverseIsAvailable($this->relation), new ReverseIsSwapped($this->relation)],
         ];
     }
 }

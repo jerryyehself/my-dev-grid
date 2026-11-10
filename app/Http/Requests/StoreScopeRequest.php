@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\ForeignId;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 
 class StoreScopeRequest extends FormRequest
 {
@@ -28,10 +30,8 @@ class StoreScopeRequest extends FormRequest
             // number 直接編,等於把 API 的不一致往前端推。
             /** 父分類的 id，必須是頂層分類。類號會依父分類自動帶入，不用傳。 */
             'parent_class' => [
-                'bail',
                 'required',
-                'integer',
-                Rule::exists('scopes', 'id')->whereNull('parent_class'),
+                ...ForeignId::rules('scopes', fn (Exists $rule) => $rule->whereNull('parent_class')),
             ],
             'call_number' => 'nullable|numeric',
             'name' => ['required', Rule::unique('scopes')->whereNull('deleted_at')],
