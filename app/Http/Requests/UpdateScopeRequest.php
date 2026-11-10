@@ -17,7 +17,17 @@ class UpdateScopeRequest extends FormRequest
         return true;
     }
 
-    /** @return array<string, ValidationRule|array<mixed>|string> */
+    /**
+     * 文字欄位的長度與型別規則對應 `scopes` 資料表的欄位，擋掉會讓資料庫寫入出錯的值。
+     *
+     * - `name`（varchar(50)）、`call_number`（兩個字元）：超過長度的值 SQLite 照樣寫入，PostgreSQL 會在
+     *   寫入時丟錯、變成 500。子類號有 `numeric`，`max:2` 比的會是數值大小，位數要用 `max_digits`。
+     * - `name`、`comment`、`note` 的 `string` 擋的是陣列：沒有它，陣列會一路送到查詢或寫入才出錯。
+     * - `comment` 欄位不允許 NULL，所以這裡不加 `nullable`：有送但留空（null）時回 422，不讓它送到
+     *   資料庫才失敗。
+     *
+     * @return array<string, ValidationRule|array<mixed>|string>
+     */
     public function rules(): array
     {
 
@@ -31,9 +41,11 @@ class UpdateScopeRequest extends FormRequest
                 'required',
                 ...ForeignId::rules('scopes', fn (Exists $rule) => $rule->whereNull('parent_class')),
             ],
+            /** 子類號，最多兩位數字，可留空。同一個類號底下不能重複。 */
             'call_number' => [
                 'nullable',
                 'numeric',
+                'max_digits:2',
                 // 同一個分類號底下 call_number 不可重複。分類號現在從父層取,
                 // 不再讀呼叫端傳來的 class_number。
                 Rule::unique('scopes')
@@ -48,10 +60,12 @@ class UpdateScopeRequest extends FormRequest
             'name' => [
                 'bail',
                 'required',
+                'string',
+                'max:50',
                 Rule::unique('scopes', 'name')->ignore($this->scope?->id),
             ],
-            'comment' => 'max:100',
-            'note' => 'max:255',
+            'comment' => 'string|max:100',
+            'note' => 'nullable|string|max:255',
         ];
     }
 
