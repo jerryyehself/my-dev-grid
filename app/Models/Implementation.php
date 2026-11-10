@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\ResolvesPositiveIntegerRouteKeys;
 use Database\Factories\ImplementationFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Implementation extends Model
 {
     /** @use HasFactory<ImplementationFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, ResolvesPositiveIntegerRouteKeys, SoftDeletes;
 
     protected $fillable = [
         'type',

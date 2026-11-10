@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Exceptions\RelationLockedException;
+use App\Traits\ResolvesPositiveIntegerRouteKeys;
 use App\Traits\SetCURIEAttribute;
 use Closure;
 use Database\Factories\RelationFactory;
@@ -15,7 +16,7 @@ use Illuminate\Support\Str;
 class Relation extends Model
 {
     /** @use HasFactory<RelationFactory> */
-    use HasFactory, SetCURIEAttribute, SoftDeletes;
+    use HasFactory, ResolvesPositiveIntegerRouteKeys, SetCURIEAttribute, SoftDeletes;
 
     protected $fillable = [
         'subject_id',

@@ -7,6 +7,7 @@ use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -154,6 +155,51 @@ class ImplementationCRUDTest extends TestCase
         $response->assertOk()
             ->assertJsonFragment(['title' => 'my-dev-grid'])
             ->assertJsonMissing(['title' => 'flaky ci']);
+    }
+
+    /**
+     * `type` 篩選收到不是整數的值：字母、小數、陣列、超出 bigint 範圍。
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function nonIntegerTypeFilters(): iterable
+    {
+        yield '字母' => ['type=abc'];
+        yield '小數' => ['type=1.5'];
+        yield '陣列' => ['type[]=abc'];
+        yield '超出 bigint 範圍' => ['type=9223372036854775808'];
+        yield '遠超出 bigint 範圍' => ['type=99999999999999999999'];
+    }
+
+    #[DataProvider('nonIntegerTypeFilters')]
+    #[TestDox('列出實作時，type 篩選不是整數回 422')]
+    public function test_list_implementations_rejects_a_non_integer_type_filter(string $query)
+    {
+        Implementation::factory()->create(['title' => 'my-dev-grid']);
+
+        $this->getJson("/api/implementations?{$query}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('type');
+    }
+
+    #[TestDox('type 篩選是空字串時視為沒指定，列出全部實作')]
+    public function test_list_implementations_ignores_an_empty_type_filter()
+    {
+        Implementation::factory()->create(['title' => 'my-dev-grid']);
+
+        $this->getJson('/api/implementations?type=')
+            ->assertOk()
+            ->assertJsonFragment(['title' => 'my-dev-grid']);
+    }
+
+    #[TestDox('type 篩選是合法整數但沒有對應的分類時，回空清單')]
+    public function test_list_implementations_returns_nothing_for_an_unused_type_filter()
+    {
+        Implementation::factory()->create(['title' => 'my-dev-grid']);
+
+        $this->getJson('/api/implementations?type=9223372036854775807')
+            ->assertOk()
+            ->assertExactJson(['type' => 'implementations', 'data' => []]);
     }
 
     #[TestDox('沒指定類型時列出全部實作')]
