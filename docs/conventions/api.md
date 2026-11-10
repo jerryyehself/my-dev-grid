@@ -5,6 +5,7 @@
 - API 路由寫在 `routes/api.php`，一律指到 controller 方法，不要寫 closure：正式環境會跑 `route:cache`，closure 會被序列化，Scramble 就讀不到它身上的 `#[Endpoint]`，文件裡的標題會不見。只有一個 action 時用可呼叫的 controller：`Route::get('/user', CurrentUserController::class)`。
 - 資源路由分成兩組：讀（`index`、`show`）公開，寫（`store`、`update`、`destroy`）放在 `auth:sanctum` 群組裡。新資源也加進這兩組 `Route::apiResources`。
 - 固定路徑（`scopes/create`）要註冊在 `apiResources` 之前，不然會被當成 `{scope}` 的值。
+- 路由上的 `{model}` 參數交給路由模型綁定。被綁定的 model 要套用 `ResolvesPositiveIntegerRouteKeys`，網址上的 id 格式不合法時才會回 404，見 [`security.md`](security.md)「輸入」。
 - 需要額外限制的端點，在路由上掛具名 limiter 或 middleware：`throttle:login`、`frontend.origin`。limiter 定義在 `AppServiceProvider::configureRateLimiting()`。
 
 ## 回應形狀

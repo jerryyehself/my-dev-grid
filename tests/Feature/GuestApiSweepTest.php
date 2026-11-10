@@ -8,10 +8,14 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
+use App\Traits\ResolvesPositiveIntegerRouteKeys;
+use Illuminate\Contracts\Routing\UrlRoutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route as RoutingRoute;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -28,6 +32,11 @@ use Tests\TestCase;
  * - 路由表裡有、對照表沒有的路由，測試失敗並指名要歸類；對照表有、路由表沒有的，也失敗。
  * - 公開路由用一組夾具資料打：每種實體都有已公開、草稿或不公開、已軟刪除的列，
  *   每一列的文字欄位都帶獨一無二的標記字串，任何一個訪客回應只要含有看不到的那幾個標記就失敗。
+ *
+ * - 網址裡的 id 格式不合法（不是正整數、超出 bigint 範圍）時，每一條帶 id 的路由都要回 404
+ *   （沒登入的寫入路由先回 401），而且那個值不能出現在任何查詢的參數裡。
+ *   路由表裡新增的帶 id 路由，只要綁定的 model 沒有套用 `ResolvesPositiveIntegerRouteKeys`，
+ *   結構檢查與這個掃描都會失敗，所以不需要有人記得回來補。
  *
  * 範圍是 `api/` 底下的路由；`routes/web.php` 的 `/auth/*` 不在這裡。
  */
@@ -320,6 +329,118 @@ class GuestApiSweepTest extends TestCase
         $this->assertSame(1, $scope['documentations_count']);
         $this->assertSame(1, $scope['techniques_count']);
         $this->assertSame(1, $scope['implementations_count']);
+    }
+
+    /**
+     * 不合法的路由 id：不是數字、負數、小數、剛好超出 bigint 上限（9223372036854775807）一位，
+     * 以及 0、帶前導零、帶正號（寫法不是正整數的標準形式）。
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function malformedRouteIds(): iterable
+    {
+        yield '字母' => ['abc'];
+        yield '負數' => ['-1'];
+        yield '小數' => ['1.5'];
+        yield '超出 bigint 範圍' => ['9223372036854775808'];
+        yield '零' => ['0'];
+        yield '前導零' => ['007'];
+        yield '正號' => ['+1'];
+    }
+
+    #[TestDox('每條帶 id 的路由，綁定的 model 都套用了路由 id 檢查')]
+    public function test_every_model_bound_route_parameter_uses_the_route_key_guard()
+    {
+        $checked = [];
+        $failures = [];
+
+        foreach ($this->apiRoutes() as $key => $route) {
+            foreach ($route->signatureParameters(['subClass' => UrlRoutable::class]) as $parameter) {
+                $model = $parameter->getType()->getName();
+                $checked[$key][] = $model;
+
+                if (! in_array(ResolvesPositiveIntegerRouteKeys::class, class_uses_recursive($model), true)) {
+                    $failures[] = "{$key} 綁定的 {$model}";
+                }
+            }
+        }
+
+        $this->assertSame([], $failures, '這些路由綁定的 model 沒有套用 '.ResolvesPositiveIntegerRouteKeys::class.'：');
+        // 沒抓到任何帶 id 的路由，代表上面的迴圈空轉
+        $this->assertArrayHasKey('GET api/relations/{relation}/edges', $checked);
+        $this->assertArrayHasKey('DELETE api/scopes/{scope}', $checked);
+    }
+
+    #[TestDox('bigint 上限本身是合法的 id，照常查詢')]
+    public function test_the_largest_bigint_is_still_a_valid_route_id()
+    {
+        $scope = Scope::factory()->create(['id' => PHP_INT_MAX]);
+
+        $this->getJson('/api/scopes/'.PHP_INT_MAX)
+            ->assertOk()
+            ->assertJsonPath('id', $scope->id);
+        $this->getJson('/api/scopes/'.$this->ids['scope']['live'])->assertOk();
+    }
+
+    #[DataProvider('malformedRouteIds')]
+    #[TestDox('訪客在網址放不合法的 id：公開路由回 404，需登入的路由回 401')]
+    public function test_guest_gets_404_or_401_for_a_malformed_route_id(string $badId)
+    {
+        $this->assertSame([], $this->malformedIdFailures($badId, signedIn: false));
+    }
+
+    #[DataProvider('malformedRouteIds')]
+    #[TestDox('登入後在網址放不合法的 id：每條帶 id 的路由都回 404')]
+    public function test_signed_in_owner_gets_404_for_a_malformed_route_id(string $badId)
+    {
+        $this->actingAsOwner();
+
+        $this->assertSame([], $this->malformedIdFailures($badId, signedIn: true));
+    }
+
+    /**
+     * 把每條 `api/` 路由的 `{參數}` 換成不合法的 id 打一遍，回傳不符預期的項目。
+     *
+     * 預期：登入後一律 404（驗證與授權都在綁定之後，所以空的請求本文也沒關係）；
+     * 訪客打需要登入的路由先回 401，其餘回 404。不論哪種，那個值都不能出現在任何查詢的參數裡。
+     *
+     * @return list<string>
+     */
+    private function malformedIdFailures(string $badId, bool $signedIn): array
+    {
+        $failures = [];
+        $exercised = 0;
+        DB::enableQueryLog();
+
+        foreach ($this->apiRoutes() as $key => $route) {
+            if ($route->parameterNames() === []) {
+                continue;
+            }
+
+            [$method, $uri] = explode(' ', $key, 2);
+            $url = '/'.preg_replace('/\{\w+\}/', $badId, $uri);
+            $expected = ! $signedIn && self::expectations()[$key]['kind'] === self::KIND_AUTH ? 401 : 404;
+
+            DB::flushQueryLog();
+            $status = $this->callFromFreshIp($method, $url)->getStatusCode();
+            $exercised++;
+
+            if ($status !== $expected) {
+                $failures[] = "{$method} {$url} 應回 {$expected}，實際 {$status}";
+            }
+            foreach (DB::getQueryLog() as $query) {
+                foreach ($query['bindings'] as $binding) {
+                    if (is_scalar($binding) && (string) $binding === $badId) {
+                        $failures[] = "{$method} {$url} 把 {$badId} 送進了查詢：{$query['query']}";
+                    }
+                }
+            }
+        }
+
+        DB::disableQueryLog();
+        $this->assertGreaterThan(0, $exercised, '帶 id 的路由數量比預期少，掃描可能空轉');
+
+        return $failures;
     }
 
     /**
@@ -707,6 +828,16 @@ class GuestApiSweepTest extends TestCase
      * @param  array<string, string>  $server
      */
     private function guestCall(string $method, string $url, array $server = []): TestResponse
+    {
+        return $this->callFromFreshIp($method, $url, $server);
+    }
+
+    /**
+     * 每個請求用不同的來源 IP 打（理由見 `guestCall()`）。登入與否由呼叫前有沒有 `actingAs()` 決定。
+     *
+     * @param  array<string, string>  $server
+     */
+    private function callFromFreshIp(string $method, string $url, array $server = []): TestResponse
     {
         $this->requestCount++;
         $server['HTTP_X_FORWARDED_FOR'] = long2ip(ip2long('198.18.0.0') + $this->requestCount);

@@ -14,7 +14,7 @@
 - 類別名用 StudlyCaps（PSR-1），一個檔案一個類別，檔名與類別名相同，命名空間對應資料夾（PSR-4，見 `composer.json` 的 `autoload`）。
 - model 用單數：`Documentation`、`Relation`。連結表的 model 是兩邊名稱加 `Link`：`DocumentationTechniqueLink`。
 - controller：`<Model>Controller`；登入相關的放 `Auth/`，用它做的事命名：`TokenRefreshController`、`CurrentUserController`。只有一個 action 的 controller 用 `__invoke`：`CurrentUserController`。
-- FormRequest：`Store<Model>Request`、`Update<Model>Request`。
+- FormRequest：`Store<Model>Request`、`Update<Model>Request`。清單端點有查詢參數要驗證的，叫 `Index<Model>Request`：`IndexImplementationRequest`。
 - Resource：`<Model>Resource`。Policy：`<Model>Policy`。
 - 驗證規則寫成一個描述條件的句子：`ReverseIsAvailable`、`ReverseIsSwapped`。
 - 例外以 `Exception` 結尾，名稱說明發生了什麼：`RelationLockedException`、`RefreshTokenRejectedException`。
