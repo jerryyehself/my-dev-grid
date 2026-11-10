@@ -3,9 +3,11 @@
 namespace App\Http\Requests;
 
 use App\Models\Scope;
+use App\Rules\ForeignId;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 
 class UpdateScopeRequest extends FormRequest
 {
@@ -26,10 +28,8 @@ class UpdateScopeRequest extends FormRequest
             // = 99,製造出實際資料裡一筆都不存在的不一致(實測 16 筆全部一致)。
             /** 父分類的 id，必須是頂層分類。類號會依父分類自動帶入，不用傳。 */
             'parent_class' => [
-                'bail',
                 'required',
-                'integer',
-                Rule::exists('scopes', 'id')->whereNull('parent_class'),
+                ...ForeignId::rules('scopes', fn (Exists $rule) => $rule->whereNull('parent_class')),
             ],
             'call_number' => [
                 'nullable',
