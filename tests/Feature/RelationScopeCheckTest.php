@@ -331,18 +331,19 @@ class RelationScopeCheckTest extends TestCase
     }
 
     /**
-     * `exists:relations,id` 不排除軟刪除，已刪除的述詞照樣能通過，所以規則要自己用 `withTrashed()` 找到它。
-     * （刪除分類時會連帶軟刪除以它為主詞、受詞的述詞，這種述詞是真的會出現的。）
+     * 已刪除的述詞由 `relation_id` 的 `exists`（排除已刪除的資料）擋下，`bail` 讓分類檢查不再跑，
+     * 跟不存在的述詞一樣只有一則錯。（刪除分類時會連帶軟刪除以它為主詞、受詞的述詞，這種述詞是真的會出現的。）
      */
-    #[TestDox('述詞已軟刪除時，分類不符照樣回 422 並指出哪一端')]
-    public function test_a_soft_deleted_relation_is_still_checked(): void
+    #[TestDox('述詞已軟刪除時回 422，只報 exists 的錯，不多報分類不符')]
+    public function test_a_soft_deleted_relation_reports_only_the_exists_error(): void
     {
         $this->relation->delete();
 
         [$response] = $this->send('store', 'documentation', 'techniques', $this->other->id, $this->object->id);
 
         $response->assertUnprocessable()->assertJsonValidationErrors(['techniques.0.relation_id']);
-        $this->assertStringContainsString('主詞端', $this->allErrorMessages($response));
+        $this->assertCount(1, $response->json('errors')['techniques.0.relation_id']);
+        $this->assertStringNotContainsString('必須屬於分類', $this->allErrorMessages($response));
     }
 
     #[DataProvider('linkFields')]
@@ -512,8 +513,11 @@ class RelationScopeCheckTest extends TestCase
     }
 
     /**
-     * 述詞規定的分類被刪除時，述詞跟著被軟刪除（見 `Scope::booted()`），所以這裡的述詞也是已刪除的；
      * 重點是訊息要查得到已刪除分類的名稱。
+     *
+     * 請求自己的 `type` 是已刪除的分類時，`type` 會被 `exists` 擋下，但連結的分類檢查是另一個欄位，
+     * 照樣會跑。述詞規定的分類已刪除、述詞本身還在的資料，正常刪除分類時不會出現（`Scope::booted()`
+     * 會連帶軟刪除述詞），這裡用 `deleteQuietly()` 跳過連帶刪除，模擬舊資料或述詞事後被還原的情況。
      */
     #[TestDox('錯誤訊息裡的分類名稱，已軟刪除的分類也顯示名稱而不是 id')]
     public function test_error_message_names_soft_deleted_scopes(): void
@@ -525,7 +529,7 @@ class RelationScopeCheckTest extends TestCase
             'subject_id' => $goneRequired->id,
             'object_id' => $this->object->id,
         ]);
-        $goneRequired->delete();
+        $goneRequired->deleteQuietly();
         $goneActual->delete();
 
         [$response] = $this->send('store', 'documentation', 'techniques', $goneActual->id, $this->object->id, $relation);

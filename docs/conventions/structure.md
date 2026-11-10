@@ -14,7 +14,7 @@
 | `app/Http/Middleware/`               | middleware                                                    | `EnsureFrontendOrigin`                    |
 | `app/Http/` 根層                     | 只跟 HTTP 有關、不屬於上面任何一類的小工具                    | `ProblemDetails`、`RefreshTokenCookie`    |
 | `app/Policies/`                      | 授權，一個 model 一支                                         | `DocumentationPolicy`                     |
-| `app/Rules/`                         | 自訂驗證規則                                                  | `ReverseIsAvailable`                      |
+| `app/Rules/`                         | 自訂驗證規則，以及產生共用規則組合的類別                      | `ReverseIsAvailable`、`ForeignId`         |
 | `app/Models/`                        | Eloquent model、連結表 model                                  | `Relation`、`DocumentationTechniqueLink`  |
 | `app/Services/`                      | 跨 controller、指令共用的商業邏輯與查詢（含查詢物件）         | `RefreshTokenFamilies`、`RelationEdgeQuery` |
 | `app/Enums/`                         | enum（固定幾種的值）                                          | `RefreshTokenOutcome`、`SecurityEvent`    |
@@ -59,6 +59,7 @@ public function store(StoreDocumentationRequest $request)
 
 - 每個寫入 action 都收 `Store<Model>Request`／`Update<Model>Request`，controller 只讀 `$request->validated()`。
 - 一條規則寫不完的檢查，寫成 `app/Rules/` 的類別：`ReverseIsAvailable`、`ReverseIsSwapped`。
+- 好幾個欄位都要寫同一組內建規則時，用 `app/Rules/` 裡回傳規則陣列的靜態方法產生，不要每個欄位各寫一次：外鍵用 `ForeignId::rules()`（見 [`security.md`](security.md)「輸入」）。
 - FormRequest 的 `authorize()` 固定回 `true`，授權交給 Policy（見下一節）。
 
 ### 授權放 Policy

@@ -26,7 +26,7 @@ use Illuminate\Support\Str;
  * `technique_implementation` 的主詞是技術（圖譜與 `RelationEdgeQuery` 都這樣讀）。
  * 所以呼叫端要說明「請求自己的實體」站在哪一端，另一端就是欄位連到的實體。
  *
- * 兩端都不符時會各報一則；不存在的述詞或實體由 `exists` 規則負責回報，這裡不重複報。
+ * 兩端都不符時會各報一則；不存在或已刪除的述詞與實體由 `ForeignId::rules()` 的 `exists` 負責回報，這裡不重複報。
  */
 class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
 {
@@ -64,7 +64,8 @@ class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
         $relationId = self::asId($value);
         $relation = $relationId === null ? null : Relation::withTrashed()->find($relationId);
 
-        // 連到已軟刪除的述詞，`exists:relations,id` 目前會放行，這裡照樣檢查它的兩端。
+        // 述詞不存在或已刪除時，同一個欄位的 `exists` 已經報錯，`bail` 讓這條規則不會跑到這裡；
+        // 用 `withTrashed()` 只是不在這裡重複判斷刪除與否。
         if (! $relation) {
             return;
         }

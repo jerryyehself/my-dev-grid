@@ -18,7 +18,7 @@
 
 - 每個寫入端點都用 FormRequest 驗證，存進資料庫的只能是 `$request->validated()`，不要用 `$request->all()`。
 - 每個 model 都用 `$fillable` 列出可以批次寫入的欄位，不要用 `$guarded = []`。
-- 外鍵用 `exists:` 或 `Rule::exists()` 驗證，前面一定先放 `integer` 並加 `bail`：`'type' => 'bail|required|integer|exists:scopes,id'`、`'parent_class' => ['bail', 'required', 'integer', Rule::exists('scopes', 'id')]`。沒有 `integer`，非數字的值（`abc`、`1.5`）會原封不動送進 PostgreSQL 的 bigint 欄位查詢而回 500；SQLite 不會報錯，只有 CI 的 PostgreSQL 那一輪才看得到。
+- 外鍵一律用 `App\Rules\ForeignId::rules()` 驗證：`'type' => ['required', ...ForeignId::rules('scopes')]`；要加條件時傳 closure：`'parent_class' => ['required', ...ForeignId::rules('scopes', fn (Exists $rule) => $rule->whereNull('parent_class'))]`。它依序產生 `bail`、`integer`、排除已軟刪除資料的 `exists`。少了 `integer`，非數字的值（`abc`、`1.5`）會原封不動送進 PostgreSQL 的 bigint 欄位查詢而回 500（SQLite 不會報錯，只有 CI 的 PostgreSQL 那一輪才看得到）；少了排除已刪除的資料，外鍵就能指向畫面上已經看不到的資料。不要直接寫 `exists:` 字串，也不要換成自訂規則物件（Scramble 認不出來，API 文件裡的型別會從 integer 變成 string）。`SoftDeletedForeignKeyTest` 會檢查每支 FormRequest 的外鍵規則，並要求每個外鍵欄位都測過「指向已刪除的資料回 422」。
 - 會拿去跟 id 欄位比較的查詢參數（`?type=`）也要先驗證是整數，用 `Index<Model>Request`：`IndexImplementationRequest`。
 - 網址上的 id 不是合法的正整數（含超出 bigint 範圍）時，回 404，不拿去查資料庫。這由 model 的 `ResolvesPositiveIntegerRouteKeys` trait 負責，每個會被路由綁定的 model 都要套用；`GuestApiSweepTest` 會檢查每條帶 id 的路由，漏套的話測試會失敗。
 - 自訂規則與 closure 裡也一樣：拿請求的值去 `find()`、`where()` 之前，先確認它是整數（`filter_var($value, FILTER_VALIDATE_INT)`，判斷要跟 `integer` 規則一致），不是就不查。`bail` 只擋同一個欄位後面的規則，擋不到別的欄位的規則或 closure 去讀這個值（例：`UpdateScopeRequest` 的 `call_number` 會讀 `parent_class`，`RelationFitsLinkedScopes` 會讀連結的 `id` 與 `type`）。

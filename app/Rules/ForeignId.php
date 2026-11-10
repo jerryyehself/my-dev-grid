@@ -7,7 +7,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
 
 /**
- * 外鍵欄位共用的驗證規則：`bail`、`integer`，再加上對應資料表的 `exists`。
+ * 外鍵欄位共用的驗證規則：`bail`、`integer`，再加上對應資料表、排除已軟刪除資料的 `exists`。
  *
  * 每個外鍵欄位都照這個順序寫：先確認是整數，不是就不往下跑，`exists` 才不會拿 `abc`、`1.5`
  * 這類值去查 bigint 欄位（PostgreSQL 會丟錯變成 500，SQLite 不會，見 `docs/conventions/security.md`）。
@@ -27,7 +27,9 @@ final class ForeignId
      */
     public static function rules(string $table, ?Closure $constrain = null): array
     {
-        $exists = Rule::exists($table, 'id');
+        // 外鍵指向的資料表都用軟刪除。只寫 exists 的話，已刪除的資料列仍算存在，
+        // 寫進去之後就連到畫面上看不到的資料，所以一律排除。
+        $exists = Rule::exists($table, 'id')->withoutTrashed();
 
         if ($constrain) {
             $constrain($exists);

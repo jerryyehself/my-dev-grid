@@ -26,7 +26,7 @@ class ReverseIsAvailable implements ValidationRule
     {
         $target = Relation::find($value);
 
-        // 不存在的 id 由 exists 規則負責回報，這裡不重複報一次。
+        // 不存在或已刪除的 id 由 exists 規則（`ForeignId::rules()`）負責回報，這裡不重複報一次。
         if (! $target) {
             return;
         }

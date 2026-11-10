@@ -43,7 +43,7 @@ class ReverseIsSwapped implements DataAwareRule, ValidationRule
     {
         $target = Relation::find($value);
 
-        // 不存在的 id 由 exists 規則負責回報。
+        // 不存在或已刪除的 id 由 exists 規則（`ForeignId::rules()`）負責回報。
         if (! $target) {
             return;
         }
