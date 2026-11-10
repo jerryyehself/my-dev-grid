@@ -31,9 +31,12 @@ class UpdateScopeRequest extends FormRequest
                 'required',
                 ...ForeignId::rules('scopes', fn (Exists $rule) => $rule->whereNull('parent_class')),
             ],
+            // 長度用 max_digits 而不是 max 的理由同 StoreScopeRequest。
+            /** 子類號，最多兩位數字，可留空；同一個類號底下不可重複。 */
             'call_number' => [
                 'nullable',
                 'numeric',
+                'max_digits:2',
                 // 同一個分類號底下 call_number 不可重複。分類號現在從父層取,
                 // 不再讀呼叫端傳來的 class_number。
                 Rule::unique('scopes')
@@ -45,13 +48,16 @@ class UpdateScopeRequest extends FormRequest
                         $this->parentClassNumber()
                     )),
             ],
+            /** 分類名稱，最多 50 字。 */
             'name' => [
                 'bail',
                 'required',
+                'string',
+                'max:50',
                 Rule::unique('scopes', 'name')->ignore($this->scope?->id),
             ],
             'comment' => 'max:100',
-            'note' => 'max:255',
+            'note' => 'nullable|string|max:255',
         ];
     }
 

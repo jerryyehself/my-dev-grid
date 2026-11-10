@@ -33,10 +33,13 @@ class StoreScopeRequest extends FormRequest
                 'required',
                 ...ForeignId::rules('scopes', fn (Exists $rule) => $rule->whereNull('parent_class')),
             ],
-            'call_number' => 'nullable|numeric',
-            'name' => ['required', Rule::unique('scopes')->whereNull('deleted_at')],
+            // 子類號的欄位是 char(2)。長度用 max_digits，不能用 max：有 numeric 時 max 比的是數值大小。
+            /** 子類號，最多兩位數字，可留空。 */
+            'call_number' => 'nullable|numeric|max_digits:2',
+            /** 分類名稱，最多 50 字。 */
+            'name' => ['required', 'string', 'max:50', Rule::unique('scopes')->whereNull('deleted_at')],
             'comment' => 'required|max:100',
-            'note' => 'max:255',
+            'note' => 'nullable|string|max:255',
         ];
     }
 }

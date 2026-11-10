@@ -23,13 +23,19 @@ class UpdateRelationRequest extends FormRequest
         return [
             'subject_id' => ['required', ...ForeignId::rules('scopes')],
             'object_id' => ['required', ...ForeignId::rules('scopes')],
-            'class_number' => 'required|numeric',
-            'call_number' => 'nullable|numeric',
+            // 長度用 max_digits 而不是 max 的理由同 StoreRelationRequest。
+            /** 類號，最多兩位數字。 */
+            'class_number' => 'required|numeric|max_digits:2',
+            /** 子類號，最多兩位數字，可留空。 */
+            'call_number' => 'nullable|numeric|max_digits:2',
+            /** 述詞名稱，最多 50 字。 */
             'name' => [
                 'required',
+                'string',
+                'max:50',
                 Rule::unique('relations')->ignore($this->relation?->id),
             ],
-            'note' => 'max:255',
+            'note' => 'nullable|string|max:255',
             // 同 StoreRelationRequest。這裡多傳 $this->relation 進去,因為「目標已經指向
             // 正在編輯的這一筆」跟「目標就是自己(對稱關係)」都是合法的,要認得出來。
             /** 反向述詞的 id，可留空。必須是尚未配對的述詞，或已經指向這一條的述詞；對稱的述詞可指向自己。 */
