@@ -180,5 +180,5 @@ echo "  - FRONTEND_URL                 the front-end site (Cloudflare), e.g. htt
 echo "  - SANCTUM_STATEFUL_DOMAINS     the production host — only known after step 8's first deploy"
 echo "  - GOOGLE_CLIENT_ID/REDIRECT_URI, LINE_CLIENT_ID/REDIRECT_URI"
 echo "                                 from the real Google Cloud Console OAuth app / LINE Developers console"
-echo "  - GITHUB_ARTICLES_REPO         optional: owner/name of the repo articles are imported from"
+echo "  - ARTICLES_SOURCE_REPO         optional: owner/name of the repo articles are imported from"
 echo "  These need a real decision or a real external app — nothing to automate here."
