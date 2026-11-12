@@ -153,6 +153,10 @@ class GuestApiSweepTest extends TestCase
             'PATCH api/implementations/{implementation}' => self::auth(),
             'DELETE api/implementations/{implementation}' => self::auth(),
 
+            // 從文章來源 repo 匯入文章：清單帶出來源檔案路徑，連讀取也要登入
+            'GET api/article-sources' => self::auth('列出文章來源 repo 的檔案與匯入狀態，只給登入的人看。'),
+            'POST api/article-sources/import' => self::auth(),
+
             // 知識圖譜
             'GET api/graph' => self::publicRead('節點與邊，不含草稿與不公開的實作。'),
             'GET api/graph/path' => self::publicRead('最短路徑，起訖點與經過的節點不含草稿與不公開的實作。'),

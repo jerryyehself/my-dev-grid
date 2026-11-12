@@ -52,6 +52,15 @@ class DocumentationSourceColumnsHiddenTest extends TestCase
         'api/graph/path',
     ];
 
+    /** 沒登入回 401 的 GET 路由。 */
+    private const SIGNED_IN_ONLY = ['api/user', 'api/article-sources'];
+
+    /**
+     * 匯入用的來源清單：給登入的管理者看來源檔案的路徑與 slug 本來就是它的用途，
+     * 所以只檢查訪客拿不到（上面的 SIGNED_IN_ONLY），登入的情況由 `ArticleSourceListingTest` 測。
+     */
+    private const SOURCE_LISTING = 'api/article-sources';
+
     private Documentation $documentation;
 
     private Technique $technique;
@@ -103,7 +112,7 @@ class DocumentationSourceColumnsHiddenTest extends TestCase
         $serialized = [];
 
         foreach ($this->getUrls() as $uri => $url) {
-            if ($uri === 'api/user') {
+            if (in_array($uri, self::SIGNED_IN_ONLY, true)) {
                 $this->getJson($url)->assertUnauthorized();
 
                 continue;
@@ -126,7 +135,10 @@ class DocumentationSourceColumnsHiddenTest extends TestCase
     {
         $this->actingAsOwner();
 
-        foreach ($this->getUrls() as $url) {
+        foreach ($this->getUrls() as $uri => $url) {
+            if ($uri === self::SOURCE_LISTING) {
+                continue;
+            }
             $this->assertNoSourceColumns($this->getJson($url)->assertOk(), "登入 GET {$url}");
         }
     }
@@ -180,6 +192,7 @@ class DocumentationSourceColumnsHiddenTest extends TestCase
 
         return [
             'api/user' => '/api/user',
+            'api/article-sources' => '/api/article-sources',
             'api/scopes' => '/api/scopes',
             'api/scopes/create' => '/api/scopes/create',
             'api/scopes/{scope}' => "/api/scopes/{$this->scope->id}",

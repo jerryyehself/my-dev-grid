@@ -102,7 +102,7 @@ jsonPayload.context.event="authn_login_fail"
 | `session_logout` | INFO | `POST /auth/logout`（session 模式）、`POST /api/auth/logout`（前端） | `auth_mode`；認得出是誰時有 `user_id`；token 模式另有 `access_token_id` |
 | `authz_fail` | WARNING | 任何 403：Origin 檢查（`EnsureFrontendOrigin`）、`abort(403)`、Policy 拒絕 | `http_method`、`route`（路由樣板）、`resource`（路徑，不含 query string）、`reason`（程式裡寫的固定訊息）、`source_ip`；已驗證的請求有 `user_id` |
 | `excess_rate_limit_exceeded` | WARNING | 任何 429 | `http_method`、`route`、`max`（limiter 上限：login 5、social-login 20、token-refresh 30、api 60）、`retry_after`、`source_ip`；已驗證的請求有 `user_id` |
-| `authz_admin` | WARNING | 已登入使用者在 HTTP 請求裡新增、修改、刪除 Scope／Relation／Documentation／Technique／Implementation，或改它們之間的 pivot | `user_id`、`action`（`create`／`update`／`delete`／`sync`）、`object`（`scope`…）、`object_id`；`update` 有 `fields`（改了哪些欄位）；`sync` 有 `relation`、`attached`、`detached`、`updated`（id 清單） |
+| `authz_admin` | WARNING | 已登入使用者在 HTTP 請求裡新增、修改、刪除 Scope／Relation／Documentation／Technique／Implementation，或改它們之間的 pivot；從文章來源 repo 匯入或連結文章（`POST /api/article-sources/import`，每篇一筆，另外還有那篇文章本身的 `create`／`update`） | `user_id`、`action`（`create`／`update`／`delete`／`sync`／`import`／`link`）、`object`（`scope`…）、`object_id`；`update` 有 `fields`（改了哪些欄位）；`sync` 有 `relation`、`attached`、`detached`、`updated`（id 清單）；`import`、`link` 有 `source_key`（原稿的 slug）、`blob_sha`、`commit_sha`，不記內文與檔案路徑 |
 
 `authn_login_fail` 的 `reason`：
 
@@ -158,7 +158,7 @@ vocabulary 的隱私註記：「All fields logged after event type should be con
 | channel、formatter、processor | `config/logging.php` 的 `cloud_run` |
 | request id | `app/Http/Middleware/AssignRequestId.php`，在 `bootstrap/app.php` 以 `prepend` 掛成最外層全域 middleware |
 | JSON 格式 | `app/Logging/CloudLoggingFormatter.php`、`app/Logging/RequestLogProcessor.php` |
-| 安全與稽核事件 | 名稱與等級 `app/Enums/SecurityEvent.php`、寫法 `app/Logging/SecurityLog.php`；403／429 在 `bootstrap/app.php` 的 `respond()`；後台稽核 `app/Logging/AdminAudit.php`（`AppServiceProvider::boot` 掛 observer，pivot 在 `app/Traits/SyncsPivotRelations.php`） |
+| 安全與稽核事件 | 名稱與等級 `app/Enums/SecurityEvent.php`、寫法 `app/Logging/SecurityLog.php`；403／429 在 `bootstrap/app.php` 的 `respond()`；後台稽核 `app/Logging/AdminAudit.php`（`AppServiceProvider::boot` 掛 observer，pivot 在 `app/Traits/SyncsPivotRelations.php`，文章匯入在 `app/Services/ArticleSourceService.php`） |
 | `LOG_CHANNEL=cloud_run`、`GOOGLE_CLOUD_PROJECT` | `.github/workflows/deploy-cloud-run.yml`（服務；兩個 Job 也用 `cloud_run`）、`.env.production.example` |
 | php-fpm `log_limit` | `Dockerfile`。php-fpm 預設把超過 1024 字元的 worker 輸出折成多行，會讓單行 JSON 失效；`message` 另外在 30000 位元組截斷，確保一行在上限內 |
 

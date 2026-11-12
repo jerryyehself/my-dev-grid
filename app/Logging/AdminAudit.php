@@ -84,6 +84,21 @@ final class AdminAudit
     }
 
     /**
+     * 從文章來源 repo 匯入（`import`：新增或更新內文）或連結（`link`：只寫來源欄位）一篇文章。
+     * 新增、更新本身另有 `create`／`update` 的紀錄；這一筆補上來源是哪一版。不記內文與檔案路徑。
+     *
+     * @param  string  $action  import 或 link
+     */
+    public static function articleSourceImported(string $action, Documentation $documentation, string $sourceKey, string $blobSha, string $commitSha): void
+    {
+        self::record($action, $documentation, [
+            'source_key' => $sourceKey,
+            'blob_sha' => $blobSha,
+            'commit_sha' => $commitSha,
+        ]);
+    }
+
+    /**
      * @param  array<string, mixed>  $fields
      */
     private static function record(string $action, Model $model, array $fields = []): void
