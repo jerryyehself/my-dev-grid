@@ -55,7 +55,9 @@ name: Deploy to Cloud Run
 #                                   workflow 只負責讓 Job 跟服務用同一個映像檔；
 #                                   每天觸發它的是手動設一次的 Cloud Scheduler
 #                                   （docs/deployment-gcp.md 第 10 步）。沒設就跳過
-#   GITHUB_ARTICLES_REPO           匯入文章的 GitHub repo（owner/name），只給服務。
+#   ARTICLES_SOURCE_REPO           匯入文章的 GitHub repo（owner/name），只給服務，
+#                                   服務上的環境變數名是 GITHUB_ARTICLES_REPO
+#                                   （repository variable 不能用 GITHUB_ 開頭）。
 #                                   沒設時服務拿到空字串，config 當成 null，
 #                                   服務照常啟動
 #
@@ -272,7 +274,7 @@ jobs:
             GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }}
             LINE_CLIENT_ID=${{ vars.LINE_CLIENT_ID }}
             LINE_REDIRECT_URI=${{ vars.LINE_REDIRECT_URI }}
-            GITHUB_ARTICLES_REPO=${{ vars.GITHUB_ARTICLES_REPO }}
+            GITHUB_ARTICLES_REPO=${{ vars.ARTICLES_SOURCE_REPO }}
           # GITHUB_ARTICLES_TOKEN／GITHUB_ARTICLES_REPO 只給服務（匯入文章是服務上的功能），
           # 下面每天同步的 Job 用不到，刻意不給。
           secrets: |

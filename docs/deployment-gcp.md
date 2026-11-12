@@ -189,7 +189,7 @@ Repo → Settings → Secrets and variables → Actions → **Variables** 分頁
 | `FRONTEND_URL` | 前端網址 `https://jerrylib.com`。CORS 只放行它，OAuth 登入完成也導回它；沒設會退回 `http://localhost:5173`，正式前端的請求全部被擋 |
 | `CLOUD_RUN_MIGRATE_JOB` | `my-dev-grid-migrate`（可不設，但建議設——見第 8 步） |
 | `CLOUD_RUN_SYNC_JOB` | `my-dev-grid-github-sync`（可不設，但不設就不會每天同步 GitHub——見第 10 步） |
-| `GITHUB_ARTICLES_REPO` | 匯入文章的 GitHub repo，格式 `owner/name`（可不設：服務照常啟動，設定值是 null） |
+| `ARTICLES_SOURCE_REPO` | 匯入文章的 GitHub repo，格式 `owner/name`（可不設：服務照常啟動，設定值是 null）。workflow 把它帶進服務的 `GITHUB_ARTICLES_REPO` 環境變數；GitHub 不允許變數名用 `GITHUB_` 開頭，所以兩邊名稱不同 |
 
 `.github/workflows/deploy-cloud-run.yml` 檔案開頭也列了同一批變數。
 
