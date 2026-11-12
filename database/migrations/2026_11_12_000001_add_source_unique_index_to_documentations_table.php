@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -13,11 +14,20 @@ use Illuminate\Support\Facades\Schema;
  * 沒有來源的文章兩欄都是 NULL，不受影響：PostgreSQL 的唯一索引預設 NULLS DISTINCT，
  * SQLite 也把每個 NULL 當成不同的值。
  *
- * 用 `->online()`（PostgreSQL 的 CREATE INDEX CONCURRENTLY）建，不擋讀寫；它不能在
- * transaction 裡跑，所以這支關掉 transaction，也只放這一個索引（見 docs/zero-downtime-migrations.md §4.3）。
- * 在 PostgreSQL 上 Laravel 會先建索引，再用 `ADD CONSTRAINT ... UNIQUE USING INDEX` 掛成約束；
- * 第二句只改目錄、很快，但會短暫拿 ACCESS EXCLUSIVE。第二句失敗時索引已經建好，
- * 重跑前要先刪掉它（跟 §4.3「失敗會留下 INVALID 索引」同樣的處理）。
+ * PostgreSQL 上分兩步，不用 `unique()->online()`（見 docs/zero-downtime-migrations.md §4.3）：
+ *
+ * 1. `CREATE UNIQUE INDEX CONCURRENTLY`：不擋讀寫，但不能在 transaction 裡跑，所以這支關掉 transaction。
+ * 2. `ADD CONSTRAINT ... UNIQUE USING INDEX` 把索引掛成約束：只改目錄、很快，但要拿 ACCESS EXCLUSIVE，
+ *    排隊等鎖時會擋住後面的查詢。包在自己的 transaction 裡加 `SET LOCAL lock_timeout`，等太久就放棄這次部署。
+ *    `unique()->online()` 也會產生這兩句，但第二句沒有 lock_timeout。
+ *
+ * 不用整個連線的 `SET lock_timeout`：它也會套到第 1 步，CONCURRENTLY 要等表上進行中的 transaction 結束，
+ * 等超過時限就失敗，留下 INVALID 索引。
+ *
+ * 這支失敗時不會記進 `migrations` 表，但第 1 步建好的索引（INVALID，或已建好但還沒掛成約束）會留著，
+ * 重跑會撞 already exists。先刪掉再重跑：
+ * `DROP INDEX CONCURRENTLY IF EXISTS documentations_source_repo_source_key_unique;`
+ * 索引已經掛成約束（這支其實跑完了）時，這句會報錯、不會刪掉。
  */
 return new class extends Migration
 {
@@ -26,8 +36,19 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::table('documentations', function (Blueprint $table) {
-            $table->unique(['source_repo', 'source_key'])->online();
+        if (DB::getDriverName() !== 'pgsql') {
+            Schema::table('documentations', function (Blueprint $table) {
+                $table->unique(['source_repo', 'source_key']);
+            });
+
+            return;
+        }
+
+        DB::statement('CREATE UNIQUE INDEX CONCURRENTLY documentations_source_repo_source_key_unique ON documentations (source_repo, source_key)');
+
+        DB::transaction(function () {
+            DB::statement("SET LOCAL lock_timeout = '5s'");
+            DB::statement('ALTER TABLE documentations ADD CONSTRAINT documentations_source_repo_source_key_unique UNIQUE USING INDEX documentations_source_repo_source_key_unique');
         });
     }
 
