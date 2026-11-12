@@ -45,6 +45,7 @@ class StoreScopeRequest extends FormRequest
             /** 子類號，最多兩位數字，可留空。同一個類號底下不能重複。 */
             'call_number' => ScopeCallNumber::rules($this->input('parent_class')),
             // 唯一性不算已軟刪除的分類,跟 UpdateScopeRequest 一致。
+            /** 分類名稱，最多 50 字；不能跟其他還在的分類重複，已刪除的分類用過的名稱可以再用。 */
             'name' => ['required', 'string', 'max:50', Rule::unique('scopes')->withoutTrashed()],
             'comment' => 'required|string|max:100',
             'note' => 'nullable|string|max:255',
