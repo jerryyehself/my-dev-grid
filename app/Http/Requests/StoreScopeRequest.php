@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Rules\ForeignId;
+use App\Rules\ScopeCallNumber;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -41,9 +42,10 @@ class StoreScopeRequest extends FormRequest
                 'required',
                 ...ForeignId::rules('scopes', fn (Exists $rule) => $rule->whereNull('parent_class')),
             ],
-            /** 子類號，最多兩位數字，可留空。 */
-            'call_number' => 'nullable|numeric|max_digits:2',
-            'name' => ['required', 'string', 'max:50', Rule::unique('scopes')->whereNull('deleted_at')],
+            /** 子類號，最多兩位數字，可留空。同一個類號底下不能重複。 */
+            'call_number' => ScopeCallNumber::rules($this->input('parent_class')),
+            // 唯一性不算已軟刪除的分類,跟 UpdateScopeRequest 一致。
+            'name' => ['required', 'string', 'max:50', Rule::unique('scopes')->withoutTrashed()],
             'comment' => 'required|string|max:100',
             'note' => 'nullable|string|max:255',
         ];

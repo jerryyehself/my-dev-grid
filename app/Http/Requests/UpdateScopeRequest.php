@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Scope;
 use App\Rules\ForeignId;
+use App\Rules\ScopeCallNumber;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -30,7 +30,6 @@ class UpdateScopeRequest extends FormRequest
      */
     public function rules(): array
     {
-
         return [
             // 跟 StoreScopeRequest 一致:收父 Scope 的 id,class_number 由 controller
             // 推導。原本這裡收的是字面分類號且完全沒有驗證它跟 parent_class 對不對得上,
@@ -42,38 +41,17 @@ class UpdateScopeRequest extends FormRequest
                 ...ForeignId::rules('scopes', fn (Exists $rule) => $rule->whereNull('parent_class')),
             ],
             /** 子類號，最多兩位數字，可留空。同一個類號底下不能重複。 */
-            'call_number' => [
-                'nullable',
-                'numeric',
-                'max_digits:2',
-                // 同一個分類號底下 call_number 不可重複。分類號現在從父層取,
-                // 不再讀呼叫端傳來的 class_number。
-                Rule::unique('scopes')
-                    ->ignore($this->scope?->id)
-                    ->where(fn ($query) => $query->where(
-                        'class_number',
-                        // parent_class 不是整數時不能拿去查（PostgreSQL 會丟 bigint 的語法錯誤）；
-                        // 它自己的規則會回 422。
-                        $this->parentClassNumber()
-                    )),
-            ],
+            'call_number' => ScopeCallNumber::rules($this->input('parent_class'), $this->scope?->id),
+            // 唯一性不算已軟刪除的分類,跟 StoreScopeRequest 一致。
             'name' => [
                 'bail',
                 'required',
                 'string',
                 'max:50',
-                Rule::unique('scopes', 'name')->ignore($this->scope?->id),
+                Rule::unique('scopes', 'name')->ignore($this->scope?->id)->withoutTrashed(),
             ],
             'comment' => 'string|max:100',
             'note' => 'nullable|string|max:255',
         ];
-    }
-
-    /** 請求指定的父分類的類號；`parent_class` 不是整數、或找不到父分類時是 null。 */
-    private function parentClassNumber(): ?string
-    {
-        $parentId = filter_var($this->input('parent_class'), FILTER_VALIDATE_INT);
-
-        return $parentId === false ? null : Scope::find($parentId)?->class_number;
     }
 }
