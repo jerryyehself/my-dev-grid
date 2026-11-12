@@ -341,6 +341,81 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("站上改過。\n", $documentation->refresh()->body);
     }
 
+    #[TestDox('寫到一半失敗（第二項找不到 post 分類）時，第一項已寫的更新會整批回滾')]
+    public function test_failure_on_a_later_write_rolls_back_the_earlier_write(): void
+    {
+        $newPost = self::article('new-post', '新文章');
+        [$documentation, $changed] = $this->changedArticle(Documentation::STATUS_PUBLISHED, extraFiles: ['new.md' => $newPost]);
+        $commit = $this->headCommit;
+        // 軟刪除 post 分類：所有事前檢查都會過，要到第二項 create 查分類時才失敗，那時第一項 update 已經寫進資料庫
+        $this->post->delete();
+        $before = $documentation->refresh()->only(['title', 'body', 'status', 'source_key', 'source_path', 'source_blob_sha', 'source_commit_sha', 'source_imported_at', 'source_body_hash']);
+        $this->actingAsOwner();
+
+        $this->import([
+            $this->item('the-post', $changed, 'update'),
+            $this->item('new-post', $newPost, 'create'),
+        ], $commit)
+            ->assertStatus(503)
+            ->assertJsonPath('reason', 'post_scope_missing');
+
+        $this->assertSame($before, $documentation->refresh()->only(array_keys($before)));
+        $this->assertSame("舊版內文。\n", $documentation->body);
+        $this->assertSame(str_repeat('1', 40), $documentation->source_blob_sha);
+        $this->assertSame(1, Documentation::withTrashed()->count());
+    }
+
+    #[TestDox('同一批兩項連到同一篇文章時，請求格式就擋下回 422，什麼都不寫')]
+    public function test_two_links_to_the_same_article_in_one_batch_are_rejected(): void
+    {
+        $a = self::article('first-link', '甲');
+        $b = self::article('second-link', '乙');
+        $commit = $this->publishSourceFiles(['a.md' => $a, 'b.md' => $b]);
+        $documentation = Documentation::factory()->create(['type' => $this->post->id, 'body' => "站上的版本。\n"]);
+        $this->actingAsOwner();
+
+        $this->import([
+            $this->item('first-link', $a, 'link', ['documentation_id' => $documentation->id]),
+            $this->item('second-link', $b, 'link', ['documentation_id' => $documentation->id]),
+        ], $commit)->assertUnprocessable()->assertJsonValidationErrors(['items.0.documentation_id']);
+
+        $this->assertNull($documentation->refresh()->source_key);
+        Http::assertNothingSent();
+    }
+
+    #[TestDox('站上已刪除、來源檔案也不在了的文章，清單上不會出現')]
+    public function test_site_deleted_article_whose_file_is_gone_is_not_listed(): void
+    {
+        $other = self::article('other', '還在的文章');
+        $this->publishSourceFiles(['other.md' => $other]);
+        $deleted = Documentation::factory()->create(['type' => $this->post->id]);
+        $deleted->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'gone', 'source_path' => 'gone.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => hash('sha256', '')])->save();
+        $deleted->delete();
+        $this->actingAsOwner();
+
+        $items = $this->getJson('/api/article-sources')->assertOk()->json('items');
+
+        $this->assertSame([['other', 'new']], array_map(fn (array $item) => [$item['key'], $item['status']], $items));
+    }
+
+    #[TestDox('已連結的檔案改成不能匯入（沒有 slug）時，列成 invalid，不重複列成 removed，也不能匯入')]
+    public function test_linked_file_that_becomes_invalid_is_listed_once_as_invalid(): void
+    {
+        [$documentation] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $broken = self::article(null, '沒有 slug');
+        $commit = $this->publishSourceFiles(['post.md' => $broken]);
+        $this->actingAsOwner();
+
+        $items = $this->getJson('/api/article-sources')->assertOk()->json('items');
+
+        $this->assertCount(1, $items);
+        $this->assertSame('invalid', $items[0]['status']);
+        $this->assertSame('post.md', $items[0]['path']);
+        $this->assertSame($documentation->id, $items[0]['documentation_id']);
+        $this->import([$this->item('the-post', $broken, 'update')], $commit)->assertConflict()->assertJsonPath('reason', 'stale');
+        $this->assertSame("舊版內文。\n", $documentation->refresh()->body);
+    }
+
     #[TestDox('slug 重複的檔案不能匯入')]
     public function test_duplicate_slug_cannot_be_imported(): void
     {
