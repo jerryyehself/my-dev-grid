@@ -231,7 +231,7 @@ if (DB::getDriverName() === 'pgsql') {
 ```
 
 - `SET LOCAL` 只在這支 migration 的 transaction 裡有效，不會影響後面的 migration。〔引用〕「The effects of SET LOCAL last only till the end of the current transaction, whether committed or not.」（[SET](https://www.postgresql.org/docs/16/sql-set.html)）。〔實測〕在 migration 裡查 `show lock_timeout` 得到 `3s`（測試時設 3 秒），transaction 層級 1。
-- `$withinTransaction = false` 的 migration 不能用 `SET LOCAL`：「Issuing this outside of a transaction block emits a warning and otherwise has no effect.」（同上）〔引用〕
+- `$withinTransaction = false` 的 migration 不能直接用 `SET LOCAL`：「Issuing this outside of a transaction block emits a warning and otherwise has no effect.」（同上）〔引用〕。要用的話，把那一句自己包進 `DB::transaction()`（§4.3 的唯一索引）。
 - 包 `pgsql` 判斷，是因為 CI 也跑 SQLite（§5.3）。
 - 逾時之後：migration 回滾，Job 失敗，workflow 停在部署之前，正式環境還是舊結構＋舊程式。等一下再從 Actions 重跑（`workflow_dispatch`）就好〔推論〕。`gcloud run jobs execute --wait` 在執行失敗時會不會回傳非 0，讓 workflow 停下來〔未驗證〕：`gcloud` 說明只寫「Wait until the execution has completed running before exiting」。
 - 每天 03:17（Asia/Taipei）的 GitHub 同步會寫 `implementations`、`techniques` 跟 pivot 表（`docs/deployment-gcp.md` 第 10 步）。帶著改這幾張表的 migration 的上線 PR，避開這個時段合併〔推論〕。
@@ -266,6 +266,34 @@ return new class extends Migration
 
 - **一支 migration 只放一個 `online()` 索引，不要放其他東西**。沒有 transaction 包著，中途失敗就會停在一半（§5.1）。
 - 失敗會留下 INVALID 索引。〔引用〕「the CREATE INDEX command will fail but leave behind an “invalid” index. This index will be ignored for querying purposes because it might be incomplete; however it will still consume update overhead.」「The recommended recovery method in such cases is to drop the index and try again to perform CREATE INDEX CONCURRENTLY.」（[CREATE INDEX](https://www.postgresql.org/docs/16/sql-createindex.html)）。重跑之前先把它刪掉。**不要用 `IF NOT EXISTS` 跳過**：「there is no guarantee that the existing index is anything like the one that would have been created.」（同上）〔引用〕
+
+**唯一索引不要用 `unique()->online()`**。在 PostgreSQL 上它會產生兩句：`CREATE UNIQUE INDEX CONCURRENTLY`，接著 `ALTER TABLE ... ADD CONSTRAINT ... UNIQUE USING INDEX` 把索引掛成約束〔實測：讀 `PostgresGrammar::compileUnique()`，`migrate --pretend`〕。第二句只改目錄、很快，但拿的是 ACCESS EXCLUSIVE〔實測：在 transaction 裡執行後查 `pg_locks`〕，排隊等鎖時一樣會擋住後面的查詢（§4.2），而這支 migration 關掉了 transaction，沒辦法加 `SET LOCAL lock_timeout`。改成自己分兩步，第二句包進自己的 transaction（例：`2026_11_12_000001_add_source_unique_index_to_documentations_table.php`）：
+
+```php
+public $withinTransaction = false;
+
+public function up(): void
+{
+    if (DB::getDriverName() !== 'pgsql') {
+        Schema::table('documentations', function (Blueprint $table) {
+            $table->unique(['source_repo', 'source_key']);
+        });
+
+        return;
+    }
+
+    DB::statement('CREATE UNIQUE INDEX CONCURRENTLY documentations_source_repo_source_key_unique ON documentations (source_repo, source_key)');
+
+    DB::transaction(function () {
+        DB::statement("SET LOCAL lock_timeout = '5s'");
+        DB::statement('ALTER TABLE documentations ADD CONSTRAINT documentations_source_repo_source_key_unique UNIQUE USING INDEX documentations_source_repo_source_key_unique');
+    });
+}
+```
+
+- 索引名稱照 Laravel 的預設（`<表>_<欄位>_unique`），`down()` 的 `dropUnique([...])` 才找得到。
+- **不要用整個連線的 `SET lock_timeout`**（不加 `LOCAL`）：它也會套到 CONCURRENTLY 那一句。CONCURRENTLY 要等表上進行中的 transaction 結束，等超過時限就失敗，留下 INVALID 索引〔實測：另一個連線開著讀過這張表的 transaction，`SET lock_timeout = '2s'` 之後建索引，2 秒報 lock timeout，`pg_index.indisvalid = f`〕。
+- 第二句逾時：transaction 回滾，索引留著（有效，但沒有掛成約束），這支沒有記進 `migrations` 表，重跑會撞 already exists〔實測〕。先 `DROP INDEX CONCURRENTLY IF EXISTS <索引名稱>;` 再重跑。索引已經掛成約束時，這句會報 `cannot drop index ... because constraint ... requires it`，不會刪掉〔實測〕，所以不會誤刪已經完成的約束。
 
 ### 4.4 加有預設值的欄位
 
@@ -375,7 +403,7 @@ gcloud run services update-traffic my-dev-grid-api --region=asia-east1 --to-revi
 - [ ] 上一步已經上線：部署綠燈、流量 100% 在新 revision 上，而且不會跟這次在同一個上線 PR 裡？（§1、§3.0）
 - [ ] 上線 PR 的說明列出了這一批所有的 migration？（`CLAUDE.md`「分支策略」）
 - [ ] 會拿 ACCESS EXCLUSIVE 的語句加了 `SET LOCAL lock_timeout`？（§4.2）
-- [ ] 新索引用了 `->online()`，而且那支 migration 設了 `$withinTransaction = false`、只放這一個索引？（§4.3）
+- [ ] 新索引用了 `->online()`，而且那支 migration 設了 `$withinTransaction = false`、只放這一個索引？唯一索引在 PostgreSQL 上照 §4.3 分兩步，掛約束那一句包在自己的 transaction 裡加 `SET LOCAL lock_timeout`？（§4.3）
 - [ ] `change()` 把要保留的 `default`、`comment`、`nullable` 都寫出來了？（§5.2）
 - [ ] 原生 SQL 有用 `pgsql` 判斷包起來，CI 的 SQLite 和 PostgreSQL 都綠？（§5.3）
 - [ ] 回填的值保留了原本的意思？（§3.4：null 代表草稿，不能填 1）PR 寫了執行前後的筆數？
