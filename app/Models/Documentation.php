@@ -30,6 +30,9 @@ class Documentation extends Model
     /** 已發布。0 是草稿（my-dev-grid-front 編輯頁的「草稿／已發布」切換）。 */
     public const STATUS_PUBLISHED = 1;
 
+    /** 草稿。從文章來源 repo 匯入的新文章一律是草稿，發布要另外在編輯器做。 */
+    public const STATUS_DRAFT = 0;
+
     /**
      * 這次請求看不看得到草稿。
      *
