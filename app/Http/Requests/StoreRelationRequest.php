@@ -39,7 +39,7 @@ class StoreRelationRequest extends FormRequest
             /** 子類號，最多兩位數字。一定要送出這個欄位：`00` 是頂層述詞，其他值會接到同一個類號的頂層述詞底下；留空（null）時不指定子類號，同樣接到頂層述詞底下。 */
             'call_number' => 'present|nullable|numeric|max_digits:2',
             'name' => 'required|string|max:50|unique:relations',
-            'note' => 'nullable|string',
+            'note' => 'nullable|string|max:255',
             // reverse_id 必須雙向,而且只能指向還沒配對的關係——見 App\Rules\ReverseIsAvailable
             // 與 Relation::syncReverse() 的註解。建立一對的做法是:先建 A(reverse 留空),
             // 再建 B 並把 reverse_id 指向 A,雙向會自動補齊。

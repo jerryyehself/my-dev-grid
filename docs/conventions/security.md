@@ -23,6 +23,7 @@
   - `exists` 直接查資料表，不知道 model 有軟刪除；不排除的話，已刪除的分類、述詞、實體還能被新資料連上。指到已軟刪除的資料一律回 422。
   - `SoftDeletedForeignKeyTest` 會讀每支 FormRequest 的規則：直接寫 `exists`、漏了其中一項，或新的外鍵欄位沒列進那份測試，測試都會失敗。
 - 文字欄位一律加 `string`；資料表欄位有長度上限（`varchar(N)`、`char(N)`）的，規則要有對應的上限：`'name' => 'required|string|max:50|unique:relations'`。超過長度的值 SQLite 照樣寫入，PostgreSQL 會在寫入時丟錯而回 500；沒有 `string`，陣列會一路送到查詢或寫入才出錯。有 `numeric` 的欄位，`max` 比的是數值大小，位數上限要用 `max_digits`（`class_number`、`call_number`）。`FieldLengthValidationTest` 守住分類與述詞的這些欄位。
+- 同一個欄位在新增與更新的規則要一致：長度上限、唯一性、唯一性算不算已軟刪除的資料，兩邊都要一樣，不然會出現「建得出來、存不回去」。分類的名稱與子類號唯一性不算已軟刪除的分類（`Rule::unique(...)->withoutTrashed()`），子類號的規則兩邊共用 `App\Rules\ScopeCallNumber::rules()`；述詞名稱的唯一性新增與更新都算已軟刪除的述詞（已刪除的述詞名稱還會顯示在連結上，所以名稱保留不重用）。`ScopeUniquenessTest` 守住分類這兩個欄位。
 - 會拿去跟 id 欄位比較的查詢參數（`?type=`）也要先驗證是整數，用 `Index<Model>Request`：`IndexImplementationRequest`。
 - 網址上的 id 不是合法的正整數（含超出 bigint 範圍）時，回 404，不拿去查資料庫。這由 model 的 `ResolvesPositiveIntegerRouteKeys` trait 負責，每個會被路由綁定的 model 都要套用；`GuestApiSweepTest` 會檢查每條帶 id 的路由，漏套的話測試會失敗。
 - 自訂規則與 closure 裡也一樣：拿請求的值去 `find()`、`where()` 之前，先確認它是整數（`filter_var($value, FILTER_VALIDATE_INT)`，判斷要跟 `integer` 規則一致），不是就不查。查的時候用一般的 `find()`，不加 `withTrashed()`：已軟刪除的資料當作不存在，由欄位自己的規則回報。`bail` 只擋同一個欄位後面的規則，擋不到別的欄位的規則或 closure 去讀這個值（例：`UpdateScopeRequest` 的 `call_number` 會讀 `parent_class`，`RelationFitsLinkedScopes` 會讀連結的 `id` 與 `type`）。

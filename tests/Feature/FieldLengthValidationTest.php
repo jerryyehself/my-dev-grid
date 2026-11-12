@@ -34,14 +34,14 @@ class FieldLengthValidationTest extends TestCase
                 'name' => ['51 個字' => str_repeat('a', 51), '陣列' => ['a']],
                 'class_number' => ['三位數字串' => '123', '三位數' => 123, '帶小數點' => '1.5', '負號' => '-1', '陣列' => ['12']],
                 'call_number' => ['三位數字串' => '100', '三位數' => 100, '帶小數點' => '1.5', '負號' => '-1', '陣列' => ['00']],
-                'note' => ['陣列' => ['a']],
+                'note' => ['256 個字' => str_repeat('a', 256), '256 個全形字' => str_repeat('註', 256), '陣列' => ['a']],
             ],
             'scope' => [
                 'name' => ['51 個字' => str_repeat('a', 51), '陣列' => ['a']],
                 'call_number' => ['三位數字串' => '100', '三位數' => 100, '帶小數點' => '1.5', '負號' => '-1', '陣列' => ['10']],
                 // `scopes.comment` 不允許 NULL，留空要在驗證就擋下（空字串會被框架轉成 null）。
                 'comment' => ['陣列' => ['a'], 'null' => null, '空字串' => ''],
-                'note' => ['陣列' => ['a']],
+                'note' => ['256 個字' => str_repeat('a', 256), '256 個全形字' => str_repeat('註', 256), '陣列' => ['a']],
             ],
         ];
 
@@ -84,12 +84,12 @@ class FieldLengthValidationTest extends TestCase
                 'name' => ['50 個字' => str_repeat('a', 50), '50 個全形字' => str_repeat('類', 50)],
                 'class_number' => ['兩位數字串' => '99', '兩位數' => 99, '一位數字串' => '7'],
                 'call_number' => ['兩位數字串' => '99', '兩位數' => 99, '一位數字串' => '7', 'null' => null, '空字串' => ''],
-                'note' => ['null' => null, '空字串' => ''],
+                'note' => ['255 個字' => str_repeat('a', 255), '255 個全形字' => str_repeat('註', 255), 'null' => null, '空字串' => ''],
             ],
             'scope' => [
                 'name' => ['50 個字' => str_repeat('a', 50), '50 個全形字' => str_repeat('類', 50)],
                 'call_number' => ['兩位數字串' => '99', '兩位數' => 99, '一位數字串' => '7', 'null' => null, '空字串' => ''],
-                'note' => ['null' => null, '空字串' => ''],
+                'note' => ['255 個字' => str_repeat('a', 255), '255 個全形字' => str_repeat('註', 255), 'null' => null, '空字串' => ''],
             ],
         ];
 
@@ -127,10 +127,12 @@ class FieldLengthValidationTest extends TestCase
      */
     private function validRequest(string $mode, string $own): array
     {
-        $top = Scope::factory()->create(['parent_class' => null]);
+        // 子類號固定成 00，不用工廠隨機挑的：新增與更新的子類號都不能跟同一個類號底下的別筆重複，
+        // 隨機挑到 10 或 99 時會跟請求的子類號撞到。
+        $top = Scope::factory()->create(['parent_class' => null, 'call_number' => '00']);
 
         if ($own === 'scope') {
-            $existing = Scope::factory()->create(['parent_class' => null]);
+            $existing = Scope::factory()->create(['parent_class' => null, 'call_number' => '01']);
 
             return [
                 $mode === 'store' ? '/api/scopes' : "/api/scopes/{$existing->id}",
