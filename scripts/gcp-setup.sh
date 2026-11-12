@@ -83,9 +83,10 @@ echo "==> 4. Secret Manager (APP_KEY generated here — not reused from any loca
 APP_KEY="base64:$(openssl rand -base64 32)"
 printf '%s' "$APP_KEY"    | gcloud secrets create APP_KEY     --data-file=-
 printf '%s' "$DB_PASSWORD" | gcloud secrets create DB_PASSWORD --data-file=-
-echo "NOTE: GITHUB_TOKEN, GOOGLE_CLIENT_SECRET, LINE_CLIENT_SECRET are not created here —"
+echo "NOTE: GITHUB_TOKEN, GITHUB_ARTICLES_TOKEN, GOOGLE_CLIENT_SECRET, LINE_CLIENT_SECRET are not created here —"
 echo "      paste them in yourself once you have real values:"
 echo "      printf '%s' 'ghp_...'  | gcloud secrets create GITHUB_TOKEN         --data-file=-"
+echo "      printf '%s' 'github_pat_...' | gcloud secrets create GITHUB_ARTICLES_TOKEN --data-file=-"
 echo "      printf '%s' 'GOCSPX-...' | gcloud secrets create GOOGLE_CLIENT_SECRET --data-file=-"
 echo "      printf '%s' '...'      | gcloud secrets create LINE_CLIENT_SECRET   --data-file=-"
 
@@ -144,8 +145,8 @@ echo "CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME}"
 echo "DB_DATABASE=my_dev_grid"
 echo "DB_USERNAME=my_dev_grid_app"
 
-# The counts in the two echoes below (9 pushed, 19 total) are hand-maintained:
-# 9 is the number of `gh variable set` calls here, 19 is how many distinct
+# The counts in the two echoes below (9 pushed, 20 total) are hand-maintained:
+# 9 is the number of `gh variable set` calls here, 20 is how many distinct
 # `vars.*` references deploy-cloud-run.yml has. If that workflow gains or loses
 # a variable, update both this block and the "still needs a human" list at the
 # end — they were already wrong once (said "8 of the 12") before 2026-09-16,
@@ -162,7 +163,7 @@ if [ -n "$GITHUB_REPO" ] && command -v gh >/dev/null 2>&1; then
   gh variable set CLOUD_SQL_CONNECTION_NAME --repo "$GITHUB_REPO" --body "$CLOUD_SQL_CONNECTION_NAME"
   gh variable set DB_DATABASE --repo "$GITHUB_REPO" --body "my_dev_grid"
   gh variable set DB_USERNAME --repo "$GITHUB_REPO" --body "my_dev_grid_app"
-  echo "Pushed 9 of the 19 repository variables deploy-cloud-run.yml reads."
+  echo "Pushed 9 of the 20 repository variables deploy-cloud-run.yml reads."
 else
   echo
   echo "==> gh CLI not found/authenticated (or GITHUB_REPO unset) — copy the 9 values"
@@ -179,4 +180,5 @@ echo "  - FRONTEND_URL                 the front-end site (Cloudflare), e.g. htt
 echo "  - SANCTUM_STATEFUL_DOMAINS     the production host — only known after step 8's first deploy"
 echo "  - GOOGLE_CLIENT_ID/REDIRECT_URI, LINE_CLIENT_ID/REDIRECT_URI"
 echo "                                 from the real Google Cloud Console OAuth app / LINE Developers console"
+echo "  - GITHUB_ARTICLES_REPO         optional: owner/name of the repo articles are imported from"
 echo "  These need a real decision or a real external app — nothing to automate here."
