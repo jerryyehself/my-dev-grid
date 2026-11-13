@@ -108,9 +108,9 @@ class ApiDocsTest extends TestCase
         $schema = $this->document()['paths']['/graph']['get']['responses']['200']['content']['application/json']['schema'];
 
         $node = $schema['properties']['nodes']['items'];
-        $this->assertSame(['id', 'type', 'label', 'created_at', 'subtype', 'url', 'active'], array_keys($node['properties']));
+        $this->assertSame(['id', 'type', 'label', 'created_at', 'added_at', 'updated_at', 'subtype', 'url', 'active'], array_keys($node['properties']));
         $this->assertSame(
-            ['source', 'target', 'predicate', 'label', 'relation_id'],
+            ['source', 'target', 'predicate', 'label', 'relation_id', 'added_at', 'stale'],
             array_keys($schema['properties']['edges']['items']['properties'])
         );
     }

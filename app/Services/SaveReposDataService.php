@@ -94,7 +94,17 @@ class SaveReposDataService
         'nuxtjs' => ['Nuxt', 'framework', null],
         'nuxt3' => ['Nuxt', 'framework', '3'],
         'bootstrap5' => ['Bootstrap', 'packagetool', '5'],
+        // Linguist 把 Procfile 當成一種「語言」，它其實是 Heroku 的部署設定檔
+        'procfile' => ['Heroku', 'packagetool', null],
     ];
+
+    /**
+     * 同步時直接略過的 GitHub 語言名稱（小寫）：只放 Linguist 的偵測錯誤。`hack` 是把 PHP 檔誤判成
+     * Hack 語言。topic 是擁有者刻意貼的標籤（描述 repo 在講什麼），不論是不是技術都不略過。
+     * 略過的項目不建技術、也不更新 last_seen_at，所以以前已經連上的邊不會被刪，而是慢慢變成
+     * 「很久沒看到」，由 TechniqueImplementationLink::staleCutoff() 判成過期。
+     */
+    public const IGNORED_LANGUAGES = ['hack'];
 
     /**
      * Technique 的官方文件網站 URL，以其 title 小寫為 key（自 2026-09-30 起以不分大小寫的方式查找，
@@ -165,6 +175,7 @@ class SaveReposDataService
             };
 
             $techniques = collect($repo['languages'] ?? [])
+                ->reject(fn ($language) => $this->is_ignored_language($language))
                 ->map(fn ($language) => $resolve($language, 'language'))
                 ->concat(
                     // 是 FRAMEWORK_BASE_LANGUAGE 已知的 framework/library topic 就歸類到
@@ -220,6 +231,11 @@ class SaveReposDataService
                 ]);
             }
         }
+    }
+
+    private function is_ignored_language(string $name): bool
+    {
+        return in_array(mb_strtolower($name), self::IGNORED_LANGUAGES, true);
     }
 
     public function save_repos_content($repo)

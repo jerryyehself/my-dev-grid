@@ -204,4 +204,56 @@ class TechniqueAuthorityTest extends TestCase
             ->pluck('relation_id')->sort()->values()->all();
         $this->assertSame(collect([$assists, $this->usedBy()])->sort()->values()->all(), $relations);
     }
+
+    #[TestDox('Linguist 誤判的 Hack 語言不建技術，也不連邊')]
+    public function test_the_ignored_hack_language_creates_no_technique_or_edge(): void
+    {
+        $this->sync(['laravel'], ['PHP', 'Hack', 'hack']);
+
+        $this->assertDatabaseMissing('techniques', ['title' => 'Hack']);
+        $this->assertDatabaseMissing('techniques', ['title' => 'hack']);
+        $this->assertEqualsCanonicalizing(['laravel', 'php'], array_map('strtolower', $this->projectTechniques()));
+    }
+
+    #[TestDox('略過的語言不更新舊邊的 last_seen_at，讓它自己變成過期')]
+    public function test_an_ignored_language_does_not_refresh_an_existing_edge(): void
+    {
+        $hack = Technique::create(['type' => Scope::where('name', 'language')->value('id'), 'title' => 'Hack']);
+        $this->travelTo('2026-09-01 00:00:00');
+        $this->sync([]);
+        $project = Implementation::where('git_repo_id', 111)->firstOrFail();
+        DB::table('technique_implementation')->insert([
+            'implementation_id' => $project->id, 'technique_id' => $hack->id, 'relation_id' => $this->usedBy(),
+            'last_seen_at' => '2026-09-01 00:00:00', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->travelTo('2026-11-01 00:00:00');
+        $this->sync([], ['PHP', 'Hack']);
+
+        $seen = DB::table('technique_implementation')->where('technique_id', $hack->id)->value('last_seen_at');
+        $this->assertStringStartsWith('2026-09-01', (string) $seen);
+        // 別的技術照常更新，所以 Hack 的邊相對於最新一次同步已經超過 14 天
+        $this->assertSame('2026-11-01', substr((string) DB::table('technique_implementation')->max('last_seen_at'), 0, 10));
+    }
+
+    #[TestDox('擁有者貼的 topic 一律照常同步，不在略過清單裡')]
+    public function test_topics_are_never_ignored(): void
+    {
+        $topics = ['hack', 'database', 'erd', 'migrations', 'schema', 'static-analysis', 'visualization', 'leetcode', 'json'];
+
+        $this->sync($topics);
+
+        $this->assertEqualsCanonicalizing($topics, array_map('strtolower', $this->projectTechniques()));
+    }
+
+    #[TestDox('Procfile 語言對應到 Heroku，不建 Procfile 技術')]
+    public function test_procfile_language_is_mapped_to_heroku(): void
+    {
+        $this->sync([], ['PHP', 'Procfile']);
+
+        $heroku = Technique::where('title', 'Heroku')->firstOrFail();
+        $this->assertSame(Scope::where('name', 'packagetool')->value('id'), $heroku->type);
+        $this->assertDatabaseMissing('techniques', ['title' => 'Procfile']);
+        $this->assertSame(['Heroku', 'PHP'], $this->projectTechniques());
+    }
 }
