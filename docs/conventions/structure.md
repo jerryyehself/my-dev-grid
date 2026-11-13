@@ -23,6 +23,7 @@
 | `app/OpenApi/`                       | Scramble 推不出來、要手動補的文件設定                         | `ProblemDetailsResponses`                 |
 | `app/Console/Commands/`              | artisan 指令                                                  | `SyncGitHubRepos`                         |
 | `app/Traits/`                        | 跨層共用的 trait                                              | `SyncsPivotRelations`                     |
+| `config/`                            | 設定檔；同步用的對照表（不是資料庫資料）也放這裡              | `package_technologies.php`                |
 | `database/seeders/fixtures/`         | seeder 讀的固定資料（JSON、Markdown）                         | `github-repos-snapshot.json`              |
 | `tests/Feature/`、`tests/Unit/`      | 測試，見 [`testing.md`](testing.md)                           |                                           |
 | `tests/Concerns/`                    | 測試共用的 trait                                              | `CapturesSecurityEvents`                  |

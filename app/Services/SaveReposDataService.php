@@ -21,6 +21,10 @@ use RuntimeException;
  * 永遠以 Technique 為 subject）。`topics` 的項目若是 FRAMEWORK_BASE_LANGUAGE 的 key，
  * 就歸類到 `framework` scope，否則歸為 `packagetool`（見 ScopeSeeder 的 class_number／call_number）。
  *
+ * 除了語言與 topic，repo 的套件清單（package.json、composer.json、requirements.txt，見 GitService）
+ * 裡出現的套件，只要列在 `config/package_technologies.php` 的對照表就也會連到對應的 Technique；
+ * 沒列的（例如 ESLint 這類開發用工具）不會上圖。topic 沒有被取代，仍是手動補充的來源。
+ *
  * 另外有兩組手動維護的關係，在已知時補上：
  * - framework／library 類的 topic（例如 `vue`）會透過 `requires`（同類型，
  *   `entity_relations`）連到它唯一的基礎語言 Technique（例如 `JavaScript`），見 FRAMEWORK_BASE_LANGUAGE。
@@ -185,6 +189,12 @@ class SaveReposDataService
                         $topic,
                         array_key_exists($topic, self::FRAMEWORK_BASE_LANGUAGE) ? 'framework' : 'packagetool',
                     ))
+                )
+                // 套件清單裡有、而且在對照表（config/package_technologies.php）裡的套件，
+                // 補上它們代表的技術。topic 是手動補充，兩邊重複的技術靠下面的 unique 合併。
+                ->concat(
+                    collect(PackageTechniqueMap::techniquesFor($repo['packages'] ?? []))
+                        ->map(fn (array $technique) => $resolve($technique[0], $technique[1]))
                 )
                 ->unique('id');
 
