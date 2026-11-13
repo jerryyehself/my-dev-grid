@@ -41,6 +41,9 @@ class Nomen extends Model
 
     public const SOURCE_GITHUB_TOPIC = 'github_topic';
 
+    /** repo 套件清單裡、列在 `config/package_technologies.php` 的套件名稱；`scheme` 是生態系（npm、composer、pip）。 */
+    public const SOURCE_PACKAGE = 'package_manifest';
+
     public const SOURCE_ABOUT_TECHNIQUES = 'front_matter.about_techniques';
 
     public const SOURCE_ABOUT_PROJECTS = 'front_matter.about_projects';
@@ -72,7 +75,7 @@ class Nomen extends Model
     /** 對上了，但證據不夠（GitHub 語言的位元組數太少），不足以撐起一條邊。 */
     public const BELOW_THRESHOLD = 'below_threshold';
 
-    /** topic 對上的節點，同一個 repo 的語言也對到同一個節點。 */
+    /** topic 對上的節點，同一個 repo 的語言或套件清單也撐得起同一個節點。 */
     public const CORROBORATED = 'corroborated';
 
     protected function casts(): array

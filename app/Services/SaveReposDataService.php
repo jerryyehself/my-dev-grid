@@ -49,7 +49,7 @@ class SaveReposDataService
      */
     private array $scopeIdCache = [];
 
-    /** 影子模式：另外記下讀到的語言與 topic 字串，不影響這裡寫的邊（見 `NomenRecorder`）。 */
+    /** 影子模式：另外記下讀到的語言、topic 與套件字串，不影響這裡寫的邊（見 `NomenRecorder`）。 */
     private NomenRecorder $nomens;
 
     /**

@@ -42,14 +42,17 @@ class PreviewNomenSwitchTest extends TestCase
         ])))->save_repos_data();
     }
 
-    /** @return array<string, mixed> */
-    private function repo(int $id, string $name, array $bytes, array $topics): array
+    /**
+     * @param  array<string, list<string>>|null  $packages  null 是沒有 `packages` 欄位的舊快照
+     * @return array<string, mixed>
+     */
+    private function repo(int $id, string $name, array $bytes, array $topics, ?array $packages = null): array
     {
         return [
             'id' => $id, 'git_repo_id' => $id, 'title' => $name, 'html_url' => "https://github.com/example/{$name}",
             'description' => null, 'topics' => $topics, 'languages' => array_keys($bytes), 'language_bytes' => $bytes,
             'created_at' => '2026-06-15T00:00:00Z', 'archived' => false, 'owner' => 'example',
-        ];
+        ] + ($packages === null ? [] : ['packages' => $packages]);
     }
 
     private function importArticles(): void
@@ -100,6 +103,30 @@ class PreviewNomenSwitchTest extends TestCase
         $this->assertContains('front_matter.about_techniques|漸進增強|unresolved|2', $pending);
 
         $this->assertSame([['string' => '漸進增強', 'contexts' => 2]], $report['concepts']);
+    }
+
+    #[TestDox('套件清單撐得起的邊保留；這次清單裡沒有的套件，邊不再更新')]
+    public function test_package_evidence_keeps_edges(): void
+    {
+        Carbon::setTestNow('2026-11-12 03:17:00');
+        (new SaveReposDataService(collect([
+            $this->repo(111, 'shop', ['PHP' => 50000], [], ['composer' => ['laravel/framework', 'livewire/livewire']]),
+        ])))->save_repos_data();
+        Carbon::setTestNow('2026-11-13 03:17:00');
+        (new SaveReposDataService(collect([
+            $this->repo(111, 'shop', ['PHP' => 50000], ['laravel'], ['composer' => ['laravel/framework', 'phpunit/phpunit']]),
+            // 只有套件、沒有語言與 topic 的 repo 也要列進報表
+            $this->repo(333, 'widgets', [], [], ['npm' => ['vue', 'vite', 'eslint']]),
+        ])))->save_repos_data();
+
+        $projects = collect((new NomenSwitchPreview)->build()['projects'])->keyBy('title');
+
+        // Livewire 只在上一次同步的清單裡；Laravel 這次同時有 topic 和套件，撐起邊的是套件
+        $this->assertSame(['Laravel', 'PHP'], $projects['shop']['keep']);
+        $this->assertSame(['Livewire'], $projects['shop']['stop']);
+        $this->assertSame([], $projects['shop']['add']);
+        $this->assertSame(['Vite', 'Vue'], $projects['widgets']['keep']);
+        $this->assertSame([], $projects['widgets']['stop']);
     }
 
     #[TestDox('指令印出四段報表並正常結束，不寫任何資料')]

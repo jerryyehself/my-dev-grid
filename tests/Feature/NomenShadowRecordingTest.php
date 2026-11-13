@@ -8,6 +8,7 @@ use App\Models\Nomen;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
+use App\Services\NomenResolver;
 use App\Services\SaveReposDataService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
@@ -46,8 +47,9 @@ class NomenShadowRecordingTest extends TestCase
     /**
      * @param  array<string, int>  $bytes
      * @param  list<string>  $topics
+     * @param  array<string, list<string>>|null  $packages  null 是沒有 `packages` 欄位的舊快照
      */
-    private function sync(array $bytes, array $topics, int $id = 111, bool $withBytes = true): void
+    private function sync(array $bytes, array $topics, int $id = 111, bool $withBytes = true, ?array $packages = null): void
     {
         (new SaveReposDataService(collect([[
             'id' => $id,
@@ -60,7 +62,7 @@ class NomenShadowRecordingTest extends TestCase
             'created_at' => '2026-06-15T00:00:00Z',
             'archived' => false,
             'owner' => 'example',
-        ] + ($withBytes ? ['language_bytes' => $bytes] : [])])))->save_repos_data();
+        ] + ($withBytes ? ['language_bytes' => $bytes] : []) + ($packages === null ? [] : ['packages' => $packages])])))->save_repos_data();
     }
 
     private function importArticle(string $techniques, string $projects): int
@@ -95,6 +97,36 @@ class NomenShadowRecordingTest extends TestCase
             ['github_topic', 'laravel', 'laravel', 'github-topics', 'implementation', $project->id, null, null],
         ], $rows->map(fn (Nomen $r) => [$r->source, $r->string, $r->normalized, $r->scheme, $r->context_type, $r->context_id, $r->predicate_id, $r->weight])->all());
         $this->assertSame('2026-11-13 03:17:00', $rows[0]->first_seen_at->format('Y-m-d H:i:s'));
+    }
+
+    #[TestDox('套件只記對照表裡有的，字串是套件原名、scheme 是生態系，並主張 usedBy')]
+    public function test_sync_records_only_mapped_packages(): void
+    {
+        $this->sync([], [], packages: [
+            'npm' => ['vue', 'eslint', 'chart.js', 'vue-router'],
+            'composer' => ['laravel/framework', 'phpunit/phpunit'],
+            'cargo' => ['serde'],
+        ]);
+
+        $project = Implementation::where('git_repo_id', 111)->firstOrFail();
+        $rows = Nomen::where('source', Nomen::SOURCE_PACKAGE)->orderBy('normalized')->get();
+
+        $this->assertSame([
+            ['chart.js', 'chartjs', 'npm', 'implementation', $project->id, $this->relationId('usedBy'), null],
+            ['laravel/framework', 'laravelframework', 'composer', 'implementation', $project->id, $this->relationId('usedBy'), null],
+            ['vue', 'vue', 'npm', 'implementation', $project->id, $this->relationId('usedBy'), null],
+        ], $rows->map(fn (Nomen $r) => [$r->string, $r->normalized, $r->scheme, $r->context_type, $r->context_id, $r->predicate_id, $r->weight])->all());
+        $this->assertSame([NomenResolver::PACKAGE_MAP], $rows->pluck('resolution')->unique()->values()->all());
+    }
+
+    #[TestDox('沒有 packages 欄位或格式不對時，不記套件，語言照記')]
+    public function test_missing_or_malformed_packages_record_nothing(): void
+    {
+        $this->sync(['PHP' => 50000], [], id: 111);
+        $this->sync(['PHP' => 50000], [], id: 222, packages: ['npm' => 'vue', 'composer' => [['laravel/framework']]]);
+
+        $this->assertSame(0, Nomen::where('source', Nomen::SOURCE_PACKAGE)->count());
+        $this->assertSame(2, Nomen::where('source', Nomen::SOURCE_GITHUB_LANGUAGE)->count());
     }
 
     #[TestDox('同一個 repo 的語言 PHP 與 topic php 是兩列，不會互相蓋掉')]

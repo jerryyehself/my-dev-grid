@@ -31,17 +31,22 @@ final class NomenRecorder
     public function __construct(private readonly NomenResolver $resolver) {}
 
     /**
-     * 記下一個 repo 這次同步讀到的語言與 topic。
+     * 記下一個 repo 這次同步讀到的語言、topic 與套件。
      *
      * 語言主張 `usedBy`（技術 usedBy 專案），權重是位元組數（`GitService` 的 `language_bytes`，
      * 舊快照沒有就是空值）。topic 不主張任何述詞：它是自由標籤，不保證代表「用到」，只拿來確認身分。
      * 被同步略過的語言（`SaveReposDataService::IGNORED_LANGUAGES`）這裡照樣記，影子報表才看得到它。
+     *
+     * 套件跟語言一樣主張 `usedBy`。只記 `PackageTechniqueMap` 對得到技術的套件，跟同步寫邊用同一張
+     * 白名單：開發用工具與一般函式庫一個 repo 動輒幾十個，記下來也不會變成邊。字串存套件原名，
+     * `scheme` 存生態系，對到哪個技術由 `NomenResolver` 查同一張表決定。
      *
      * @param  array<string, mixed>  $repo  `GitService::clean_repo_info()` 的形狀
      */
     public function recordRepo(Implementation $project, array $repo, DateTimeInterface $seenAt): void
     {
         $this->shadow('同步 repo', function () use ($project, $repo, $seenAt) {
+            $usedBy = $this->relationId('usedBy');
             $bytes = is_array($repo['language_bytes'] ?? null) ? $repo['language_bytes'] : [];
             $languages = array_map(
                 fn ($name) => [$name, is_string($name) && is_int($bytes[$name] ?? null) ? $bytes[$name] : null],
@@ -49,8 +54,16 @@ final class NomenRecorder
             );
             $topics = array_map(fn ($topic) => [$topic, null], $repo['topics'] ?? []);
 
-            $this->write(Nomen::SOURCE_GITHUB_LANGUAGE, 'linguist', Nomen::CONTEXT_IMPLEMENTATION, $project->id, $this->relationId('usedBy'), $languages, $seenAt);
+            $this->write(Nomen::SOURCE_GITHUB_LANGUAGE, 'linguist', Nomen::CONTEXT_IMPLEMENTATION, $project->id, $usedBy, $languages, $seenAt);
             $this->write(Nomen::SOURCE_GITHUB_TOPIC, 'github-topics', Nomen::CONTEXT_IMPLEMENTATION, $project->id, null, $topics, $seenAt);
+
+            foreach (is_array($repo['packages'] ?? null) ? $repo['packages'] : [] as $ecosystem => $names) {
+                $mapped = array_filter(
+                    is_array($names) ? $names : [],
+                    fn ($name) => is_string($name) && PackageTechniqueMap::techniqueFor((string) $ecosystem, $name) !== null,
+                );
+                $this->write(Nomen::SOURCE_PACKAGE, (string) $ecosystem, Nomen::CONTEXT_IMPLEMENTATION, $project->id, $usedBy, array_map(fn ($name) => [$name, null], $mapped), $seenAt);
+            }
         });
     }
 

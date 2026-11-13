@@ -48,6 +48,21 @@ class NomenResolverTest extends TestCase
         ]);
     }
 
+    private function package(?string $ecosystem, string $name, int $contextId = 1, string $seenAt = self::SYNC_TIME): Nomen
+    {
+        return Nomen::create([
+            'string' => $name,
+            'normalized' => NomenResolver::normalize($name),
+            'source' => Nomen::SOURCE_PACKAGE,
+            'scheme' => $ecosystem,
+            'context_type' => Nomen::CONTEXT_IMPLEMENTATION,
+            'context_id' => $contextId,
+            'resolution' => Nomen::UNRESOLVED,
+            'first_seen_at' => $seenAt,
+            'last_seen_at' => $seenAt,
+        ]);
+    }
+
     /** @return array{0: string|null, 1: int|null, 2: string} */
     private function resolved(Nomen $nomen): array
     {
@@ -277,6 +292,73 @@ class NomenResolverTest extends TestCase
         $this->assertSame(['technique', $laravel->id, 'exact'], $this->resolved($laravelTopic));
         $this->assertSame(['technique', $hack->id, 'exact'], $this->resolved($hackTopic));
         $this->assertSame(['technique', $php->id, 'exact'], $this->resolved($otherRepo));
+    }
+
+    #[TestDox('套件名照對照表換成技術名稱再對節點，不分分類，名稱裡的點不會被當成巢狀 key')]
+    public function test_packages_resolve_through_the_package_map(): void
+    {
+        $laravel = $this->technique('laravel', 'packagetool');
+        $vue = $this->technique('Vue', 'framework');
+        $this->technique('Vue', 'framework', '3');
+        $typescript = $this->technique('TypeScript', 'language');
+        $chartjs = $this->technique('chartjs', 'packagetool');
+        $rows = [
+            'composer 的 laravel/framework 對到 laravel' => [$this->package('composer', 'laravel/framework'), $laravel->id],
+            '套件名不分大小寫，只對到沒有版本的 Vue' => [$this->package('npm', 'Vue'), $vue->id],
+            '對照表歸為 language 的套件' => [$this->package('npm', 'typescript'), $typescript->id],
+            'chart.js' => [$this->package('npm', 'chart.js'), $chartjs->id],
+        ];
+
+        $this->resolve();
+
+        foreach ($rows as $name => [$nomen, $resId]) {
+            $this->assertSame(['technique', $resId, NomenResolver::PACKAGE_MAP], $this->resolved($nomen), $name);
+        }
+    }
+
+    /** @return iterable<string, array{string|null, string}> */
+    public static function packagesThatMustStayUnresolved(): iterable
+    {
+        yield '不在對照表裡的套件' => ['npm', 'eslint'];
+        yield '名稱相近但沒列（只列了 vue）' => ['npm', 'vue-router'];
+        yield '列在別的生態系' => ['npm', 'laravel/framework'];
+        yield '不認得的生態系' => ['cargo', 'vue'];
+        yield '沒有生態系' => [null, 'vue'];
+        yield '生態系字串剛好是一筆對照的路徑' => ['npm.vue', 'vue'];
+        yield '對照表有、但站上還沒有這個技術' => ['npm', 'pinia'];
+    }
+
+    #[DataProvider('packagesThatMustStayUnresolved')]
+    #[TestDox('套件只認對照表：不在表裡、生態系不對、技術還不存在的都對不上')]
+    public function test_packages_that_must_stay_unresolved(?string $ecosystem, string $name): void
+    {
+        $this->technique('Vue', 'framework');
+        $this->technique('laravel', 'packagetool');
+        $this->technique('eslint', 'packagetool');
+        $this->technique('vue-router', 'packagetool');
+        $nomen = $this->package($ecosystem, $name);
+
+        $this->resolve();
+
+        $this->assertSame([null, null, Nomen::UNRESOLVED], $this->resolved($nomen));
+    }
+
+    #[TestDox('topic 對到的節點同 repo 的套件撐得起時也記成 corroborated')]
+    public function test_topics_are_corroborated_by_a_package_in_the_same_repo(): void
+    {
+        $laravel = $this->technique('laravel', 'packagetool');
+        $this->package('composer', 'laravel/framework', 1);
+        $sameRepo = $this->nomen('github_topic', 'laravel', 1);
+        $otherRepo = $this->nomen('github_topic', 'laravel', 2);
+        // 上一次同步才看到的套件不算
+        $this->package('composer', 'laravel/framework', 3, seenAt: '2026-11-01 03:17:00');
+        $staleRepo = $this->nomen('github_topic', 'laravel', 3);
+
+        $this->resolve();
+
+        $this->assertSame(['technique', $laravel->id, Nomen::CORROBORATED], $this->resolved($sameRepo));
+        $this->assertSame(['technique', $laravel->id, 'exact'], $this->resolved($otherRepo));
+        $this->assertSame(['technique', $laravel->id, 'exact'], $this->resolved($staleRepo));
     }
 
     #[TestDox('節點被軟刪除後，原本對到它的名稱變回 unresolved')]

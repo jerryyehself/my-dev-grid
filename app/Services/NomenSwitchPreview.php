@@ -14,8 +14,9 @@ use Illuminate\Support\Facades\DB;
  * 影子報表：如果同步與文章匯入改成照 `nomens` 的解析結果寫邊，跟現在比會差在哪裡。唯讀，不寫任何資料。
  *
  * 只看最新一次同步、每篇文章最新一次匯入讀到的列（`NomenResolver::current()`）。切換後的規則：
- * - 專案的 `usedBy` 邊：只有 GitHub 語言對上、而且過了證據門檻的節點撐得起；topic 只當旁證，
- *   撐不起邊。撐不起的既有邊不會被刪，只是不再更新 `last_seen_at`，14 天後變成過期。
+ * - 專案的 `usedBy` 邊：GitHub 語言對上、而且過了證據門檻的節點，以及套件清單經對照表
+ *   （`config/package_technologies.php`）對上的節點撐得起；topic 只當旁證，撐不起邊。
+ *   撐不起的既有邊不會被刪，只是不再更新 `last_seen_at`，14 天後變成過期。
  *   跟現在的同步一樣，有版本的節點撐得起時，同名、沒有版本的那一筆也算撐得起。
  * - 文章的連結：front matter 的名稱對上的節點，文章還沒連過去的，會新增連結。
  *   這裡沒有檢查分類是否符合述詞（`ArticleAboutLinker` 會），實際切換時可能少幾筆。
@@ -56,9 +57,9 @@ final class NomenSwitchPreview
         $label = fn (int $id) => $techniques[$id]->label;
         $result = [];
 
-        $contexts = $current->whereIn('source', [Nomen::SOURCE_GITHUB_LANGUAGE, Nomen::SOURCE_GITHUB_TOPIC])->pluck('context_id')->unique();
+        $contexts = $current->whereIn('source', [Nomen::SOURCE_GITHUB_LANGUAGE, Nomen::SOURCE_GITHUB_TOPIC, Nomen::SOURCE_PACKAGE])->pluck('context_id')->unique();
         foreach (Implementation::whereIn('id', $contexts)->orderBy('title')->get(['id', 'title']) as $project) {
-            $supported = $current->where('source', Nomen::SOURCE_GITHUB_LANGUAGE)->where('context_id', $project->id)
+            $supported = $current->whereIn('source', [Nomen::SOURCE_GITHUB_LANGUAGE, Nomen::SOURCE_PACKAGE])->where('context_id', $project->id)
                 ->filter(fn (Nomen $row) => $row->isUsable() && $row->res_type === Nomen::RES_TECHNIQUE && isset($techniques[$row->res_id]))
                 ->pluck('res_id')->unique()->values()->all();
             $versionedTitles = collect($supported)->filter(fn (int $id) => filled($techniques[$id]->version))

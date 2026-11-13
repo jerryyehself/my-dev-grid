@@ -23,6 +23,10 @@ use Illuminate\Support\Collection;
  *   另一個 res）。只在整個鍵對不到節點、而且字根對得到語言／框架／套件工具的節點時才拆，`isbn3`、
  *   `html5-qrcode` 這類套件名不會被拆。
  * - `crosswalk`：規則推不出來的跨命名系統對照（Linguist 的 Procfile→Heroku）。
+ *
+ * 套件清單的名稱不走上面的規則：套件名先照 `config/package_technologies.php`（`PackageTechniqueMap`）
+ * 換成技術名稱，再跟節點的顯示名稱完全比對，`resolution` 記成 `package_map`。跟同步寫邊用同一張表，
+ * 表裡沒有的套件一律對不上。
  */
 final class NomenResolver
 {
@@ -31,16 +35,21 @@ final class NomenResolver
      *
      * GitHub 語言只能對到 `language`，Linguist 的誤判（例如 Hack）才不會碰到同名的其他節點。
      * topic 不限分類，但在影子模式裡不主張任何述詞，只用來確認身分（見 `NomenRecorder`）。
+     * 套件不限分類：對照表已經寫明每個套件是哪個技術，套件名本身不拿來套變體規則。
      */
     private const SOURCES = [
         Nomen::SOURCE_GITHUB_LANGUAGE => [Nomen::RES_TECHNIQUE, ['language'], ['crosswalk']],
         Nomen::SOURCE_GITHUB_TOPIC => [Nomen::RES_TECHNIQUE, null, ['suffix', 'version', 'crosswalk']],
+        Nomen::SOURCE_PACKAGE => [Nomen::RES_TECHNIQUE, null, []],
         Nomen::SOURCE_ABOUT_TECHNIQUES => [Nomen::RES_TECHNIQUE, null, ['suffix', 'version']],
         Nomen::SOURCE_ABOUT_PROJECTS => [Nomen::RES_IMPLEMENTATION, ['project'], []],
     ];
 
     /** 同一次同步一起寫入的來源：判斷「最新一次看到」時要一起看。 */
-    private const SYNC_SOURCES = [Nomen::SOURCE_GITHUB_LANGUAGE, Nomen::SOURCE_GITHUB_TOPIC];
+    private const SYNC_SOURCES = [Nomen::SOURCE_GITHUB_LANGUAGE, Nomen::SOURCE_GITHUB_TOPIC, Nomen::SOURCE_PACKAGE];
+
+    /** 套件名經對照表換成技術名稱後對上的 `resolution`。 */
+    public const PACKAGE_MAP = 'package_map';
 
     private const SUFFIXES = ['js', 'css'];
 
@@ -189,6 +198,12 @@ final class NomenResolver
         $key = $row->normalized;
         $byKey = fn (string $k) => array_values(array_filter($pool, fn (array $t) => $t['key'] === $k));
 
+        if ($row->source === Nomen::SOURCE_PACKAGE) {
+            $technique = PackageTechniqueMap::techniqueFor((string) $row->scheme, $row->string);
+
+            return [$resType, $technique === null ? [] : $byKey(self::normalize($technique[0])), self::PACKAGE_MAP];
+        }
+
         if (($found = $byKey($key)) !== []) {
             return [$resType, $found, 'exact'];
         }
@@ -284,15 +299,15 @@ final class NomenResolver
     }
 
     /**
-     * topic 對上的節點，同一個 repo 這次同步的語言也撐得起同一個節點時，記成 `corroborated`。
-     * 真正撐起邊的是語言那一列，topic 只是旁證；之後讀了套件清單，也從這裡加上。
+     * topic 對上的節點，同一個 repo 這次同步的語言或套件清單也撐得起同一個節點時，記成 `corroborated`。
+     * 真正撐起邊的是語言或套件那一列，topic 只是旁證。
      *
      * @param  Collection<int, Nomen>  $current
      * @param  array<int, array{0: string|null, 1: int|null, 2: string}>  $results
      */
     private function applyTopicCorroboration(Collection $current, array &$results): void
     {
-        $supported = $current->where('source', Nomen::SOURCE_GITHUB_LANGUAGE)
+        $supported = $current->whereIn('source', [Nomen::SOURCE_GITHUB_LANGUAGE, Nomen::SOURCE_PACKAGE])
             ->filter(fn (Nomen $row) => $results[$row->id][1] !== null && $results[$row->id][2] !== Nomen::BELOW_THRESHOLD)
             ->map(fn (Nomen $row) => $row->context_id.':'.$results[$row->id][1])
             ->flip();
