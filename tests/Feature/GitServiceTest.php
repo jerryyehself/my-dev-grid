@@ -86,6 +86,7 @@ class GitServiceTest extends TestCase
                 ]])
                 ->push([]),
             'https://api.github.com/repos/acme/repo-1/languages' => Http::response(['PHP' => 1]),
+            'https://api.github.com/repos/acme/repo-1/git/trees/*' => Http::response(['tree' => []]),
         ]);
 
         $repo = (new GitService)->get_repos()->first();
