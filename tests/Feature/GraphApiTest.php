@@ -749,8 +749,8 @@ class GraphApiTest extends TestCase
         $this->assertSame('2026-11-01 08:00:00', $node['added_at']);
     }
 
-    #[TestDox('沒登入看到的未公開文件節點，一樣帶 added_at 與 updated_at')]
-    public function test_unpublished_documentation_node_still_reports_times()
+    #[TestDox('沒登入看到的未公開文件節點，added_at 與 updated_at 為 null')]
+    public function test_guest_does_not_see_unpublished_documentation_times()
     {
         $this->travelTo('2026-11-01 08:00:00');
         $draft = Documentation::factory()->create(['status' => 0]);
@@ -759,6 +759,20 @@ class GraphApiTest extends TestCase
 
         $node = $nodes["documentation-{$draft->id}"];
         $this->assertSame(GraphController::UNPUBLISHED_LABEL, $node['label']);
+        $this->assertNull($node['added_at']);
+        $this->assertNull($node['updated_at']);
+    }
+
+    #[TestDox('登入後看到的未公開文件節點，帶 added_at 與 updated_at')]
+    public function test_logged_in_user_sees_unpublished_documentation_times()
+    {
+        $this->travelTo('2026-11-01 08:00:00');
+        $draft = Documentation::factory()->create(['status' => 0]);
+        Sanctum::actingAs(User::factory()->create());
+
+        $nodes = collect($this->getJson('/api/graph')->assertOk()->json('nodes'))->keyBy('id');
+
+        $node = $nodes["documentation-{$draft->id}"];
         $this->assertSame('2026-11-01 08:00:00', $node['added_at']);
         $this->assertSame('2026-11-01 08:00:00', $node['updated_at']);
     }
