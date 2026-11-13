@@ -41,7 +41,7 @@ class GraphController extends Controller
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
         title: '取得知識圖譜',
-        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype` 與 `url` 為 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
+        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype`、`url`、`added_at`、`updated_at` 為 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
     )]
     #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, added_at: string|null, updated_at: string|null, subtype: string|null, url: string|null, active: bool}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, added_at: string|null}>}')]
     public function index()
@@ -157,6 +157,16 @@ class GraphController extends Controller
         return $documentation->isPublished() || $canSeeDrafts;
     }
 
+    /**
+     * 這次請求能不能看這個節點的 added_at／updated_at：技術與實作都可以；文件跟標題同一個判斷。
+     *
+     * @param  bool  $canSeeDrafts  這次請求看不看得到草稿，由 action 判斷一次後往下傳
+     */
+    private function nodeTimesVisible($model, string $type, bool $canSeeDrafts): bool
+    {
+        return $type !== 'documentation' || $this->documentationIsOpenToViewer($model, $canSeeDrafts);
+    }
+
     private function nodesFor(Collection $models, string $type, bool $canSeeDrafts): Collection
     {
         return $models->map(fn ($model) => [
@@ -171,8 +181,9 @@ class GraphController extends Controller
                 : null,
             // 節點加入網站與最後更新的時間（資料列自己的 created_at／updated_at），三種節點都有。
             // 跟上面的 created_at 不同：那個是專案在 GitHub 上的建立日期。
-            'added_at' => $this->formatTimestamp($model->created_at),
-            'updated_at' => $this->formatTimestamp($model->updated_at),
+            // 沒登入時，未公開的文件兩個都回 null：不讓訪客看出草稿什麼時候建立、編輯過
+            'added_at' => $this->nodeTimesVisible($model, $type, $canSeeDrafts) ? $this->formatTimestamp($model->created_at) : null,
+            'updated_at' => $this->nodeTimesVisible($model, $type, $canSeeDrafts) ? $this->formatTimestamp($model->updated_at) : null,
             // 文章節點的子類（scope 名稱，例如 post 是自己寫的文章、sourcesite 是官方文件
             // 這類參考資料）與外部網址。前端的節點彈窗靠這兩個決定連去哪：post 連文章頁、
             // 有網址的連外部網址。其他型別沒有這兩個概念，一律 null。沒登入時，未公開的文件
