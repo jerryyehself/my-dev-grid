@@ -128,6 +128,21 @@ class ArticleSourceParserTest extends TestCase
         yield 'title 超過 255 字' => ["---\nslug: s\ntitle: ".str_repeat('字', 256)."\nimport: true\n---\n內文\n", 'title_invalid'];
         yield '日期格式不對' => ["---\nslug: s\nimport: true\ncreation_date: 22/09/2026\n---\n# T\n", 'creation_date_invalid'];
         yield '不存在的日期' => ["---\nslug: s\nimport: true\ncreation_date: '2026-02-30'\n---\n# T\n", 'creation_date_invalid'];
+        yield 'about_techniques 是單一字串' => ["---\nslug: s\nimport: true\nabout_techniques: vue\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 是數字' => ["---\nslug: s\nimport: true\nabout_techniques: 3\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 是 map' => ["---\nslug: s\nimport: true\nabout_techniques: {a: b}\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 有數字項目' => ["---\nslug: s\nimport: true\nabout_techniques: [vue, 8]\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 有布林項目' => ["---\nslug: s\nimport: true\nabout_techniques: [true]\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 有 null 項目' => ["---\nslug: s\nimport: true\nabout_techniques: [vue, ~]\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 有巢狀清單' => ["---\nslug: s\nimport: true\nabout_techniques: [[vue]]\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 有空字串項目' => ["---\nslug: s\nimport: true\nabout_techniques: [vue, '']\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 有只含空白的項目' => ["---\nslug: s\nimport: true\nabout_techniques: ['  ']\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 的名稱超過 100 字' => ["---\nslug: s\nimport: true\nabout_techniques: [".str_repeat('a', 101)."]\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_techniques 超過 50 筆' => ["---\nslug: s\nimport: true\nabout_techniques: [".implode(',', array_map(fn (int $i) => "t{$i}", range(1, 51)))."]\n---\n# T\n", 'about_techniques_invalid'];
+        yield 'about_projects 是單一字串' => ["---\nslug: s\nimport: true\nabout_projects: my-app\n---\n# T\n", 'about_projects_invalid'];
+        yield 'about_projects 有數字項目' => ["---\nslug: s\nimport: true\nabout_projects: [8]\n---\n# T\n", 'about_projects_invalid'];
+        yield 'about_projects 有空字串項目' => ["---\nslug: s\nimport: true\nabout_projects: ['']\n---\n# T\n", 'about_projects_invalid'];
+        yield 'about_projects 的名稱超過 100 字' => ["---\nslug: s\nimport: true\nabout_projects: [".str_repeat('a', 101)."]\n---\n# T\n", 'about_projects_invalid'];
         yield '含 NUL' => ["---\nslug: s\nimport: true\n---\n# T\n\0\n", 'binary'];
         yield '不是 UTF-8' => ["---\nslug: s\nimport: true\n---\n# T\n\xC3\x28\n", 'not_utf8'];
     }
@@ -149,5 +164,62 @@ class ArticleSourceParserTest extends TestCase
         $result = $this->parse("---\nslug: ".str_repeat('a', 255)."\ntitle: ".str_repeat('字', 255)."\nimport: true\n---\n內文\n");
 
         $this->assertNull($result['invalid']);
+    }
+
+    #[TestDox('about_techniques 與 about_projects 讀成名稱清單')]
+    public function test_about_lists_are_parsed_into_names(): void
+    {
+        $result = $this->parse("---\nslug: s\nimport: true\nabout_techniques: [vue, Laravel]\nabout_projects:\n  - my-dev-grid\n  - \"Side Project\"\n---\n# T\n");
+
+        $this->assertNull($result['invalid']);
+        $this->assertSame(['techniques' => ['vue', 'Laravel'], 'projects' => ['my-dev-grid', 'Side Project']], $result['about']);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function emptyAbout(): iterable
+    {
+        yield '兩個欄位都沒寫' => ["---\nslug: s\nimport: true\n---\n# T\n"];
+        yield '空清單' => ["---\nslug: s\nimport: true\nabout_techniques: []\nabout_projects: []\n---\n# T\n"];
+        yield '欄位留空（null）' => ["---\nslug: s\nimport: true\nabout_techniques:\nabout_projects: ~\n---\n# T\n"];
+    }
+
+    #[DataProvider('emptyAbout')]
+    #[TestDox('沒寫、空清單、null 都是沒有名稱，不算格式錯誤')]
+    public function test_missing_or_empty_about_is_no_names(string $raw): void
+    {
+        $result = $this->parse($raw);
+
+        $this->assertNull($result['invalid']);
+        $this->assertSame(['techniques' => [], 'projects' => []], $result['about']);
+    }
+
+    #[TestDox('名稱去掉頭尾空白，不分大小寫去重，保留第一次出現的寫法與順序')]
+    public function test_about_names_are_trimmed_and_deduplicated_ignoring_case(): void
+    {
+        $result = $this->parse("---\nslug: s\nimport: true\nabout_techniques: ['  Vue ', laravel, vue, LARAVEL, 'Vue 3']\n---\n# T\n");
+
+        $this->assertSame(['Vue', 'laravel', 'Vue 3'], $result['about']['techniques']);
+    }
+
+    #[TestDox('剛好 50 筆、名稱剛好 100 字可以匯入')]
+    public function test_about_lists_at_the_limits_are_accepted(): void
+    {
+        $names = array_map(fn (int $i) => "t{$i}", range(1, 50));
+        $long = str_repeat('字', 100);
+        $result = $this->parse("---\nslug: s\nimport: true\nabout_techniques: [".implode(',', $names)."]\nabout_projects: [{$long}]\n---\n# T\n");
+
+        $this->assertNull($result['invalid']);
+        $this->assertCount(50, $result['about']['techniques']);
+        $this->assertSame([$long], $result['about']['projects']);
+    }
+
+    #[TestDox('about 欄位格式不對時，沒選擇匯入的檔案仍然不出現在清單，也不丟例外')]
+    public function test_malformed_about_does_not_matter_for_files_that_did_not_opt_in(): void
+    {
+        $result = $this->parse("---\nslug: s\nimport: false\nabout_techniques: 3\n---\n# T\n");
+
+        $this->assertFalse($result['import']);
+        $this->assertNull($result['invalid']);
+        $this->assertSame(['techniques' => [], 'projects' => []], $result['about']);
     }
 }

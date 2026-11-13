@@ -102,7 +102,7 @@ jsonPayload.context.event="authn_login_fail"
 | `session_logout` | INFO | `POST /auth/logout`（session 模式）、`POST /api/auth/logout`（前端） | `auth_mode`；認得出是誰時有 `user_id`；token 模式另有 `access_token_id` |
 | `authz_fail` | WARNING | 任何 403：Origin 檢查（`EnsureFrontendOrigin`）、`abort(403)`、Policy 拒絕 | `http_method`、`route`（路由樣板）、`resource`（路徑，不含 query string）、`reason`（程式裡寫的固定訊息）、`source_ip`；已驗證的請求有 `user_id` |
 | `excess_rate_limit_exceeded` | WARNING | 任何 429 | `http_method`、`route`、`max`（limiter 上限：login 5、social-login 20、token-refresh 30、api 60）、`retry_after`、`source_ip`；已驗證的請求有 `user_id` |
-| `authz_admin` | WARNING | 已登入使用者在 HTTP 請求裡新增、修改、刪除 Scope／Relation／Documentation／Technique／Implementation，或改它們之間的 pivot；從文章來源 repo 匯入或連結文章（`POST /api/article-sources/import`，每篇一筆，另外還有那篇文章本身的 `create`／`update`） | `user_id`、`action`（`create`／`update`／`delete`／`sync`／`import`／`link`）、`object`（`scope`…）、`object_id`；`update` 有 `fields`（改了哪些欄位）；`sync` 有 `relation`、`attached`、`detached`、`updated`（id 清單）；`import`、`link` 有 `source_key`（原稿的 slug）、`blob_sha`、`commit_sha`，不記內文與檔案路徑 |
+| `authz_admin` | WARNING | 已登入使用者在 HTTP 請求裡新增、修改、刪除 Scope／Relation／Documentation／Technique／Implementation，或改它們之間的 pivot；從文章來源 repo 匯入或連結文章（`POST /api/article-sources/import`，每篇一筆，另外還有那篇文章本身的 `create`／`update`；原稿 front matter 的 `about_techniques`／`about_projects` 建出新連結時，再多一筆 `sync`，只有 `attached`） | `user_id`、`action`（`create`／`update`／`delete`／`sync`／`import`／`link`）、`object`（`scope`…）、`object_id`；`update` 有 `fields`（改了哪些欄位）；`sync` 有 `relation`、`attached`、`detached`、`updated`（id 清單）；`import`、`link` 有 `source_key`（原稿的 slug）、`blob_sha`、`commit_sha`，不記內文與檔案路徑 |
 
 `authn_login_fail` 的 `reason`：
 
