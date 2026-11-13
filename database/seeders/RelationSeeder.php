@@ -252,6 +252,49 @@ class RelationSeeder extends Seeder
         // 跟上面其他述詞一樣經過 relation()／pairReverse()，重跑不會重複建、也不會蓋掉後台改過的配對（#84）
         $this->pairReverse($versionRelations['isVersionOf'], $versionRelations['hasVersion']);
 
+        // 2026-11-13 外部參考（外部文章、repo、skill）要放上網站所需的三組述詞，全是 Documentation 當主詞。
+        // 類號照其他述詞的規則：主詞頂層分類的第一碼＋受詞頂層分類的第一碼（文件→技術 01、文件→實作 02、
+        // 反向 10、20），子類號接在該類號已用過的後面（01 只有 specs 的 00、02 只有 documents 的 00、
+        // 10 只有 specifiedBy 的 00、20 只有 documentedBy 的 00，所以從 10 起；targets 用 20）。
+        // 放在最後面，全新資料庫種出來的 id 順序才會跟正式環境加上這批之後一致。
+        //
+        // - about／subjectOf：這份文件的主題是這個技術。跟 specs 不同：specs 是該技術自己的官方說明，
+        //   about 是任何以它為主題的文件。Schema.org about（等同 dcterms:subject），反向是 subjectOf。
+        // - targets／targetedBy：這份來源（skill、外掛、工具）是給這個技術（通常是 AI 工具）用的。
+        //   Schema.org targetProduct；Schema.org 沒有反向詞條，照 assists／documentedBy 的先例沿用同一個詞條。
+        // - influences／influencedBy：這份來源的規則、做法或概念已經寫進這個實作。只有借來的東西真的進了
+        //   那個實作才連，還在計畫中的不連。W3C PROV-O prov:influenced／prov:wasInfluencedBy。
+        $documentationPredicates = [
+            ['01', '10', 'about', 'schema.org about (= dcterms:subject) — the subject matter of this Documentation is the Technique. Unlike specs (the Technique\'s own official docs), any Documentation about the Technique qualifies.', 'schema', 'about'],
+            ['10', '10', 'subjectOf', 'schema.org subjectOf — reverse of about.', 'schema', 'subjectOf'],
+            ['01', '20', 'targets', 'schema.org targetProduct — this Documentation (a skill, plugin or tool) is written for that Technique, usually an AI tool such as Claude Code.', 'schema', 'targetProduct'],
+            ['10', '20', 'targetedBy', 'Reverse of targets. schema.org has no inverse term, so it reuses targetProduct as assists/documentedBy do.', 'schema', 'targetProduct'],
+            ['02', '10', 'influences', 'W3C PROV-O prov:influenced — this Documentation\'s rules, practices or ideas have been adopted into the Implementation. Link only once the adoption has landed in that Implementation, not while it is still planned.', 'prov', 'influenced'],
+            ['20', '10', 'influencedBy', 'W3C PROV-O prov:wasInfluencedBy — reverse of influences.', 'prov', 'wasInfluencedBy'],
+        ];
+
+        foreach ($documentationPredicates as [$classNumber, $callNumber, $name, $note, $sourceVocabulary, $sourceTerm]) {
+            // subject／object 的頂層分類由類號的兩碼決定：第一碼是主詞、第二碼是受詞的 class_number 第一碼。
+            // 反向述詞（類號 10、20）的主詞受詞剛好對調，所以直接用類號查，不另外寫一份對照。
+            $subject = $leadScopes->first(fn (Scope $scope) => $scope->class_number[0] === $classNumber[0]);
+            $object = $leadScopes->first(fn (Scope $scope) => $scope->class_number[0] === $classNumber[1]);
+
+            $seeded[$name] = $this->relation([
+                'subject_id' => $subject->id,
+                'object_id' => $object->id,
+                'class_number' => $classNumber,
+                'call_number' => $callNumber,
+                'name' => $name,
+                'note' => $note,
+                'source_vocabulary' => $sourceVocabulary,
+                'source_term' => $sourceTerm,
+            ]);
+        }
+
+        $this->pairReverse($seeded['about'], $seeded['subjectOf']);
+        $this->pairReverse($seeded['targets'], $seeded['targetedBy']);
+        $this->pairReverse($seeded['influences'], $seeded['influencedBy']);
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 

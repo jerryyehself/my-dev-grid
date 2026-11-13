@@ -44,7 +44,7 @@ class RelationSourceVocabularyTest extends TestCase
 
     public static function borrowedPredicateProvider(): array
     {
-        // 17 筆裡扣掉 specs/specifiedBy（上面那支測試單獨守），剩下 15 筆全部
+        // 23 筆裡扣掉 specs/specifiedBy（上面那支測試單獨守），剩下 21 筆全部
         // 應該是借來的，逐筆核對——不是只挑幾個代表，因為漏一筆不會報錯，
         // 只會安靜留一個 null。挑選依據記在回填 migration 的 docblock。
         return [
@@ -63,16 +63,22 @@ class RelationSourceVocabularyTest extends TestCase
             'accompanies' => ['accompanies', 'tillett1987', 'Accompanying'],
             'precedes' => ['precedes', 'tillett1987', 'Sequential'],
             'succeeds（沿用 precedes 的詞條，note 沒有另外具名）' => ['succeeds', 'tillett1987', 'Sequential'],
+            'about（2026-11-13 加，文件的主題是某技術）' => ['about', 'schema', 'about'],
+            'subjectOf（schema.org 有具名的反向詞條）' => ['subjectOf', 'schema', 'subjectOf'],
+            'targets（文件是給某技術用的）' => ['targets', 'schema', 'targetProduct'],
+            'targetedBy（schema.org 沒有反向詞條，沿用 targetProduct）' => ['targetedBy', 'schema', 'targetProduct'],
+            'influences（來源已經影響了某實作）' => ['influences', 'prov', 'influenced'],
+            'influencedBy（PROV-O 具名的反向詞條）' => ['influencedBy', 'prov', 'wasInfluencedBy'],
         ];
     }
 
     #[TestDox('每個 seeder 種出的述詞都做過出處判斷')]
     public function test_every_seeded_relation_has_a_source_decision(): void
     {
-        // 上面兩支測試合起來要覆蓋全部 17 筆——這支測試不驗證個別值，只驗證
+        // 上面兩支測試合起來要覆蓋全部 23 筆——這支測試不驗證個別值，只驗證
         // 「沒有漏掉的一筆」。漏掉的一筆會落成 source_vocabulary 為 null，
         // 跟「查證後判斷是自創」在資料庫裡長得一模一樣，光看資料分不出來，
-        // 所以覆蓋率要用「這 15 個名字都出現在上面兩支測試的清單裡」來守，
+        // 所以覆蓋率要用「這 23 個名字都出現在上面兩支測試的清單裡」來守，
         // 不能只信任個別斷言都過了。
         $this->seed();
 
@@ -83,7 +89,7 @@ class RelationSourceVocabularyTest extends TestCase
 
         $allNames = Relation::pluck('name')->all();
 
-        $this->assertCount(17, $allNames, '目前 seeder 應該種出 17 筆 relation——這個數字變了，上面兩支測試的覆蓋清單要跟著補');
+        $this->assertCount(23, $allNames, '目前 seeder 應該種出 23 筆 relation——這個數字變了，上面兩支測試的覆蓋清單要跟著補');
         $this->assertEqualsCanonicalizing($allNames, $decided, '有 relation 沒有被任何一支測試的清單涵蓋到，即使它剛好是 null 也不能算「驗證過」');
     }
 
@@ -149,6 +155,9 @@ class RelationSourceVocabularyTest extends TestCase
             ['uses', 'usedBy'],
             ['precedes', 'succeeds'],
             ['isVersionOf', 'hasVersion'],
+            ['about', 'subjectOf'],
+            ['targets', 'targetedBy'],
+            ['influences', 'influencedBy'],
         ];
 
         foreach ($pairs as [$forward, $reverse]) {
@@ -165,7 +174,7 @@ class RelationSourceVocabularyTest extends TestCase
             );
         }
 
-        foreach ([['documents', 'documentedBy'], ['precedes', 'succeeds']] as [$forward, $reverse]) {
+        foreach ([['documents', 'documentedBy'], ['precedes', 'succeeds'], ['targets', 'targetedBy']] as [$forward, $reverse]) {
             $forwardRelation = Relation::where('name', $forward)->firstOrFail();
             $reverseRelation = Relation::where('name', $reverse)->firstOrFail();
 

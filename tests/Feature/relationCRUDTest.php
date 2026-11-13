@@ -328,7 +328,7 @@ class relationCRUDTest extends TestCase
 
         $relations = Relation::all()->keyBy('id');
 
-        $this->assertCount(17, $relations, 'seeder 的關係數量變了,這支測試的預期要一起更新。');
+        $this->assertCount(23, $relations, 'seeder 的關係數量變了,這支測試的預期要一起更新。');
 
         foreach ($relations as $relation) {
             if (is_null($relation->reverse_id)) {
