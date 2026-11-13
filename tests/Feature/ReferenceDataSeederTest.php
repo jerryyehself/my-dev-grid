@@ -49,7 +49,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->deploySeed();
 
         $this->assertSame(16, Scope::count());
-        $this->assertSame(17, Relation::count());
+        $this->assertSame(21, Relation::count());
         // 不建帳號、不碰內容資料
         $this->assertSame(0, User::count());
         $this->assertSame(0, Documentation::count());
@@ -65,9 +65,9 @@ class ReferenceDataSeederTest extends TestCase
         $this->deploySeed();
 
         $this->assertSame(16, Scope::count());
-        $this->assertSame(17, Relation::count());
+        $this->assertSame(21, Relation::count());
         $this->assertSame(16, Scope::withTrashed()->distinct()->count('name'));
-        $this->assertSame(17, Relation::withTrashed()->distinct()->count('name'));
+        $this->assertSame(21, Relation::withTrashed()->distinct()->count('name'));
     }
 
     #[TestDox('重跑部署 seed 不蓋掉後台改過的內容')]
@@ -133,7 +133,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame('dcterms', $isVersionOf->source_vocabulary);
         // 原本就在的不動
         $this->assertSame($existingIds, Relation::whereNotIn('name', ['isVersionOf', 'hasVersion'])->orderBy('id')->pluck('id', 'name')->all());
-        $this->assertSame(17, Relation::count());
+        $this->assertSame(21, Relation::count());
     }
 
     #[TestDox('seed 中途失敗時整個退回，不留一半的資料')]

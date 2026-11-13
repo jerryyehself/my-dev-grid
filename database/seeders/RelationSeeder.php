@@ -250,6 +250,49 @@ class RelationSeeder extends Seeder
         // 跟上面其他述詞一樣經過 relation()／pairReverse()，重跑不會重複建、也不會蓋掉後台改過的配對（#84）
         $this->pairReverse($versionRelations['isVersionOf'], $versionRelations['hasVersion']);
 
+        // 文章在 front matter 宣告「這篇在講哪些技術、哪些專案」，匯入時建成連結
+        // （ArticleSourceService）。借 schema.org 的 about／subjectOf：
+        // https://schema.org/about 、https://schema.org/subjectOf 。
+        //
+        // 技術和專案各一對，因為述詞的受詞只能指到一個頂層分類（連結的分類檢查靠它，
+        // RelationFitsLinkedScopes），一對 about 沒辦法同時涵蓋 Technique 和 Implementation；
+        // 名稱又不能重複，專案那一對加上 Project 字樣。兩對都對應同一個 schema.org 詞條。
+        // 跟 specs／documents 平輩（類號相同、子類號不同），不是子關係：說明一篇文章講到某個
+        // 主題，不蘊含它是那個主題的規格或文件。放在最後面，原有述詞的 id 不變。
+        $documentation = $leadScopes->firstWhere('class_number', '00');
+
+        $aboutSeeds = [
+            // [名稱, 反向名稱, 受詞端的頂層分類, 類號, 說明]
+            ['about', 'subjectOf', $technique, '01', 'Documentation is about a Technique'],
+            ['aboutProject', 'projectSubjectOf', $implementation, '02', 'Documentation is about an Implementation (project)'],
+        ];
+
+        foreach ($aboutSeeds as [$name, $reverseName, $object, $classNumber, $meaning]) {
+            $about = $this->relation([
+                'subject_id' => $documentation->id,
+                'object_id' => $object->id,
+                'class_number' => $classNumber,
+                'call_number' => '10',
+                'name' => $name,
+                'note' => "schema.org about (https://schema.org/about) — {$meaning}: the article discusses it, without being its spec or documentation.",
+                'source_vocabulary' => 'schema',
+                'source_term' => 'about',
+            ]);
+
+            $subjectOf = $this->relation([
+                'subject_id' => $object->id,
+                'object_id' => $documentation->id,
+                'class_number' => $classNumber[1].$classNumber[0],
+                'call_number' => '10',
+                'name' => $reverseName,
+                'note' => 'schema.org subjectOf (https://schema.org/subjectOf) — reverse of '.$name.'.',
+                'source_vocabulary' => 'schema',
+                'source_term' => 'subjectOf',
+            ]);
+
+            $this->pairReverse($about, $subjectOf);
+        }
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 
