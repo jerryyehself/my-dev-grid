@@ -37,6 +37,9 @@ final class ArticleAboutLinker
         'project' => ['aboutProject', '專案', 'about_projects'],
     ];
 
+    /** @param  NomenRecorder  $nomens  影子模式：另外記下 front matter 的名稱，不影響這裡建的連結 */
+    public function __construct(private readonly NomenRecorder $nomens) {}
+
     /**
      * @param  array{techniques: list<string>, projects: list<string>}  $about
      * @return list<array{code: string, message: string, line: int|null}> 警告；沒有問題就是空的
@@ -82,6 +85,8 @@ final class ArticleAboutLinker
 
             $this->attach($link, $attach);
         }
+
+        $this->nomens->recordArticle($documentation, $about);
 
         return $warnings;
     }

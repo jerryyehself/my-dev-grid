@@ -19,18 +19,12 @@ final class PackageTechniqueMap
         $found = [];
 
         foreach ($packages as $ecosystem => $names) {
-            $map = config("package_technologies.{$ecosystem}");
-
-            if (! is_array($map) || ! is_array($names)) {
+            if (! is_array($names)) {
                 continue;
             }
 
             foreach ($names as $name) {
-                if (! is_string($name)) {
-                    continue;
-                }
-
-                $technique = $map[mb_strtolower($name)] ?? null;
+                $technique = is_string($name) ? self::techniqueFor((string) $ecosystem, $name) : null;
 
                 if ($technique !== null) {
                     $found[mb_strtolower($technique[0]).'|'.$technique[1]] = $technique;
@@ -39,5 +33,19 @@ final class PackageTechniqueMap
         }
 
         return array_values($found);
+    }
+
+    /**
+     * 單一個套件對到的技術；不在對照表裡（包括不認得的生態系）是 null。
+     *
+     * @return array{0: string, 1: string}|null [技術名稱, scope]
+     */
+    public static function techniqueFor(string $ecosystem, string $name): ?array
+    {
+        // 不用 config("….{$name}")：`chart.js` 這類名稱裡的點會被當成巢狀 key
+        $map = config("package_technologies.{$ecosystem}");
+        $technique = is_array($map) ? ($map[mb_strtolower($name)] ?? null) : null;
+
+        return is_array($technique) ? $technique : null;
     }
 }
