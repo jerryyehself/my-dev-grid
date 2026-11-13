@@ -37,6 +37,7 @@ class GraphController extends Controller
      * added_at／updated_at 是這個網站自己記下的時間：節點是資料列的 created_at／updated_at，
      * 邊的 added_at 是連結列（三張 pivot 或 entity_relations）的 created_at。2026-10-02 首次匯入的資料
      * 是基準，不是實際建立的時間；連結列在開始寫入時間之前存下來的沒有值，也不回補，所以邊的 added_at 可能是 null。
+     * 沒登入時，未公開文件的 added_at／updated_at，以及連到它的邊的 added_at，也一律是 null。
      * stale 只有 GitHub 同步建立的「技術—實作」邊可能是 true，其他邊一律 false；規則見 `TechniqueImplementationLink::staleCutoff()`。
      */
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
