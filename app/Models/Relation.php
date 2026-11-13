@@ -311,6 +311,34 @@ class Relation extends Model
     }
 
     /**
+     * 刪除這條述詞前要檢查的兩種引用數量。
+     *
+     * - `links`：四張連結表裡用到它的列數。連結表沒有 `deleted_at`，所以全部都算；
+     *   連到已軟刪除實體的邊也算，跟 isReferenced() 一致。
+     * - `inverse_of`：把它設為 reverse_id 的其他述詞數，不含已軟刪除的。對稱關係
+     *   （reverse_id 指向自己）排除自己，不然它永遠刪不掉。
+     *
+     * 注意 reverse_id 一定是雙向的（見 syncReverse()），所以有配對的述詞，對方
+     * 一定會被算進 `inverse_of`，要先解除配對才能刪。
+     *
+     * @return array{links: int, inverse_of: int}
+     */
+    public function referenceCountsForDeletion(): array
+    {
+        $links = 0;
+        foreach (self::LINK_RELATIONS as $relation) {
+            $links += $this->{$relation}()->count();
+        }
+
+        return [
+            'links' => $links,
+            'inverse_of' => static::where('reverse_id', $this->id)
+                ->where('id', '!=', $this->id)
+                ->count(),
+        ];
+    }
+
+    /**
      * 這條述詞自己有幾筆邊——四張連結表的總和，**不含反向那條的**。
      *
      * 跟 isReferenced() 的差別要講清楚，因為兩者故意不一樣：isReferenced() 把反向的

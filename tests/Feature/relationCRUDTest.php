@@ -538,9 +538,10 @@ class relationCRUDTest extends TestCase
     public function test_delete_relation()
     {
         $this->actingAsOwner();
-        $this->seed();
 
-        $relation = Relation::first();
+        // 刪除要挑沒被引用的述詞：seeder 種的述詞都已配成一對（reverse_id 互指），
+        // 現在不能直接刪，見 RelationDeleteGuardTest。
+        $relation = Relation::factory()->create();
 
         $response = $this->deleteJson("/api/relations/{$relation->id}");
 
