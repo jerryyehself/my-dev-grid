@@ -779,7 +779,7 @@ class GraphApiTest extends TestCase
 
     /**
      * 圖上所有種類的邊：三張 pivot，加上 entity_relations 的三種同型別關係。
-     * 每一種回傳 [來源節點 id, 目標節點 id, 該邊所在的表, 找到那一列的條件]。
+     * 每一種只給種類名稱，由 makeEdge() 建出那條邊。
      *
      * @return array<string, array{0: string}>
      */
@@ -853,6 +853,43 @@ class GraphApiTest extends TestCase
     private function findEdge(TestResponse $response, string $source, string $target): ?array
     {
         return collect($response->json('edges'))->first(fn (array $e) => $e['source'] === $source && $e['target'] === $target);
+    }
+
+    #[TestDox('沒登入時，連到未公開文件的邊 added_at 為 null；登入後照常回傳')]
+    public function test_edges_to_unpublished_documentation_hide_added_at_from_guests()
+    {
+        $this->travelTo('2026-11-01 08:00:00');
+        $draft = Documentation::factory()->create(['status' => 0]);
+        $technique = Technique::factory()->create();
+        $draft->techniques()->sync([$technique->id => ['relation_id' => Relation::factory()->create()->id]]);
+        [$source, $target] = ["documentation-{$draft->id}", "technique-{$technique->id}"];
+
+        $guestEdge = $this->findEdge($this->getJson('/api/graph')->assertOk(), $source, $target);
+        $this->assertNotNull($guestEdge, '圖裡找不到這條邊');
+        $this->assertNull($guestEdge['added_at']);
+
+        Sanctum::actingAs(User::factory()->create());
+        $userEdge = $this->findEdge($this->getJson('/api/graph')->assertOk(), $source, $target);
+        $this->assertSame('2026-11-01 08:00:00', $userEdge['added_at']);
+    }
+
+    #[TestDox('沒登入時，同型別關係連到未公開文件的邊 added_at 也是 null')]
+    public function test_entity_relation_to_unpublished_documentation_hides_added_at_from_guests()
+    {
+        $this->travelTo('2026-11-01 08:00:00');
+        $published = Documentation::factory()->create();
+        $draft = Documentation::factory()->create(['status' => 0]);
+        EntityRelation::create([
+            'entity_type' => 'documentation',
+            'subject_id' => $published->id,
+            'object_id' => $draft->id,
+            'relation_id' => Relation::factory()->create()->id,
+        ]);
+
+        $edge = $this->findEdge($this->getJson('/api/graph')->assertOk(), "documentation-{$published->id}", "documentation-{$draft->id}");
+
+        $this->assertNotNull($edge, '圖裡找不到這條邊');
+        $this->assertNull($edge['added_at']);
     }
 
     #[TestDox('每一種邊都帶 added_at（連結列的建立時間）')]

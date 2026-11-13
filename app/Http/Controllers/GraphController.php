@@ -42,7 +42,7 @@ class GraphController extends Controller
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
         title: '取得知識圖譜',
-        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。`stale` 為 true 表示這是 GitHub 同步建立、但同步已超過 14 天沒再看到的技術與實作之間的邊（例如程式碼已經拿掉的技術）：邊仍會回傳，讓畫面可以淡化顯示，但最短路徑查詢不會經過它；其他邊一律為 false。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype`、`url`、`added_at`、`updated_at` 為 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
+        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。`stale` 為 true 表示這是 GitHub 同步建立、但同步已超過 14 天沒再看到的技術與實作之間的邊（例如程式碼已經拿掉的技術）：邊仍會回傳，讓畫面可以淡化顯示，但最短路徑查詢不會經過它；其他邊一律為 false。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype`、`url`、`added_at`、`updated_at` 為 null，連到它的邊 `added_at` 也是 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
     )]
     #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, added_at: string|null, updated_at: string|null, subtype: string|null, url: string|null, active: bool}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, added_at: string|null, stale: bool}>}')]
     public function index()
@@ -50,15 +50,29 @@ class GraphController extends Controller
         // 登入態每個請求只在這裡判斷一次，往下傳給每個節點用，不在節點迴圈裡一個一個問
         $canSeeDrafts = Documentation::viewerCanSeeDrafts();
 
+        $documentations = Documentation::with('scope')->get();
+
         $nodes = collect()
             // 未公開的文件也列出來（`active` 為 false），沒登入時由 nodesFor() 遮掉標題與連結
-            ->concat($this->nodesFor(Documentation::with('scope')->get(), 'documentation', $canSeeDrafts))
+            ->concat($this->nodesFor($documentations, 'documentation', $canSeeDrafts))
             ->concat($this->nodesFor(Technique::all(), 'technique', $canSeeDrafts))
             ->concat($this->nodesFor(Implementation::visibleToViewer()->get(), 'implementation', $canSeeDrafts))
             ->values();
 
+        // 沒登入時，連到未公開文件的邊也不給加入時間：連結多半跟文件同時存下，
+        // 邊的時間等於草稿的建立時間，之後新增的連結也會透露草稿什麼時候被編輯過
+        $hiddenDraftIds = $documentations
+            ->reject(fn (Documentation $documentation) => $this->documentationIsOpenToViewer($documentation, $canSeeDrafts))
+            ->mapWithKeys(fn (Documentation $documentation) => [$this->nodeId('documentation', $documentation->id) => true]);
+
         $edges = $this->rawEdges()
-            ->map(fn (array $e) => $this->edge($e['source'], $e['target'], $e['relation'], $e['added_at'], $e['stale']))
+            ->map(fn (array $e) => $this->edge(
+                $e['source'],
+                $e['target'],
+                $e['relation'],
+                $hiddenDraftIds->has($e['source']) || $hiddenDraftIds->has($e['target']) ? null : $e['added_at'],
+                $e['stale'],
+            ))
             ->values();
 
         return response()->json([
