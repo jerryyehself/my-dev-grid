@@ -9,6 +9,7 @@ name: Coverage
 # - 跑測試的那一步加了 continue-on-error。測試沒過時 tests.yml 會自己變紅，這裡不重複擋；
 #   這一步會顯示紅叉，Summary 也會註明「測試沒跑完，覆蓋率只供參考」。
 # - 沒有任何覆蓋率門檻（不設 --min、不比較 base），數字只供參考。
+# - 測試都通過卻沒有產出報告時（覆蓋率工具壞了），Summary 那一步會紅，不會被當成正常。
 # - 安裝套件、準備環境這些前置步驟沒有加，壞了就是壞了（tests.yml 同樣會壞）。
 #
 # 為什麼獨立一個 workflow，不放進 tests.yml：理由跟 infection.yml 相同（觸發條件與矩陣不用動）。
@@ -99,6 +100,11 @@ jobs:
               echo
               echo "測試沒有跑到產生報告的那一步，**沒有數字可看**。"
             } >> "$GITHUB_STEP_SUMMARY"
+            # 測試沒過時 tests.yml 已經會紅，這裡不重複擋；測試都過了卻沒有報告，是覆蓋率工具壞了，要紅。
+            if [ "$TESTS_OUTCOME" = "success" ]; then
+              echo "測試通過但沒有覆蓋率報告：覆蓋率工具（pcov）出錯。" >&2
+              exit 1
+            fi
             exit 0
           fi
 

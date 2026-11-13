@@ -71,7 +71,7 @@
 
 ## 靜態分析與覆蓋率報告
 
-CI 在每個 PR 上另外產出兩份報告，跟 Infection 一樣**只看報告，不擋 PR**：分析那一步加了 `continue-on-error`，找到問題或覆蓋率低都不會讓檢查變紅；紅叉只代表工具自己出錯（例如 phpstan 當掉、測試沒跑完），Summary 會寫明「沒有產出結果」，不會被當成「沒有問題」。兩份都不跑在 `develop` 到 `main` 的上線 PR（改動在進 `develop` 的 PR 上已經跑過），也不跑在沒碰到相關檔案的 PR（`paths` 篩選）。
+CI 在每個 PR 上另外產出兩份報告，跟 Infection 一樣**只看報告，不擋 PR**：找到問題或覆蓋率低都不會讓檢查變紅；檢查變紅只代表工具自己出錯（例如 phpstan 當掉或回報內部錯誤、測試都過了卻沒有覆蓋率報告），Summary 會寫明「沒有產出結果」，不會被當成「沒有問題」。測試沒過時只由 Tests 那項檢查變紅，覆蓋率這項不重複擋。兩份都不跑在 `develop` 到 `main` 的上線 PR（改動在進 `develop` 的 PR 上已經跑過），也不跑在沒碰到相關檔案的 PR（`paths` 篩選）。
 
 **Larastan（`.github/workflows/larastan.yml`，設定在 `phpstan.neon`）。** [Larastan](https://github.com/larastan/larastan) 是 PHPStan 的 Laravel 擴充，不執行程式就檢查呼叫的方法與屬性是否存在、參數與回傳型別是否對得上。
 

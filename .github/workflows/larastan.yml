@@ -6,9 +6,10 @@ name: Larastan
 # docs/conventions/testing.md「靜態分析與覆蓋率報告」。
 #
 # 怎麼做到不擋 PR：
-# - 分析那一步加了 continue-on-error，找到問題（phpstan 以 1 結束）或 phpstan 自己當掉，
-#   job 都是綠燈；結果寫在 job 的 Summary，並在 Files changed 上標成警告註解。
-# - 當掉時分析那一步會顯示紅叉，Summary 也會寫「沒有產出結果」，不會被當成「沒有問題」。
+# - 找到問題（phpstan 以 1 結束）時，分析那一步自己以 0 結束，job 是綠燈；結果寫在 job 的
+#   Summary，並在 Files changed 上標成警告註解。
+# - phpstan 當掉、輸出讀不出來，或回報不屬於任何檔案的內部錯誤時，job 是紅燈，Summary 寫
+#   「沒有產出結果」，不會被當成「沒有問題」。不加 continue-on-error，加了紅燈會變綠燈。
 # - 安裝套件、準備環境這些前置步驟沒有加，壞了就是壞了（tests.yml 同樣會壞）。
 #
 # 不放進 tests.yml 的理由跟 infection.yml 一樣：tests.yml 同時跑 push 與 pull request、
@@ -18,12 +19,15 @@ name: Larastan
 on:
   pull_request:
     branches: [main, develop]
-    # 清單跟 phpstan.neon 的 paths 對得上：app、database/factories、database/seeders、routes。
+    # 清單包含 phpstan.neon 的 paths（app、database/factories、database/seeders、routes），再加上會影響結果的 migration 與 config。
     paths:
       - "app/**"
       - "database/factories/**"
       - "database/seeders/**"
       - "routes/**"
+      # Larastan 讀 migration 推算 model 屬性、讀 config 判斷型別，只改這兩處也會改變結果。
+      - "database/migrations/**"
+      - "config/**"
       - "phpstan.neon"
       - "phpstan-baseline.neon"
       - "composer.json"
@@ -80,18 +84,20 @@ jobs:
       # 註解最多標 50 則（GitHub 每個 job 的上限），Summary 表格最多列 100 列。
       - name: Run Larastan
         id: larastan
-        continue-on-error: true
         run: |
           mkdir -p build/phpstan
           status=0
           vendor/bin/phpstan analyse --no-progress --memory-limit=1G --error-format=json \
             > build/phpstan/result.json 2> build/phpstan/stderr.log || status=$?
 
-          if [ "$status" -gt 1 ] || ! jq -e '.totals' build/phpstan/result.json > /dev/null 2>&1; then
+          # 不屬於任何檔案的錯誤（.errors）是 phpstan 的內部錯誤，這時真正的結果會被丟掉，同樣算沒有結果。
+          # 基準檔過期的 ignore.unmatched 會掛在檔案底下，不在 .errors 裡。
+          if [ "$status" -gt 1 ] || ! jq -e '.totals and (.errors | length == 0)' build/phpstan/result.json > /dev/null 2>&1; then
             {
               echo "## Larastan：沒有產出結果"
               echo
-              echo "phpstan 以 ${status} 結束，輸出不是可讀的 JSON（當掉或被截斷），**這不代表沒有問題**。"
+              echo "phpstan 以 ${status} 結束，輸出不是可讀的 JSON（當掉或被截斷），或有內部錯誤，**這不代表沒有問題**。"
+              jq -r '.errors[]? | "- " + .' build/phpstan/result.json 2>/dev/null || true
               echo
               echo '```'
               tail -n 40 build/phpstan/stderr.log
@@ -107,16 +113,15 @@ jobs:
             def clean: split($ws) | join("");
             [ .files | to_entries[] | .key as $file | .value.messages[]
               | { file: ($file | clean), line: (.line // 1), message: (.message | clean), identifier: (.identifier // "") } ]
-            + [ .errors[] | { file: "", line: 0, message: clean, identifier: "general" } ]
           ' build/phpstan/result.json > build/phpstan/findings.json
 
           # 基準檔裡的項目對不上現況（問題少了、或次數變少）時，phpstan 會報 ignore.* 的錯誤。
           # 那代表「基準檔該重產了」（通常是這個 PR 修掉了問題），不是新增的問題，分開算。
-          found=$(jq '[.[] | select(.identifier | startswith("ignore.") or . == "general" | not)] | length' build/phpstan/findings.json)
-          stale=$(jq '[.[] | select(.identifier | startswith("ignore.") or . == "general")] | length' build/phpstan/findings.json)
+          found=$(jq '[.[] | select(.identifier | startswith("ignore.") | not)] | length' build/phpstan/findings.json)
+          stale=$(jq '[.[] | select(.identifier | startswith("ignore."))] | length' build/phpstan/findings.json)
           baseline=$(awk '/^[[:space:]]+count:/ { total += $2 } END { print total + 0 }' phpstan-baseline.neon)
 
-          jq -r '[ .[] | select(.identifier | startswith("ignore.") or . == "general" | not)
+          jq -r '[ .[] | select(.identifier | startswith("ignore.") | not)
                    | "::warning file=\(.file),line=\(.line),title=Larastan::\(.message | gsub("%"; "%25") | gsub("\r"; "%0D") | gsub("\n"; "%0A"))" ]
                  | .[:50][]' build/phpstan/findings.json
 
@@ -132,7 +137,7 @@ jobs:
               echo
               echo "| 位置 | 問題 |"
               echo "| --- | --- |"
-              jq -r '[ .[] | select(.identifier | startswith("ignore.") or . == "general" | not)
+              jq -r '[ .[] | select(.identifier | startswith("ignore.") | not)
                        | "| `\(.file):\(.line)` | \(.message | gsub("\n"; " ") | gsub("\\|"; "\\|")) (`\(.identifier | if . == "" then "-" else . end)`) |" ]
                      | .[:100][]' build/phpstan/findings.json
               if [ "$found" -gt 100 ]; then
