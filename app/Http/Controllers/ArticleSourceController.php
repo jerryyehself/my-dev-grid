@@ -34,7 +34,10 @@ class ArticleSourceController extends Controller
     #[Endpoint(
         title: '匯入文章',
         description: '依清單的選擇匯入：`create` 新增成草稿；`update` 用來源的內容更新已連結的文章，不改它的發布狀態；'
-            .'`link` 把來源記到既有文章上，不改標題與內文。伺服器會以 `commit_sha` 那個版本重新讀取，'
+            .'`link` 把來源記到既有文章上，不改標題與內文。`create`、`update` 時，原稿 front matter 的 '
+            .'`about_techniques`、`about_projects`（名稱清單，不分大小寫）會對上站上的技術與專案，新增文章到它們的連結；'
+            .'只新增，不刪除也不改既有的連結，重複匯入不會重複，找不到、對上不只一筆或分類不符的名稱不會建立連結，也不會自動新增技術或專案，'
+            .'只在該篇的 `warnings` 回報。伺服器會以 `commit_sha` 那個版本重新讀取，'
             .'檔案跟 `expected_blob_sha` 不同、或站上的狀態已經改變時回 409，整批都不寫入，請重新列清單。'
             .'狀態是 `conflict` 的項目要帶 `overwrite_site_edits: true` 才會更新。需要登入。',
     )]

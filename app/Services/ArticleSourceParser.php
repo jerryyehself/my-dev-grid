@@ -19,7 +19,12 @@ use Symfony\Component\Yaml\Yaml;
  * - `creation_date` 選填，日期格式 `YYYY-MM-DD`。
  * - `body` 存去掉 front matter（與上面那行 H1）之後的 Markdown 原文，換行統一成 `\n`。
  *
- * 其他 front matter 欄位（例如技術、實作的對應）目前不處理。
+ * - `about_techniques`、`about_projects` 選填，各是一份名稱清單，寫這篇文章在講哪些技術、哪些專案。
+ *   只收字串清單（沒寫、`null`、空清單都是沒有），每筆去掉頭尾空白、不分大小寫去重，最多
+ *   `MAX_ABOUT_NAMES` 筆、每筆最長 `MAX_ABOUT_NAME_LENGTH` 字元；格式不對的列為 invalid。
+ *   這裡只負責讀成名稱，對上站上的技術與專案、建立連結是匯入時的事（`ArticleSourceService`）。
+ *
+ * 其他 front matter 欄位目前不處理。
  */
 final class ArticleSourceParser
 {
@@ -27,6 +32,11 @@ final class ArticleSourceParser
     public const MAX_TITLE_LENGTH = 255;
 
     public const MAX_KEY_LENGTH = 255;
+
+    /** 每份清單最多幾筆、每筆名稱最長幾個字元（技術與專案的 `title` 都是 varchar(255)，實際上遠短於此）。 */
+    public const MAX_ABOUT_NAMES = 50;
+
+    public const MAX_ABOUT_NAME_LENGTH = 100;
 
     private const SLUG_PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
 
@@ -42,16 +52,20 @@ final class ArticleSourceParser
         'title_missing' => '沒有標題：front matter 沒有 title，內文開頭也沒有 H1。',
         'title_invalid' => 'title 必須是文字，最長 255 字元。',
         'creation_date_invalid' => 'creation_date 必須是 YYYY-MM-DD 格式的日期。',
+        'about_techniques_invalid' => 'about_techniques 必須是名稱（文字）的清單，最多 50 筆、每筆最長 100 字元，不能有空白的項目。',
+        'about_projects_invalid' => 'about_projects 必須是名稱（文字）的清單，最多 50 筆、每筆最長 100 字元，不能有空白的項目。',
     ];
 
     /**
      * `body_line` 是 `body` 第一行在原檔的行號（從 1 起算），掃描警告時用來回報原檔的行號。
      *
-     * @return array{import: bool, key: string|null, title: string|null, body: string|null, creation_date: string|null, invalid: string|null, body_line: int}
+     * `about` 是 front matter 宣告的技術與專案名稱（已去掉空白與重複），沒寫就是兩份空清單。
+     *
+     * @return array{import: bool, key: string|null, title: string|null, body: string|null, creation_date: string|null, about: array{techniques: list<string>, projects: list<string>}, invalid: string|null, body_line: int}
      */
     public function parse(string $raw): array
     {
-        $result = ['import' => false, 'key' => null, 'title' => null, 'body' => null, 'creation_date' => null, 'invalid' => null, 'body_line' => 1];
+        $result = ['import' => false, 'key' => null, 'title' => null, 'body' => null, 'creation_date' => null, 'about' => ['techniques' => [], 'projects' => []], 'invalid' => null, 'body_line' => 1];
 
         $text = str_replace("\r\n", "\n", $raw);
         if (str_starts_with($text, "\u{FEFF}")) {
@@ -121,10 +135,20 @@ final class ArticleSourceParser
             return ['invalid' => 'creation_date_invalid'] + $result;
         }
 
+        $techniques = $this->aboutNames($meta['about_techniques'] ?? null);
+        if ($techniques === false) {
+            return ['invalid' => 'about_techniques_invalid'] + $result;
+        }
+        $projects = $this->aboutNames($meta['about_projects'] ?? null);
+        if ($projects === false) {
+            return ['invalid' => 'about_projects_invalid'] + $result;
+        }
+
         return [
             'title' => $title,
             'body' => $body,
             'creation_date' => $creationDate,
+            'about' => ['techniques' => $techniques, 'projects' => $projects],
             'body_line' => $bodyLine,
         ] + $result;
     }
@@ -205,5 +229,33 @@ final class ArticleSourceParser
         }
 
         return false;
+    }
+
+    /**
+     * 名稱清單：沒寫（null）或空清單是沒有；其餘要是字串的清單（YAML 的 list，不是 map，也不是單一字串）。
+     * 每筆去掉頭尾空白，空白的項目、非字串（數字、布林、巢狀）、超長、超過筆數都算格式不對。
+     * 不分大小寫去重，保留第一次出現的寫法與順序。
+     *
+     * @return list<string>|false 格式不對是 false
+     */
+    private function aboutNames(mixed $value): array|false
+    {
+        if ($value === null) {
+            return [];
+        }
+        if (! is_array($value) || ! array_is_list($value) || count($value) > self::MAX_ABOUT_NAMES) {
+            return false;
+        }
+
+        $names = [];
+        foreach ($value as $name) {
+            $name = is_string($name) ? trim($name) : null;
+            if ($name === null || $name === '' || mb_strlen($name) > self::MAX_ABOUT_NAME_LENGTH) {
+                return false;
+            }
+            $names[mb_strtolower($name)] ??= $name;
+        }
+
+        return array_values($names);
     }
 }

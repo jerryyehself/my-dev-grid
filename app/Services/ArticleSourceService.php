@@ -38,6 +38,8 @@ use Illuminate\Validation\ValidationException;
  * - `invalid`：選擇了匯入但不能匯入（原因見 `ArticleSourceParser::INVALID_REASONS`）。
  *
  * 匯入一律寫成草稿；更新既有文章時不改它的發布狀態（已發布的文章會直接換成新內容）。
+ * 新增與更新時，另外依 front matter 的 `about_techniques`、`about_projects` 補上文章到技術與專案的連結
+ * （規則見 `ArticleAboutLinker`）；連結（`link`）只寫來源欄位，不讀內容，也就不建這些連結。
  * 來源欄位（`source_*`）不在 `$fillable` 裡，只有這裡用 `forceFill()` 寫。
  */
 final class ArticleSourceService
@@ -75,13 +77,14 @@ final class ArticleSourceService
     private const CACHE_PREFIX = 'article-sources:';
 
     /** 解析規則改了就加一，舊的解析結果快取自然失效。 */
-    private const PARSER_VERSION = 1;
+    private const PARSER_VERSION = 2;
 
     private const SHA_PATTERN = '/^[0-9a-f]{40}$/';
 
     public function __construct(
         private readonly ArticleSourceParser $parser,
         private readonly PublishSafetyScanner $scanner,
+        private readonly ArticleAboutLinker $aboutLinker,
     ) {}
 
     /**
@@ -286,7 +289,8 @@ final class ArticleSourceService
                 }
 
                 $documentation->forceFill($source + ['source_body_hash' => self::bodyHash($article['body'])])->save();
-                $warnings = $this->warnings($article);
+                // 連結只新增、不刪除；警告跟內容掃描的警告放在一起回報
+                $warnings = [...$this->warnings($article), ...$this->aboutLinker->link($documentation, $article['about'])];
             }
 
             $results[] = [
