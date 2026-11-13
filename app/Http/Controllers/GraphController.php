@@ -64,23 +64,17 @@ class GraphController extends Controller
     }
 
     /**
-     * Shortest path between two graph nodes (BFS, edges treated as
-     * undirected for reachability — "how are these two things related"
-     * shouldn't fail just because the real relation happens to point the
-     * other way). Each hop reports the predicate for the direction actually
-     * travelled: travelling with a relation's stored subject->object
-     * direction uses its own name; travelling against it looks up that
-     * relation's `reverse_id` and uses the reverse relation's name instead
-     * (e.g. walking a `specs` edge backward reports `specifiedBy`, not
-     * `specs`). `hasDefinedReverse` is false only if a relation somehow has
-     * no `reverse_id` set — in the current seed data every relation has one,
-     * so this is a defensive fallback, not the expected case.
+     * 兩個圖節點之間的最短路徑（BFS）。路徑搜尋時邊視為無向，
+     * 讓「這兩者有什麼關係」不會因為實際關係的方向剛好相反而失敗。每一跳回報的
+     * 謂詞依實際走過的方向決定：順著關係儲存的 subject→object 方向走，就用它自己的名稱；
+     * 反向走時，改查該關係的 `reverse_id`，改用反向關係的名稱
+     * （例如倒著走 `specs` 邊時，回報的是 `specifiedBy`，而不是 `specs`）。
+     * `hasDefinedReverse` 只有在某筆關係沒有設定 `reverse_id` 時才會是 false。
+     * 目前的 seed 資料每筆關係都有設定，所以這只是防禦性的 fallback，不是預期情況。
      *
-     * No k-shortest-paths / multiple alternate routes yet — this returns
-     * the single shortest path only. Deliberately scoped down: a small
-     * graph like this doesn't need more for a first version, and adding
-     * real alternate-path search (e.g. Yen's algorithm) can come later if
-     * it turns out to matter.
+     * 目前不支援 k 條最短路徑，也不回傳多條替代路徑，這裡只回傳單一最短路徑。
+     * 刻意縮小範圍：這種規模的圖，第一版不需要更多功能。
+     * 若將來真的有需要，再加入替代路徑搜尋（例如 Yen 演算法）。
      */
     // 同 index()：手動組的回應，在這裡寫明形狀。找不到路徑時 found 是 false、nodes／edges 是空陣列。
     #[Endpoint(
@@ -287,11 +281,9 @@ class GraphController extends Controller
     }
 
     /**
-     * Turn a collection of pivot link rows (each with a `relation_id`
-     * foreign key and a `relation` relationship already loaded) into raw
-     * graph edges. $sourceColumn/$targetColumn are the pivot's own FK
-     * column names; $sourceType/$targetType are the node type they
-     * resolve to.
+     * 把一組 pivot 連結列（每列都有 `relation_id` 外鍵，且已預先載入 `relation` 關聯）
+     * 轉換成原始的圖邊。$sourceColumn／$targetColumn 是 pivot 自己的外鍵欄位名稱；
+     * $sourceType／$targetType 則是它們解析後對應的節點類型。
      */
     private function pivotRawEdges(
         Collection $links,
@@ -328,12 +320,10 @@ class GraphController extends Controller
     }
 
     /**
-     * node id -> list of {to, relation, direction}. Each raw edge produces
-     * two adjacency entries (source->target and target->source) so BFS can
-     * walk it either way; `direction` records whether that particular
-     * traversal matches the relation's own stored subject->object
-     * direction ('forward') or goes against it ('reverse') — path() uses
-     * this to pick the right predicate name per hop.
+     * 節點 id -> {to, relation, direction} 的清單。每一條原始邊會產生兩筆相鄰紀錄
+     * （source->target 與 target->source），讓 BFS 可以往任一方向走；`direction`
+     * 記錄這次走訪是否與關係本身儲存的 subject→object 方向一致（'forward'），
+     * 或與它相反（'reverse'）。path() 用這個值決定每一跳要用哪個謂詞名稱。
      */
     private function buildUndirectedAdjacency(Collection $edges): array
     {
@@ -347,11 +337,10 @@ class GraphController extends Controller
     }
 
     /**
-     * Breadth-first search over the undirected adjacency list. Returns the
-     * ordered list of hops taken (each {from, to, relation, direction}) —
-     * empty array when start === end (trivial, zero hops) — or null when
-     * genuinely unreachable, including when $start or $end isn't in the
-     * adjacency at all (a made-up id, or a real node with zero edges).
+     * 在無向相鄰清單上做廣度優先搜尋（BFS）。回傳依序走過的每一跳（每筆為
+     * {from, to, relation, direction}）的陣列；當 start === end 時（零跳）回傳空陣列；
+     * 若真的無法到達，回傳 null，包括 $start 或 $end 根本不在相鄰清單裡的情況
+     * （不存在的 id，或是沒有任何邊的真實節點）。
      */
     private function shortestPathHops(array $adjacency, string $start, string $end): ?array
     {

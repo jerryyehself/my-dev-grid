@@ -8,19 +8,14 @@ use Illuminate\Support\Collection;
 use RuntimeException;
 
 /**
- * Seeds Implementation/Technique data from a point-in-time JSON snapshot
- * (see `github:snapshot-repos`) instead of a live GitHub API call. Use this
- * where the real API isn't reachable — e.g. a Claude Code Remote sandbox,
- * whose network policy only allows GitHub API calls scoped to repos already
- * attached to that session — or before GITHUB_TOKEN/GCP is set up, to
- * preview the site with realistic content.
+ * 從時間點的 JSON 快照（見 `github:snapshot-repos`）填入 Implementation／Technique 資料，
+ * 而不是即時呼叫 GitHub API。用在真正的 API 無法連到的地方，例如 Claude Code Remote 的沙箱
+ * （其網路政策只允許呼叫已附加到該 session 的 repo 的 GitHub API），
+ * 或尚未設定 GITHUB_TOKEN／GCP 的時候，用來預覽接近真實內容的網站。
  *
- * Not part of DatabaseSeeder's default chain, since it's a stand-in for a
- * live sync rather than baseline app data; run explicitly with
- * `php artisan db:seed --class=GitHubReposSnapshotSeeder`. The seeded data
- * is only as fresh as the snapshot's capture time — refresh it with
- * `php artisan github:snapshot-repos` somewhere with real API access when
- * it drifts too far from reality.
+ * 這不屬於 DatabaseSeeder 的預設流程，因為它是即時同步的替代品，而不是基礎的應用程式資料；
+ * 要明確執行：`php artisan db:seed --class=GitHubReposSnapshotSeeder`。填入的資料只會和快照的擷取時間一樣新，
+ * 當它與現實偏離太遠時，請在能存取真實 API 的地方執行 `php artisan github:snapshot-repos` 重新產生快照。
  */
 class GitHubReposSnapshotSeeder extends Seeder
 {

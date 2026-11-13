@@ -180,8 +180,8 @@ class SaveReposDataServiceTest extends TestCase
             'topics' => ['laravel'],
         ];
 
-        // Two full sync runs (e.g. two scheduled fires) seeing the same
-        // language/topic must not create duplicate Technique rows.
+        // 兩次完整同步（例如兩次排程觸發）看到相同的 language／topic 時，
+        // 不得建立重複的 Technique 紀錄。
         Http::fake([
             'https://api.github.com/user/repos*' => Http::sequence()
                 ->push([$repo])->push([])
@@ -487,9 +487,9 @@ class SaveReposDataServiceTest extends TestCase
             'topics' => ['laravel'],
         ];
 
-        // Same two-full-sync-runs shape as test_save_repos_data_reuses_existing_technique_across_repos:
-        // one Http::fake() with the /user/repos sequence doubled, not two separate fakeGitHub() calls
-        // (a second Http::fake() call doesn't append to the first sequence, it replaces it).
+        // 與 test_save_repos_data_reuses_existing_technique_across_repos 的兩次完整同步結構相同：
+        // 只用一個 Http::fake()，把 /user/repos 的序列加倍，而不是分兩次呼叫 fakeGitHub()
+        // （第二次 Http::fake() 不會接續第一次的序列，而是取代它）。
         Http::fake([
             'https://api.github.com/user/repos*' => Http::sequence()
                 ->push([$repo])->push([])
@@ -510,10 +510,9 @@ class SaveReposDataServiceTest extends TestCase
     {
         $this->seed();
 
-        // Deliberately no Http::fake() at all — an injected collection must
-        // skip GitService/the network entirely (this is what lets
-        // GitHubReposSnapshotSeeder replay a JSON snapshot in environments
-        // that can't reach GitHub's API).
+        // 刻意不呼叫 Http::fake()——注入的集合必須
+        // 完全略過 GitService 與網路。這正是讓
+        // GitHubReposSnapshotSeeder 能在無法連到 GitHub API 的環境中重播 JSON 快照的原因。
         $repos = collect([
             [
                 'id' => 111,

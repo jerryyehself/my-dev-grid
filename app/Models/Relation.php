@@ -36,11 +36,10 @@ class Relation extends Model
     protected $appends = ['ReferenceCode', 'NewChildCallNumber'];
 
     /**
-     * Once a Relation is referenced by an existing pivot link, its identity
-     * (subject_id/object_id/name/class_number/call_number/parent_class) is
-     * locked read-only — only note may still change. Semantics only evolve
-     * forward (new child relations) or disappear (soft delete), never
-     * mutate in place.
+     * 一旦 Relation 被既有的 pivot 連結參照，它的身分欄位
+     * （subject_id／object_id／name／class_number／call_number／parent_class）就會
+     * 鎖定為唯讀，只有 note 還能修改。語意只會往前演進（新增子關係）或消失（軟刪除），
+     * 不會原地修改。
      *
      * `parent_class` 的語意鎖死為「且僅為 rdfs:subPropertyOf」（真正的子謂詞：
      * 這個關係的每一筆事實都必然蘊含父關係成立）。明確排除兩種常見誤用：

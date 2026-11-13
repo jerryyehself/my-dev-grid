@@ -517,8 +517,8 @@ class relationCRUDTest extends TestCase
         $this->actingAsOwner();
         $this->seed();
 
-        // A Scope happens to share this name; updating a Relation to the same
-        // name must not be blocked by a uniqueness check against the wrong table.
+        // 有一個 Scope 剛好使用相同的名稱；把 Relation 更新成同名時，
+        // 不應被錯誤資料表上的唯一性檢查擋下。
         $scopeName = Scope::first()->name;
         $relation = Relation::inRandomOrder()->first();
 

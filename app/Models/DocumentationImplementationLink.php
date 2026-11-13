@@ -22,9 +22,8 @@ class DocumentationImplementationLink extends Model
 
     public function relation()
     {
-        // withTrashed: a link can outlive the Relation it references once
-        // that Relation is soft-deleted — the historical edge should still
-        // resolve its predicate name.
+        // withTrashed：Relation 被軟刪除後，連結仍可能存在，
+        // 歷史上的邊仍應能解析出它的謂詞名稱。
         return $this->belongsTo(Relation::class)->withTrashed();
     }
 }

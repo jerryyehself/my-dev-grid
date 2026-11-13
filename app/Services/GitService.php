@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * access to git
+ * 存取 git
  */
 class GitService
 {
@@ -20,8 +20,8 @@ class GitService
     }
 
     /**
-     * Fetch every public repo visible to the configured token, paginating
-     * through GitHub's `/user/repos` until an empty page is returned.
+     * 抓取設定的 token 可以看見的所有公開 repo，透過分頁讀取 GitHub 的 `/user/repos`，
+     * 直到回傳空頁為止。
      */
     public function get_repos()
     {
@@ -78,9 +78,8 @@ class GitService
     }
 
     /**
-     * GitHub's repo listing doesn't include per-language byte counts, only a
-     * `languages_url` to a separate endpoint — fetch it and keep just the
-     * language names.
+     * GitHub 的 repo 列表不含各語言的位元組數，只提供一個 `languages_url` 指向另一個端點，
+     * 因此要另外呼叫它，並只保留語言名稱。
      */
     private function get_languages(?string $languagesUrl): array
     {
