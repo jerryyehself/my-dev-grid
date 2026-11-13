@@ -69,6 +69,32 @@
   ```
   還沒 commit 的改動也算。只想看某一個檔案：把 `--git-diff-lines --git-diff-base=…` 換成 `--filter=app/Rules/ReverseIsAvailable.php`。設定在根目錄的 `infection.json5`，報告寫到 `build/infection/`（已加進 `.gitignore`）。
 
+## 靜態分析與覆蓋率報告
+
+CI 在每個 PR 上另外產出兩份報告，跟 Infection 一樣**只看報告，不擋 PR**：分析那一步加了 `continue-on-error`，找到問題或覆蓋率低都不會讓檢查變紅；紅叉只代表工具自己出錯（例如 phpstan 當掉、測試沒跑完），Summary 會寫明「沒有產出結果」，不會被當成「沒有問題」。兩份都不跑在 `develop` 到 `main` 的上線 PR（改動在進 `develop` 的 PR 上已經跑過），也不跑在沒碰到相關檔案的 PR（`paths` 篩選）。
+
+**Larastan（`.github/workflows/larastan.yml`，設定在 `phpstan.neon`）。** [Larastan](https://github.com/larastan/larastan) 是 PHPStan 的 Laravel 擴充，不執行程式就檢查呼叫的方法與屬性是否存在、參數與回傳型別是否對得上。
+
+- **範圍與等級。** 分析 `app/`、`database/factories/`、`database/seeders/`、`routes/`（migration 是歷史紀錄，不分析），等級 5。再往上會要求每個陣列都標內容型別，現有程式碼補不完，雜訊會蓋過真正的問題。
+- **基準檔。** `phpstan-baseline.neon` 記下現有程式碼已經有的問題（大宗是 Eloquent 關聯方法沒寫回傳型別，Larastan 認不得關聯；以及 `JsonResource` 讀 model 屬性），所以報告只列出**這個 PR 新增**的問題。基準檔裡的項目對不上現況（通常是這個 PR 修掉了問題）時，Summary 會提醒重產。
+- **結果看哪裡。** 「Larastan」這個 job 的 Summary 有新增問題的表格與基準檔剩下幾則；Files changed 上有對應那一行的警告註解（最多 50 則）；job 的 log 有完整清單；結果檔附在該次執行的 `larastan` artifact。
+- **看到新增的問題怎麼辦。** 問題是真的（呼叫了不存在的方法、型別對不上）就修；是 Larastan 認不得的寫法（例如關聯方法缺回傳型別），優先補上型別（`: BelongsTo` 之類）而不是加進基準檔。不要為了讓報告變乾淨，把新的問題加進基準檔。
+- **修掉基準檔裡的問題之後。** 重產讓清單只減不增：`vendor/bin/phpstan analyse --generate-baseline phpstan-baseline.neon`，重產後看 diff，只該有刪除。
+- **本機怎麼跑。** 需要 `.env`（Larastan 會啟動應用程式）。在專案根目錄：
+  ```bash
+  vendor/bin/phpstan analyse --memory-limit=1G
+  ```
+
+**覆蓋率（`.github/workflows/coverage.yml`）。** 用 pcov 跑一次全套測試（只用 SQLite），算出 `app/` 的行、方法、類別覆蓋率。
+
+- **沒有門檻。** 數字只供參考，不設最低值，也不跟 base 比較。覆蓋率高不代表測試守得住行為（見上面「好的測試」與 Infection），低的地方也不一定要補：只問「這段壞了，使用者會不會受影響？」
+- **結果看哪裡。** 「Coverage」這個 job 的 Summary 有三個總數與行覆蓋率最低的 15 個類別；完整報告（文字、Clover XML、HTML）附在該次執行的 `coverage` artifact。
+- **本機怎麼跑。** 需要 pcov 或 Xdebug（Xdebug 要設 `XDEBUG_MODE=coverage`）：
+  ```bash
+  vendor/bin/phpunit --coverage-text
+  ```
+  想看逐行的 HTML 報告：`vendor/bin/phpunit --coverage-html build/coverage/html`（`build/` 已加進 `.gitignore`）。
+
 ## 目前已知不符的地方
 
 - `tests/Unit/ExampleTest.php` 是 Laravel 樣板，什麼都沒測，可以刪掉。

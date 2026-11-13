@@ -1,0 +1,150 @@
+name: Coverage
+
+# 測試覆蓋率報告：只在 pull request 上跑，只是報告，不擋 PR，也沒有門檻。
+# 跑一次全套測試（只用 SQLite），算出 app/ 的行覆蓋率寫到 job 的 Summary，
+# 完整報告（文字、Clover XML、HTML）附在這次執行的 `coverage` artifact。
+# 怎麼看、本機怎麼跑：docs/conventions/testing.md「靜態分析與覆蓋率報告」。
+#
+# 怎麼做到不擋 PR：
+# - 跑測試的那一步加了 continue-on-error。測試沒過時 tests.yml 會自己變紅，這裡不重複擋；
+#   這一步會顯示紅叉，Summary 也會註明「測試沒跑完，覆蓋率只供參考」。
+# - 沒有任何覆蓋率門檻（不設 --min、不比較 base），數字只供參考。
+# - 安裝套件、準備環境這些前置步驟沒有加，壞了就是壞了（tests.yml 同樣會壞）。
+#
+# 為什麼獨立一個 workflow，不放進 tests.yml：理由跟 infection.yml 相同（觸發條件與矩陣不用動）。
+# 覆蓋率用 pcov（比 xdebug 快很多）；資料庫用 phpunit.xml 設的 SQLite :memory:。
+
+on:
+  pull_request:
+    branches: [main, develop]
+    # 覆蓋率會因為 app/ 或測試改動而變；factories、seeders、routes、config 也是測試會跑到的程式。
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "database/**"
+      - "routes/**"
+      - "config/**"
+      - "phpunit.xml"
+      - "composer.json"
+      - "composer.lock"
+      - ".github/workflows/coverage.yml"
+
+permissions:
+  contents: read
+
+# 同一個 PR 又推了新 commit 時，取消還在跑的舊那次。
+concurrency:
+  group: coverage-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Coverage (report only)
+    # develop -> main 的上線 PR 帶的是一整週已經各自跑過的改動，不再整批重跑。
+    if: github.head_ref != 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.4"
+          extensions: sqlite3, pdo_sqlite, pgsql, pdo_pgsql, mbstring, bcmath, ctype, fileinfo, tokenizer, xml
+          coverage: pcov
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Prepare environment file
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # 先 config:clear，跟 `composer test` 一樣；用 phpunit 直接跑才有 --coverage-* 選項。
+      - name: Run tests with coverage
+        id: coverage
+        continue-on-error: true
+        run: |
+          mkdir -p build/coverage
+          php artisan config:clear
+          vendor/bin/phpunit \
+            --coverage-text=build/coverage/coverage.txt \
+            --coverage-clover=build/coverage/clover.xml \
+            --coverage-html=build/coverage/html
+
+      # 不管測試有沒有過都寫 Summary；報告檔不存在（測試跑到一半就當掉）就明講沒有數字。
+      # 文字報告的格式：開頭的 Summary 區塊三行（Classes／Methods／Lines），之後每個類別一行名稱、
+      # 一行數字。表格列出行覆蓋率最低的 15 個類別。
+      - name: Write coverage summary
+        if: always()
+        env:
+          TESTS_OUTCOME: ${{ steps.coverage.outcome }}
+        run: |
+          report=build/coverage/coverage.txt
+          if [ ! -s "$report" ] || ! grep -q '^  Lines:' "$report"; then
+            {
+              echo "## 覆蓋率：沒有產出報告"
+              echo
+              echo "測試沒有跑到產生報告的那一步，**沒有數字可看**。"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          lines=$(grep -m1 '^  Lines:' "$report" | sed 's/^  Lines: *//')
+          methods=$(grep -m1 '^  Methods:' "$report" | sed 's/^  Methods: *//')
+          classes=$(grep -m1 '^  Classes:' "$report" | sed 's/^  Classes: *//')
+
+          {
+            echo "## 覆蓋率（app/，只報告、不設門檻）"
+            echo
+            if [ "$TESTS_OUTCOME" != "success" ]; then
+              echo "> 測試沒跑完或有失敗（結果見 Tests 的檢查），下面的數字只供參考。"
+              echo
+            fi
+            echo "| 項目 | 覆蓋率 |"
+            echo "| --- | --- |"
+            echo "| 行 | **${lines}** |"
+            echo "| 方法 | ${methods} |"
+            echo "| 類別 | ${classes} |"
+            echo
+            echo "<details><summary>行覆蓋率最低的 15 個類別</summary>"
+            echo
+            echo "| 類別 | 行覆蓋率 |"
+            echo "| --- | --- |"
+            awk '
+              /^[A-Z][A-Za-z0-9_\\]*$/ { cls = $0; next }
+              /^  Methods:.*Lines:/ {
+                split($0, a, "Lines:")
+                split(a[2], b, "%")
+                pct = b[1] + 0
+                if (pct < 100) {
+                  gsub(/^ +| +$/, "", a[2])
+                  gsub(/ +/, " ", a[2])
+                  printf "%s\t%s\t%s\n", pct, cls, a[2]
+                }
+              }
+            ' "$report" | sort -n | head -n 15 | awk -F'\t' '{ printf "| `%s` | %s |\n", $2, $3 }'
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage
+          path: build/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
