@@ -32,18 +32,20 @@ class GraphController extends Controller
      * 已解析成 Relation 的述詞名稱，前端不用再多打一次 API。
      *
      * 回應的形狀給力導向圖用：節點是 {id, type, label, created_at, added_at, updated_at, subtype, url, active}，
-     * 邊是 {source, target, predicate, label, relation_id, added_at}，source／target 是節點 id。
+     * 邊是 {source, target, predicate, label, relation_id, added_at, stale}，source／target 是節點 id。
      * created_at 只有實作節點有值（來自 git_repo_created_at），文件與技術沒有對應欄位，一律 null。
      * added_at／updated_at 是這個網站自己記下的時間：節點是資料列的 created_at／updated_at，
      * 邊的 added_at 是連結列（三張 pivot 或 entity_relations）的 created_at。2026-10-02 首次匯入的資料
      * 是基準，不是實際建立的時間；連結列在開始寫入時間之前存下來的沒有值，也不回補，所以邊的 added_at 可能是 null。
+     * 沒登入時，未公開文件的 added_at／updated_at，以及連到它的邊的 added_at，也一律是 null。
+     * stale 只有 GitHub 同步建立的「技術—實作」邊可能是 true，其他邊一律 false；規則見 `TechniqueImplementationLink::staleCutoff()`。
      */
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
         title: '取得知識圖譜',
-        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype`、`url`、`added_at`、`updated_at` 為 null，連到它的邊 `added_at` 也是 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
+        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。`stale` 為 true 表示這是 GitHub 同步建立、但同步已超過 14 天沒再看到的技術與實作之間的邊（例如程式碼已經拿掉的技術）：邊仍會回傳，讓畫面可以淡化顯示，但最短路徑查詢不會經過它；其他邊一律為 false。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype`、`url`、`added_at`、`updated_at` 為 null，連到它的邊 `added_at` 也是 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
     )]
-    #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, added_at: string|null, updated_at: string|null, subtype: string|null, url: string|null, active: bool}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, added_at: string|null}>}')]
+    #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, added_at: string|null, updated_at: string|null, subtype: string|null, url: string|null, active: bool}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, added_at: string|null, stale: bool}>}')]
     public function index()
     {
         // 登入態每個請求只在這裡判斷一次，往下傳給每個節點用，不在節點迴圈裡一個一個問
@@ -70,6 +72,7 @@ class GraphController extends Controller
                 $e['target'],
                 $e['relation'],
                 $hiddenDraftIds->has($e['source']) || $hiddenDraftIds->has($e['target']) ? null : $e['added_at'],
+                $e['stale'],
             ))
             ->values();
 
@@ -95,7 +98,7 @@ class GraphController extends Controller
     // 同 index()：手動組的回應，在這裡寫明形狀。找不到路徑時 found 是 false、nodes／edges 是空陣列。
     #[Endpoint(
         title: '查詢最短路徑',
-        description: '以 `start`、`end`（節點 id，格式同 `GET /graph` 的 `id`，例如 `technique-12`；格式不符時回 422）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。路徑可以經過未公開的文件，未登入時它的 `label` 同樣是「未公開」。找不到路徑，或起訖點不存在（沒有這個 id，或已刪除），或未登入時起訖點是不公開的實作時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
+        description: '以 `start`、`end`（節點 id，格式同 `GET /graph` 的 `id`，例如 `technique-12`；格式不符時回 422）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。路徑可以經過未公開的文件，未登入時它的 `label` 同樣是「未公開」。路徑不會經過 `stale` 為 true 的邊。找不到路徑，或起訖點不存在（沒有這個 id，或已刪除），或未登入時起訖點是不公開的實作時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
     )]
     #[Response(200, type: 'array{found: bool, nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, storedDirection: "forward"|"reverse", hasDefinedReverse: bool}>}')]
     public function path(Request $request)
@@ -120,7 +123,8 @@ class GraphController extends Controller
             return response()->json(['found' => false, 'nodes' => [], 'edges' => []]);
         }
 
-        $adjacency = $this->buildUndirectedAdjacency($this->rawEdges());
+        // 過期的邊（同步很久沒再看到那個技術）不當作路徑，免得用已經拿掉或誤判的技術把兩個專案連起來
+        $adjacency = $this->buildUndirectedAdjacency($this->rawEdges()->reject(fn (array $e) => $e['stale']));
 
         $hops = $this->shortestPathHops($adjacency, $start, $end);
 
@@ -323,11 +327,15 @@ class GraphController extends Controller
         string $targetColumn,
         string $targetType,
     ): Collection {
+        // 只有技術↔實作那張表有 last_seen_at，其他連結不會過期
+        $staleCutoff = $links->first() instanceof TechniqueImplementationLink ? TechniqueImplementationLink::staleCutoff() : null;
+
         return $links->map(fn ($link) => [
             'source' => $this->nodeId($sourceType, $link->$sourceColumn),
             'target' => $this->nodeId($targetType, $link->$targetColumn),
             'relation' => $link->relation,
             'added_at' => $this->formatTimestamp($link->created_at),
+            'stale' => $link instanceof TechniqueImplementationLink && $link->isStale($staleCutoff),
         ]);
     }
 
@@ -338,13 +346,15 @@ class GraphController extends Controller
             'target' => $this->nodeId($entityRelation->entity_type, $entityRelation->object_id),
             'relation' => $entityRelation->relation,
             'added_at' => $this->formatTimestamp($entityRelation->created_at),
+            'stale' => false,
         ]);
     }
 
     /**
      * @param  string|null  $addedAt  連結列的 created_at；開始記錄之前就存在的邊沒有這個值，照實回 null
+     * @param  bool  $stale  GitHub 同步很久沒看到的技術↔實作邊（見 `TechniqueImplementationLink::staleCutoff()`）
      */
-    private function edge(string $source, string $target, $relation, ?string $addedAt): array
+    private function edge(string $source, string $target, $relation, ?string $addedAt, bool $stale): array
     {
         return [
             'source' => $source,
@@ -353,6 +363,7 @@ class GraphController extends Controller
             'label' => optional($relation)->name,
             'relation_id' => optional($relation)->id,
             'added_at' => $addedAt,
+            'stale' => $stale,
         ];
     }
 
