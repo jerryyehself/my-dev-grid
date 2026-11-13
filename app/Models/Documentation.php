@@ -79,11 +79,11 @@ class Documentation extends Model
 
     public function techniques()
     {
-        return $this->belongsToMany(Technique::class)->withPivot('relation_id');
+        return $this->belongsToMany(Technique::class)->withPivot('relation_id')->withTimestamps();
     }
 
     public function implementations()
     {
-        return $this->belongsToMany(Implementation::class)->withPivot('relation_id');
+        return $this->belongsToMany(Implementation::class)->withPivot('relation_id')->withTimestamps();
     }
 }

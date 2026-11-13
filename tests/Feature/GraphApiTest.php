@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\GraphController;
 use App\Models\Documentation;
 use App\Models\EntityRelation;
 use App\Models\Implementation;
@@ -704,5 +705,186 @@ class GraphApiTest extends TestCase
             'nodes' => [],
             'edges' => [],
         ]);
+    }
+
+    /** @return array<string, array{0: string, 1: class-string}> */
+    public static function nodeTypes(): array
+    {
+        return [
+            '文件' => ['documentation', Documentation::class],
+            '技術' => ['technique', Technique::class],
+            '實作' => ['implementation', Implementation::class],
+        ];
+    }
+
+    /**
+     * @param  class-string  $modelClass
+     */
+    #[TestDox('每一種節點都帶 added_at（建立時間）與 updated_at（最後更新時間）')]
+    #[DataProvider('nodeTypes')]
+    public function test_every_node_type_reports_added_at_and_updated_at(string $type, string $modelClass)
+    {
+        $this->travelTo('2026-11-01 08:00:00');
+        $model = $modelClass::factory()->create();
+        $this->travelTo('2026-11-02 09:30:00');
+        $model->update(['title' => '改過的標題']);
+
+        $nodes = collect($this->getJson('/api/graph')->assertOk()->json('nodes'))->keyBy('id');
+
+        $node = $nodes["{$type}-{$model->id}"];
+        $this->assertSame('2026-11-01 08:00:00', $node['added_at']);
+        $this->assertSame('2026-11-02 09:30:00', $node['updated_at']);
+    }
+
+    #[TestDox('實作節點的 created_at 仍是 GitHub 建立日期，不被 added_at 取代')]
+    public function test_implementation_created_at_keeps_meaning_alongside_added_at()
+    {
+        $this->travelTo('2026-11-01 08:00:00');
+        $implementation = Implementation::factory()->create(['git_repo_created_at' => '2025-06-11 00:00:00']);
+
+        $nodes = collect($this->getJson('/api/graph')->assertOk()->json('nodes'))->keyBy('id');
+
+        $node = $nodes["implementation-{$implementation->id}"];
+        $this->assertSame('2025-06-11', $node['created_at']);
+        $this->assertSame('2026-11-01 08:00:00', $node['added_at']);
+    }
+
+    #[TestDox('沒登入看到的未公開文件節點，一樣帶 added_at 與 updated_at')]
+    public function test_unpublished_documentation_node_still_reports_times()
+    {
+        $this->travelTo('2026-11-01 08:00:00');
+        $draft = Documentation::factory()->create(['status' => 0]);
+
+        $nodes = collect($this->getJson('/api/graph')->assertOk()->json('nodes'))->keyBy('id');
+
+        $node = $nodes["documentation-{$draft->id}"];
+        $this->assertSame(GraphController::UNPUBLISHED_LABEL, $node['label']);
+        $this->assertSame('2026-11-01 08:00:00', $node['added_at']);
+        $this->assertSame('2026-11-01 08:00:00', $node['updated_at']);
+    }
+
+    /**
+     * 圖上所有種類的邊：三張 pivot，加上 entity_relations 的三種同型別關係。
+     * 每一種回傳 [來源節點 id, 目標節點 id, 該邊所在的表, 找到那一列的條件]。
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function edgeKinds(): array
+    {
+        return [
+            '文件→技術（pivot）' => ['documentation_technique'],
+            '文件→實作（pivot）' => ['documentation_implementation'],
+            '技術→實作（pivot）' => ['technique_implementation'],
+            '技術→技術（entity_relations）' => ['entity_relations:technique'],
+            '文件→文件（entity_relations）' => ['entity_relations:documentation'],
+            '實作→實作（entity_relations）' => ['entity_relations:implementation'],
+        ];
+    }
+
+    /**
+     * 建一條指定種類的邊，回傳 [source, target, 表名, where 條件]。
+     *
+     * @return array{0: string, 1: string, 2: string, 3: array<string, mixed>}
+     */
+    private function makeEdge(string $kind): array
+    {
+        $relation = Relation::factory()->create();
+
+        if (str_starts_with($kind, 'entity_relations:')) {
+            $type = substr($kind, strlen('entity_relations:'));
+            $class = EntityRelation::ENTITY_TYPES[$type];
+            [$subject, $object] = [$class::factory()->create(), $class::factory()->create()];
+            $edge = EntityRelation::create([
+                'entity_type' => $type,
+                'subject_id' => $subject->id,
+                'object_id' => $object->id,
+                'relation_id' => $relation->id,
+            ]);
+
+            return ["{$type}-{$subject->id}", "{$type}-{$object->id}", 'entity_relations', ['id' => $edge->id]];
+        }
+
+        $documentation = Documentation::factory()->create();
+        $technique = Technique::factory()->create();
+        $implementation = Implementation::factory()->create();
+
+        return match ($kind) {
+            'documentation_technique' => $this->attachEdge(
+                $documentation->techniques(), $technique->id, $relation->id,
+                "documentation-{$documentation->id}", "technique-{$technique->id}",
+                ['documentation_id' => $documentation->id, 'technique_id' => $technique->id],
+            ),
+            'documentation_implementation' => $this->attachEdge(
+                $documentation->implementations(), $implementation->id, $relation->id,
+                "documentation-{$documentation->id}", "implementation-{$implementation->id}",
+                ['documentation_id' => $documentation->id, 'implementation_id' => $implementation->id],
+            ),
+            'technique_implementation' => $this->attachEdge(
+                $technique->implementations(), $implementation->id, $relation->id,
+                "technique-{$technique->id}", "implementation-{$implementation->id}",
+                ['technique_id' => $technique->id, 'implementation_id' => $implementation->id],
+            ),
+        };
+    }
+
+    /** @return array{0: string, 1: string, 2: string, 3: array<string, mixed>} */
+    private function attachEdge($relationship, int $relatedId, int $relationId, string $source, string $target, array $where): array
+    {
+        $relationship->sync([$relatedId => ['relation_id' => $relationId]]);
+
+        return [$source, $target, $relationship->getTable(), $where];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function findEdge(TestResponse $response, string $source, string $target): ?array
+    {
+        return collect($response->json('edges'))->first(fn (array $e) => $e['source'] === $source && $e['target'] === $target);
+    }
+
+    #[TestDox('每一種邊都帶 added_at（連結列的建立時間）')]
+    #[DataProvider('edgeKinds')]
+    public function test_every_edge_kind_reports_added_at(string $kind)
+    {
+        $this->travelTo('2026-11-01 08:00:00');
+        [$source, $target] = $this->makeEdge($kind);
+
+        $edge = $this->findEdge($this->getJson('/api/graph')->assertOk(), $source, $target);
+
+        $this->assertNotNull($edge, '圖裡找不到這條邊');
+        $this->assertSame('2026-11-01 08:00:00', $edge['added_at']);
+    }
+
+    #[TestDox('邊沒有 created_at（開始記錄前的舊資料）時，added_at 回 null，邊照常出現')]
+    #[DataProvider('edgeKinds')]
+    public function test_edge_without_created_at_reports_null_added_at(string $kind)
+    {
+        [$source, $target, $table, $where] = $this->makeEdge($kind);
+        DB::table($table)->where($where)->update(['created_at' => null, 'updated_at' => null]);
+
+        $response = $this->getJson('/api/graph')->assertOk();
+
+        $edge = $this->findEdge($response, $source, $target);
+        $this->assertNotNull($edge, '沒有時間的邊不能從圖裡消失');
+        $this->assertArrayHasKey('added_at', $edge);
+        $this->assertNull($edge['added_at']);
+        $this->assertNotNull($edge['predicate']);
+    }
+
+    #[TestDox('邊既有的欄位在新增 added_at 後都還在')]
+    public function test_edge_keeps_existing_fields_alongside_added_at()
+    {
+        $relation = Relation::factory()->create(['name' => 'documents']);
+        $documentation = Documentation::factory()->create();
+        $technique = Technique::factory()->create();
+        $documentation->techniques()->sync([$technique->id => ['relation_id' => $relation->id]]);
+
+        $edge = $this->findEdge($this->getJson('/api/graph')->assertOk(), "documentation-{$documentation->id}", "technique-{$technique->id}");
+
+        $this->assertSame(
+            ['added_at', 'label', 'predicate', 'relation_id', 'source', 'target'],
+            collect($edge)->keys()->sort()->values()->all(),
+        );
+        $this->assertSame('documents', $edge['predicate']);
+        $this->assertSame($relation->id, $edge['relation_id']);
     }
 }
