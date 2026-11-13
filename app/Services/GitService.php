@@ -64,12 +64,15 @@ class GitService
         }
 
         $work = Arr::only($repo, ['id', 'html_url', 'name', 'languages_url', 'topics', 'created_at', 'description', 'archived']);
+        $languageBytes = $this->get_languages($work['languages_url'] ?? null);
 
         return array_merge($work, [
             'git_repo_id' => $work['id'],
             'title' => $work['name'],
             'topics' => $work['topics'] ?? [],
-            'languages' => $this->get_languages($work['languages_url'] ?? null),
+            'languages' => array_keys($languageBytes),
+            // 各語言的位元組數，只有 nomens 的影子紀錄用（語言的證據門檻）；同步寫邊只看上面的 languages
+            'language_bytes' => $languageBytes,
             // /user/repos 預設 affiliation 涵蓋 collaborator、organization_member，
             // 回傳的 repo 不保證都是 token 使用者自己 owner，所以 owner 是有意義的
             // 獨立欄位，不是跟 token 使用者重複的資訊。
@@ -79,7 +82,9 @@ class GitService
 
     /**
      * GitHub 的 repo 列表不含各語言的位元組數，只提供一個 `languages_url` 指向另一個端點，
-     * 因此要另外呼叫它，並只保留語言名稱。
+     * 因此要另外呼叫它。
+     *
+     * @return array<string, int> 語言名稱 => 位元組數；抓不到時是空陣列
      */
     private function get_languages(?string $languagesUrl): array
     {
@@ -98,6 +103,6 @@ class GitService
             return [];
         }
 
-        return array_keys($languages ?? []);
+        return is_array($languages) ? $languages : [];
     }
 }

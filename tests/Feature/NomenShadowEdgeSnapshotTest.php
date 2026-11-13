@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Nomen;
 use App\Services\SaveReposDataService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -59,6 +60,11 @@ class NomenShadowEdgeSnapshotTest extends TestCase
         $actual = json_encode($this->graphSnapshot(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n";
 
         $this->assertSame(file_get_contents(self::SNAPSHOT), $actual);
+        // 影子寫入真的有跑（語言、topic、文章兩個欄位都有列），上面的比對才有意義
+        $this->assertEqualsCanonicalizing(
+            [Nomen::SOURCE_GITHUB_LANGUAGE, Nomen::SOURCE_GITHUB_TOPIC, Nomen::SOURCE_ABOUT_TECHNIQUES, Nomen::SOURCE_ABOUT_PROJECTS],
+            Nomen::distinct()->pluck('source')->all(),
+        );
     }
 
     /**

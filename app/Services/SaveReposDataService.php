@@ -45,6 +45,9 @@ class SaveReposDataService
      */
     private array $scopeIdCache = [];
 
+    /** 影子模式：另外記下讀到的語言與 topic 字串，不影響這裡寫的邊（見 `NomenRecorder`）。 */
+    private NomenRecorder $nomens;
+
     /**
      * GitHub repo 的 `topics`（GitHub 儲存時皆為小寫），若是有唯一基礎語言的 framework／library，
      * 就對應到該語言，名稱與 GitHub languages API 的寫法完全一致。
@@ -134,9 +137,10 @@ class SaveReposDataService
      *                                  repo 資料（例如由 `GitHubReposSnapshotSeeder` 載入的 JSON 快照）。
      *                                  預設為即時呼叫 `GitService::get_repos()`。
      */
-    public function __construct(?Collection $repos = null)
+    public function __construct(?Collection $repos = null, ?NomenRecorder $nomens = null)
     {
         $this->gitService = $repos ?? (new GitService)->get_repos();
+        $this->nomens = $nomens ?? new NomenRecorder(new NomenResolver);
     }
 
     public function save_repos_data(): void
@@ -148,8 +152,9 @@ class SaveReposDataService
         $requiresRelationId = $this->relation_id('requires');
         $specsRelationId = $this->relation_id('specs');
         $isVersionOfRelationId = $this->relation_id('isVersionOf');
+        $seenAt = now();
 
-        $this->gitService->each(function ($repo) use ($usesRelationId, $requiresRelationId, $specsRelationId, $isVersionOfRelationId) {
+        $this->gitService->each(function ($repo) use ($usesRelationId, $requiresRelationId, $specsRelationId, $isVersionOfRelationId, $seenAt) {
             $project = $this->save_repos_content($repo);
 
             $resolve = function (string $name, string $defaultScope) use ($requiresRelationId, $specsRelationId, $isVersionOfRelationId): Technique {
@@ -197,7 +202,10 @@ class SaveReposDataService
 
             $this->link_project_to_techniques($project, $techniques, $usesRelationId);
             $this->link_project_to_techniques($project, $impliedBases, $usesRelationId, createMissing: false);
+            $this->nomens->recordRepo($project, $repo, $seenAt);
         });
+
+        $this->nomens->resolve();
     }
 
     /**
