@@ -7,9 +7,9 @@ use Illuminate\Http\Request;
 use RuntimeException;
 
 /**
- * Thrown when trying to change a locked field on a Relation that is already
- * referenced by an existing pivot link (documentation_implementation,
- * documentation_technique, technique_implementation, entity_relations).
+ * 當嘗試修改已被既有 pivot 連結參照的 Relation 的鎖定欄位時丟出。
+ * 參照來源包括 documentation_implementation、documentation_technique、
+ * technique_implementation、entity_relations。
  *
  * 這個類別自己負責變成 HTTP 回應（見下方 render()），呼叫端不需要、也不應該
  * 各自 try/catch 一次。原本的形狀是「例外什麼都不做，由 RelationController@update

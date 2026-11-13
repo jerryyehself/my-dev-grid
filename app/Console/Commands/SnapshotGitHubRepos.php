@@ -7,13 +7,12 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
 /**
- * Fetches the same data as `github:sync-repos` but writes it to a JSON
- * fixture instead of the database. For environments that can't reach
- * GitHub's general API (e.g. a Claude Code Remote sandbox, whose network
- * policy only allows GitHub API calls scoped to repos already attached to
- * that session) but still want to preview the site locally with realistic
- * content. Run this somewhere with real GitHub API access, then commit the
- * resulting JSON — see `GitHubReposSnapshotSeeder` for how it's consumed.
+ * 抓取與 `github:sync-repos` 相同的資料，但改寫成 JSON
+ * fixture 檔，而不是寫入資料庫。適用於無法連到 GitHub 一般 API 的環境
+ * （例如 Claude Code Remote 的沙箱，其網路政策只允許呼叫已附加到該 session 的
+ * repo 的 GitHub API），但仍想在本機預覽內容接近真實的網站。
+ * 請在能直接存取 GitHub API 的地方執行，然後
+ * commit 產生的 JSON 檔。讀取方式見 `GitHubReposSnapshotSeeder`。
  */
 class SnapshotGitHubRepos extends Command
 {

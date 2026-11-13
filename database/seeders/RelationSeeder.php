@@ -108,17 +108,15 @@ class RelationSeeder extends Seeder
 
         $this->pairReverse($seeded['assisted-by'], $seeded['assists']);
 
-        // dcterms:requires / dcterms:isRequiredBy (Dublin Core) — same-type
-        // dependency, used via entity_relations (e.g. a Technique that
-        // requires another Technique). Previously proposed and deferred
-        // by backend. entity_relations doesn't cross-check a Relation's
-        // own subject_id/object_id against the entities it links (see
-        // EntityRelation::assertValidEntityReferences — it only checks
-        // entity_type and that both ids exist in that entity's table), so
-        // one generic self-paired Relation covers every entity_type;
-        // Technique is picked as the representative subject/object scope
-        // since class_number 11 (Technique-self) is otherwise unused by
-        // the seeded predicates above (01/02/10/12/20/21).
+        // dcterms:requires／dcterms:isRequiredBy（Dublin Core）——同類型的依賴，
+        // 透過 entity_relations 使用（例如某個 Technique requires 另一個 Technique）。
+        // 之前由 backend 提出但延後處理。entity_relations 不會交叉檢查 Relation 的
+        // subject_id／object_id 與它所連結的實體是否一致（見
+        // EntityRelation::assertValidEntityReferences——它只檢查 entity_type，
+        // 以及兩個 id 是否都存在於該實體的資料表中），因此一筆通用的自我配對 Relation
+        // 就能涵蓋所有 entity_type；
+        // 選用 Technique 作為代表性的 subject／object scope，因為 class_number 11（Technique 自身）
+        // 在上面的種子謂詞（01／02／10／12／20／21）中沒有被使用。
         $technique = $leadScopes->firstWhere('class_number', '10');
 
         $requires = $this->relation([
@@ -160,7 +158,7 @@ class RelationSeeder extends Seeder
         // 2026-09-11 使用者確認：GitHub repo 之間「這個是從那個衍生出來的」
         // 這種真實已知關係（含 fork——fork 本質上就是這個關係的特例，不另立
         // predicate）。SPDX 2.3 relationships 定義的 DESCENDANT_OF／
-        // ANCESTOR_OF：「same lineage but post-dates／pre-dates」。
+        // ANCESTOR_OF：「同一譜系，但晚於／早於」。
         // https://spdx.github.io/spdx-spec/v3.0.1/model/Core/Vocabularies/RelationshipType/
         $descendantOf = $this->relation([
             'subject_id' => $implementation->id,
