@@ -26,4 +26,10 @@ class DocumentationPolicy
     {
         return $user !== null;
     }
+
+    /** 從文章來源 repo 列出與匯入文章（`ArticleSourceController`）。 */
+    public function import(?User $user): bool
+    {
+        return $user !== null;
+    }
 }

@@ -108,17 +108,15 @@ class RelationSeeder extends Seeder
 
         $this->pairReverse($seeded['assisted-by'], $seeded['assists']);
 
-        // dcterms:requires / dcterms:isRequiredBy (Dublin Core) — same-type
-        // dependency, used via entity_relations (e.g. a Technique that
-        // requires another Technique). Previously proposed and deferred
-        // by backend. entity_relations doesn't cross-check a Relation's
-        // own subject_id/object_id against the entities it links (see
-        // EntityRelation::assertValidEntityReferences — it only checks
-        // entity_type and that both ids exist in that entity's table), so
-        // one generic self-paired Relation covers every entity_type;
-        // Technique is picked as the representative subject/object scope
-        // since class_number 11 (Technique-self) is otherwise unused by
-        // the seeded predicates above (01/02/10/12/20/21).
+        // dcterms:requires／dcterms:isRequiredBy（Dublin Core）——同類型的依賴，
+        // 透過 entity_relations 使用（例如某個 Technique requires 另一個 Technique）。
+        // 之前由 backend 提出但延後處理。entity_relations 不會交叉檢查 Relation 的
+        // subject_id／object_id 與它所連結的實體是否一致（見
+        // EntityRelation::assertValidEntityReferences——它只檢查 entity_type，
+        // 以及兩個 id 是否都存在於該實體的資料表中），因此一筆通用的自我配對 Relation
+        // 就能涵蓋所有 entity_type；
+        // 選用 Technique 作為代表性的 subject／object scope，因為 class_number 11（Technique 自身）
+        // 在上面的種子謂詞（01／02／10／12／20／21）中沒有被使用。
         $technique = $leadScopes->firstWhere('class_number', '10');
 
         $requires = $this->relation([
@@ -160,7 +158,7 @@ class RelationSeeder extends Seeder
         // 2026-09-11 使用者確認：GitHub repo 之間「這個是從那個衍生出來的」
         // 這種真實已知關係（含 fork——fork 本質上就是這個關係的特例，不另立
         // predicate）。SPDX 2.3 relationships 定義的 DESCENDANT_OF／
-        // ANCESTOR_OF：「same lineage but post-dates／pre-dates」。
+        // ANCESTOR_OF：「同一譜系，但晚於／早於」。
         // https://spdx.github.io/spdx-spec/v3.0.1/model/Core/Vocabularies/RelationshipType/
         $descendantOf = $this->relation([
             'subject_id' => $implementation->id,
@@ -252,38 +250,76 @@ class RelationSeeder extends Seeder
         // 跟上面其他述詞一樣經過 relation()／pairReverse()，重跑不會重複建、也不會蓋掉後台改過的配對（#84）
         $this->pairReverse($versionRelations['isVersionOf'], $versionRelations['hasVersion']);
 
-        // 2026-11-13 外部參考（外部文章、repo、skill）要放上網站所需的三組述詞，全是 Documentation 當主詞。
-        // 類號照其他述詞的規則：主詞頂層分類的第一碼＋受詞頂層分類的第一碼（文件→技術 01、文件→實作 02、
-        // 反向 10、20），子類號接在該類號已用過的後面（01 只有 specs 的 00、02 只有 documents 的 00、
-        // 10 只有 specifiedBy 的 00、20 只有 documentedBy 的 00，所以從 10 起；targets 用 20）。
-        // 放在最後面，全新資料庫種出來的 id 順序才會跟正式環境加上這批之後一致。
+        // 文章在 front matter 宣告「這篇在講哪些技術、哪些專案」，匯入時建成連結
+        // （ArticleSourceService）。借 schema.org 的 about／subjectOf：
+        // https://schema.org/about 、https://schema.org/subjectOf 。
         //
-        // - about／subjectOf：這份文件的主題是這個技術。跟 specs 不同：specs 是該技術自己的官方說明，
-        //   about 是任何以它為主題的文件。Schema.org about（等同 dcterms:subject），反向是 subjectOf。
+        // 技術和專案各一對，因為述詞的受詞只能指到一個頂層分類（連結的分類檢查靠它，
+        // RelationFitsLinkedScopes），一對 about 沒辦法同時涵蓋 Technique 和 Implementation；
+        // 名稱又不能重複，專案那一對加上 Project 字樣。兩對都對應同一個 schema.org 詞條。
+        // 跟 specs／documents 平輩（類號相同、子類號不同），不是子關係：說明一篇文章講到某個
+        // 主題，不蘊含它是那個主題的規格或文件。放在最後面，原有述詞的 id 不變。
+        $documentation = $leadScopes->firstWhere('class_number', '00');
+
+        $aboutSeeds = [
+            // [名稱, 反向名稱, 受詞端的頂層分類, 類號, 說明]
+            ['about', 'subjectOf', $technique, '01', 'Documentation is about a Technique'],
+            ['aboutProject', 'projectSubjectOf', $implementation, '02', 'Documentation is about an Implementation (project)'],
+        ];
+
+        foreach ($aboutSeeds as [$name, $reverseName, $object, $classNumber, $meaning]) {
+            $about = $this->relation([
+                'subject_id' => $documentation->id,
+                'object_id' => $object->id,
+                'class_number' => $classNumber,
+                'call_number' => '10',
+                'name' => $name,
+                'note' => "schema.org about (https://schema.org/about) — {$meaning}: the article discusses it, without being its spec or documentation.",
+                'source_vocabulary' => 'schema',
+                'source_term' => 'about',
+            ]);
+
+            $subjectOf = $this->relation([
+                'subject_id' => $object->id,
+                'object_id' => $documentation->id,
+                'class_number' => $classNumber[1].$classNumber[0],
+                'call_number' => '10',
+                'name' => $reverseName,
+                'note' => 'schema.org subjectOf (https://schema.org/subjectOf) — reverse of '.$name.'.',
+                'source_vocabulary' => 'schema',
+                'source_term' => 'subjectOf',
+            ]);
+
+            $this->pairReverse($about, $subjectOf);
+        }
+
+        // 外部參考（外部文章、repo、skill）還需要兩組述詞，主詞都是 Documentation 或 Implementation。
+        // 類號照其他述詞的規則：主詞頂層分類的第一碼＋受詞頂層分類的第一碼（文件→技術 01、文件→實作 02，
+        // 反向 10、20）。子類號接在該類號已用過的後面：01 已用 00（specs）、10（about），02 已用 00（documents）、
+        // 10（aboutProject），反向的 10 與 20 同理，所以兩組都用 20。放在最後面，原有述詞的 id 不變。
+        //
         // - targets／targetedBy：這份來源（skill、外掛、工具）是給這個技術（通常是 AI 工具）用的。
         //   Schema.org targetProduct；Schema.org 沒有反向詞條，照 assists／documentedBy 的先例沿用同一個詞條。
         // - influences／influencedBy：這份來源的規則、做法或概念已經寫進這個實作。只有借來的東西真的進了
         //   那個實作才連，還在計畫中的不連。W3C PROV-O prov:influenced／prov:wasInfluencedBy。
         $documentationPredicates = [
-            ['01', '10', 'about', 'schema.org about (= dcterms:subject) — the subject matter of this Documentation is the Technique. Unlike specs (the Technique\'s own official docs), any Documentation about the Technique qualifies.', 'schema', 'about'],
-            ['10', '10', 'subjectOf', 'schema.org subjectOf — reverse of about.', 'schema', 'subjectOf'],
-            ['01', '20', 'targets', 'schema.org targetProduct — this Documentation (a skill, plugin or tool) is written for that Technique, usually an AI tool such as Claude Code.', 'schema', 'targetProduct'],
-            ['10', '20', 'targetedBy', 'Reverse of targets. schema.org has no inverse term, so it reuses targetProduct as assists/documentedBy do.', 'schema', 'targetProduct'],
-            ['02', '10', 'influences', 'W3C PROV-O prov:influenced — this Documentation\'s rules, practices or ideas have been adopted into the Implementation. Link only once the adoption has landed in that Implementation, not while it is still planned.', 'prov', 'influenced'],
-            ['20', '10', 'influencedBy', 'W3C PROV-O prov:wasInfluencedBy — reverse of influences.', 'prov', 'wasInfluencedBy'],
+            ['01', 'targets', 'schema.org targetProduct — this Documentation (a skill, plugin or tool) is written for that Technique, usually an AI tool such as Claude Code.', 'schema', 'targetProduct'],
+            ['10', 'targetedBy', 'Reverse of targets. schema.org has no inverse term, so it reuses targetProduct as assists/documentedBy do.', 'schema', 'targetProduct'],
+            ['02', 'influences', 'W3C PROV-O prov:influenced — this Documentation\'s rules, practices or ideas have been adopted into the Implementation. Link only once the adoption has landed in that Implementation, not while it is still planned.', 'prov', 'influenced'],
+            ['20', 'influencedBy', 'W3C PROV-O prov:wasInfluencedBy — reverse of influences.', 'prov', 'wasInfluencedBy'],
         ];
 
-        foreach ($documentationPredicates as [$classNumber, $callNumber, $name, $note, $sourceVocabulary, $sourceTerm]) {
-            // subject／object 的頂層分類由類號的兩碼決定：第一碼是主詞、第二碼是受詞的 class_number 第一碼。
+        foreach ($documentationPredicates as [$classNumber, $name, $note, $sourceVocabulary, $sourceTerm]) {
+            // 主詞、受詞的頂層分類由類號的兩碼決定：第一碼是主詞、第二碼是受詞的頂層類號（"{碼}0"）。
             // 反向述詞（類號 10、20）的主詞受詞剛好對調，所以直接用類號查，不另外寫一份對照。
-            $subject = $leadScopes->first(fn (Scope $scope) => $scope->class_number[0] === $classNumber[0]);
-            $object = $leadScopes->first(fn (Scope $scope) => $scope->class_number[0] === $classNumber[1]);
+            $subject = $leadScopes->firstWhere('class_number', "{$classNumber[0]}0");
+            $object = $leadScopes->firstWhere('class_number', "{$classNumber[1]}0");
 
             $seeded[$name] = $this->relation([
                 'subject_id' => $subject->id,
                 'object_id' => $object->id,
                 'class_number' => $classNumber,
-                'call_number' => $callNumber,
+                'call_number' => '20',
                 'name' => $name,
                 'note' => $note,
                 'source_vocabulary' => $sourceVocabulary,
@@ -291,7 +327,6 @@ class RelationSeeder extends Seeder
             ]);
         }
 
-        $this->pairReverse($seeded['about'], $seeded['subjectOf']);
         $this->pairReverse($seeded['targets'], $seeded['targetedBy']);
         $this->pairReverse($seeded['influences'], $seeded['influencedBy']);
 

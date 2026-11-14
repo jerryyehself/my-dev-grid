@@ -1,0 +1,781 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property App\\Models\\OauthIdentity\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Auth/SocialAuthController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Auth\\SocialAuthController\:\:redirect\(\) should return Illuminate\\Http\\RedirectResponse but returns Symfony\\Component\\HttpFoundation\\RedirectResponse\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Auth/SocialAuthController.php
+
+		-
+			message: '#^Instanceof between Laravel\\Sanctum\\PersonalAccessToken and Laravel\\Sanctum\\PersonalAccessToken will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: app/Http/Controllers/Auth/TokenRefreshController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\OauthIdentity\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Auth/TokenSocialAuthController.php
+
+		-
+			message: '#^Call to an undefined method Laravel\\Socialite\\Contracts\\Provider\:\:redirectUrl\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/Auth/TokenSocialAuthController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:visibleToViewer\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/DocumentationController.php
+
+		-
+			message: '#^Relation ''implementations'' is not found in App\\Models\\Documentation model\.$#'
+			identifier: larastan.relationExistence
+			count: 4
+			path: app/Http/Controllers/DocumentationController.php
+
+		-
+			message: '#^Relation ''scope'' is not found in App\\Models\\Documentation model\.$#'
+			identifier: larastan.relationExistence
+			count: 4
+			path: app/Http/Controllers/DocumentationController.php
+
+		-
+			message: '#^Relation ''techniques'' is not found in App\\Models\\Documentation model\.$#'
+			identifier: larastan.relationExistence
+			count: 4
+			path: app/Http/Controllers/DocumentationController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\EntityRelation\:\:\$relation\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Technique\:\:\$label\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\GraphController\:\:deletedDocumentationNodeIds\(\) should return array\<string, true\> but returns array\<string, bool\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\GraphController\:\:hiddenNodeIds\(\) should return array\<string, true\> but returns array\<string, bool\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\EntityRelation\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Relation ''relation'' is not found in App\\Models\\DocumentationImplementationLink model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Relation ''relation'' is not found in App\\Models\\DocumentationTechniqueLink model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Relation ''relation'' is not found in App\\Models\\EntityRelation model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Relation ''relation'' is not found in App\\Models\\TechniqueImplementationLink model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Relation ''scope'' is not found in App\\Models\\Documentation model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/GraphController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:visibleToViewer\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/ImplementationController.php
+
+		-
+			message: '#^Relation ''documentations'' is not found in App\\Models\\Implementation model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/ImplementationController.php
+
+		-
+			message: '#^Relation ''scope'' is not found in App\\Models\\Implementation model\.$#'
+			identifier: larastan.relationExistence
+			count: 4
+			path: app/Http/Controllers/ImplementationController.php
+
+		-
+			message: '#^Relation ''techniques'' is not found in App\\Models\\Implementation model\.$#'
+			identifier: larastan.relationExistence
+			count: 4
+			path: app/Http/Controllers/ImplementationController.php
+
+		-
+			message: '#^Relation ''children'' is not found in App\\Models\\Relation model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/RelationController.php
+
+		-
+			message: '#^Relation ''object'' is not found in App\\Models\\Relation model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/RelationController.php
+
+		-
+			message: '#^Relation ''parent'' is not found in App\\Models\\Relation model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/RelationController.php
+
+		-
+			message: '#^Relation ''reverse'' is not found in App\\Models\\Relation model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/RelationController.php
+
+		-
+			message: '#^Relation ''subject'' is not found in App\\Models\\Relation model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/RelationController.php
+
+		-
+			message: '#^Relation ''children'' is not found in App\\Models\\Scope model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/ScopeController.php
+
+		-
+			message: '#^Relation ''objectOf'' is not found in App\\Models\\Scope model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/ScopeController.php
+
+		-
+			message: '#^Relation ''parent'' is not found in App\\Models\\Scope model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/ScopeController.php
+
+		-
+			message: '#^Relation ''siblings'' is not found in App\\Models\\Scope model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/ScopeController.php
+
+		-
+			message: '#^Relation ''subjectOf'' is not found in App\\Models\\Scope model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/ScopeController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Technique\:\:\$label\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TechniqueController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:visibleToViewer\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/TechniqueController.php
+
+		-
+			message: '#^Relation ''documentations'' is not found in App\\Models\\Technique model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/TechniqueController.php
+
+		-
+			message: '#^Relation ''implementations'' is not found in App\\Models\\Technique model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/TechniqueController.php
+
+		-
+			message: '#^Relation ''scope'' is not found in App\\Models\\Technique model\.$#'
+			identifier: larastan.relationExistence
+			count: 4
+			path: app/Http/Controllers/TechniqueController.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$body\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$creation_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$note\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$uri\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DocumentationResource\:\:\$url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DocumentationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$git_repo_created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$git_repo_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$is_visible\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$maintain_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$sub_title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ImplementationResource\:\:\$url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ImplementationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$FullCallNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$NewChildCallNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$ReferenceCode\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$call_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$class_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$note\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$object\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$reverse\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$reverse_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$subject\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RelationResource\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\RelationResource\:\:hasOwnReferences\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\RelationResource\:\:isReferenced\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\RelationResource\:\:ownEdgesCount\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\RelationResource\:\:reverseEdgesCount\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/RelationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$FullCallNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$NewChildCallNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$ReferenceCode\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$call_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$class_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$comment\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$documentations_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$implementations_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$note\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$parent_class\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$siblings_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$techniques_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ScopeResource\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ScopeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\TechniqueResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/TechniqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\TechniqueResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/TechniqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\TechniqueResource\:\:\$note\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/TechniqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\TechniqueResource\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/TechniqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\TechniqueResource\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/TechniqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\TechniqueResource\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/TechniqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\TechniqueResource\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/TechniqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\TechniqueResource\:\:\$version\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/TechniqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\UserResource\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/UserResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\UserResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/UserResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\UserResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/UserResource.php
+
+		-
+			message: '#^Instanceof between Illuminate\\Http\\Request and Illuminate\\Http\\Request will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: app/Logging/RequestLogProcessor.php
+
+		-
+			message: '#^Instanceof between Illuminate\\Http\\Request and Illuminate\\Http\\Request will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: app/Logging/SecurityLog.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Relation\:\:\$parent\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Relation.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Relation\:\:\$reverse\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Relation.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Relation\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Relation.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: app/Models/Relation.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/Relation.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Scope\:\:\$objectOf\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scope.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Scope\:\:\$parent\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Scope.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Scope\:\:\$subjectOf\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scope.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Scope\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scope.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/Scope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Rules/RelationFitsLinkedScopes.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Rules/RelationFitsLinkedScopes.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>tokenable_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/RefreshTokenFamilies.php
+
+		-
+			message: '#^Call to an undefined method Laravel\\Socialite\\Contracts\\Provider\:\:enablePKCE\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/SocialiteDriver.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, int\<0, 99\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: database/factories/ScopeFactory.php
+
+		-
+			message: '#^Method Database\\Seeders\\RelationSeeder\:\:createRandomRelation\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: database/seeders/RelationSeeder.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, int\<1, max\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: database/seeders/RelationSeeder.php

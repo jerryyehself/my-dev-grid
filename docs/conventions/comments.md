@@ -61,7 +61,7 @@ PSR-5 與 phpDocumentor 把 docblock 分成三段，順序固定：
 - tag 名稱（`@param`）、型別（`array<string, mixed>`）、程式碼、檔名、套件名、既有的英文專有名詞（Eloquent、Sanctum、problem details）維持原文，不硬翻。引用程式碼用反引號：`Relation::syncReverse()`。
 - 中文句子用全形標點（，。：；（））。中英文之間不強制加空白。
 - 例外訊息（`new Exception('…')`、`abort(409, '…')`）是給使用者看的文字，用中文；跟註解是兩回事，規則在 [`api.md`](api.md)「錯誤」。
-- 既有的英文註解不用為了翻譯單獨開 PR，改到那個檔案時順手換成中文（清單在最後面）。
+- 既有的英文註解不用為了翻譯單獨開 PR，改到那個檔案時順手換成中文。
 
 ## `/** */` 與 `//`
 
@@ -259,7 +259,6 @@ class <Name>Exception extends RuntimeException
 
 ## 目前已知不符的地方
 
-- 英文的說明文字（要換成中文）：`App\Services\GitService`、`App\Services\SaveReposDataService`、`App\Http\Controllers\GraphController`、`App\Traits\SetCURIEAttribute`、`App\Traits\SyncsPivotRelations`、`App\Models\Relation`、`App\Models\EntityRelation` 與三個 `*Link` model、`App\Exceptions\RelationLockedException` 的類別 docblock、`App\Console\Commands\SnapshotGitHubRepos`、`database/seeders` 底下的 `GitHubReposSnapshotSeeder`、`RelationSeeder`。
 - 部分舊註解用半形標點（`,`、`:`、`(`）寫中文，例如 `StoreScopeRequest` 的 `parent_class`。
 - 英文例外訊息：`RelationLockedException::__construct()` 的訊息是英文，`render()` 才是中文（見 [`api.md`](api.md)「錯誤」）。
 - `SaveReposDataService` 的類別 docblock 帶了 `NOTE(2026-09-07)` 的歷史說明。

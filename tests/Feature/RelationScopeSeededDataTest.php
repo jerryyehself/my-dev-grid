@@ -93,20 +93,18 @@ class RelationScopeSeededDataTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors(['implementations.0.relation_id']);
     }
 
-    #[TestDox('文件（repository）可用 about、targets 連到技術（assistant），influences 連到實作（project）；反向與接錯對象的都不行')]
+    #[TestDox('文件（repository）可用 targets 連到技術（assistant），influences 連到實作（project）；反向與接錯對象的都不行')]
     public function test_external_reference_predicates(): void
     {
         // 種出來的 Claude Code 就是外部參考要連的那個技術節點
         $claudeCode = Technique::where('title', 'Claude Code')->firstOrFail();
         $implementation = Implementation::factory()->create(['type' => $this->scopeId('project')]);
 
-        foreach (['about', 'targets'] as $name) {
-            $this->postJson('/api/documentations', [
-                'type' => $this->scopeId('repository'),
-                'title' => "Repository {$name}",
-                'techniques' => [['id' => $claudeCode->id, 'relation_id' => $this->relationId($name)]],
-            ])->assertCreated();
-        }
+        $this->postJson('/api/documentations', [
+            'type' => $this->scopeId('repository'),
+            'title' => 'Repository targets',
+            'techniques' => [['id' => $claudeCode->id, 'relation_id' => $this->relationId('targets')]],
+        ])->assertCreated();
 
         $this->postJson('/api/documentations', [
             'type' => $this->scopeId('repository'),

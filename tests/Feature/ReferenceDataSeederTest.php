@@ -50,7 +50,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->deploySeed();
 
         $this->assertSame(17, Scope::count());
-        $this->assertSame(23, Relation::count());
+        $this->assertSame(25, Relation::count());
         // 不建帳號、不碰內容資料；唯一的技術節點是預設的 Claude Code
         $this->assertSame(0, User::count());
         $this->assertSame(0, Documentation::count());
@@ -66,10 +66,10 @@ class ReferenceDataSeederTest extends TestCase
         $this->deploySeed();
 
         $this->assertSame(17, Scope::count());
-        $this->assertSame(23, Relation::count());
+        $this->assertSame(25, Relation::count());
         $this->assertSame(1, Technique::count());
         $this->assertSame(17, Scope::withTrashed()->distinct()->count('name'));
-        $this->assertSame(23, Relation::withTrashed()->distinct()->count('name'));
+        $this->assertSame(25, Relation::withTrashed()->distinct()->count('name'));
     }
 
     #[TestDox('重跑部署 seed 不蓋掉後台改過的內容')]
@@ -135,15 +135,15 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame('dcterms', $isVersionOf->source_vocabulary);
         // 原本就在的不動
         $this->assertSame($existingIds, Relation::whereNotIn('name', ['isVersionOf', 'hasVersion'])->orderBy('id')->pluck('id', 'name')->all());
-        $this->assertSame(23, Relation::count());
+        $this->assertSame(25, Relation::count());
     }
 
-    #[TestDox('外部參考用的分類、三組述詞與 Claude Code 技術節點會補進已有資料的資料庫')]
+    #[TestDox('外部參考用的分類、兩組述詞與 Claude Code 技術節點會補進已有資料的資料庫')]
     public function test_deploy_seed_adds_external_reference_data_to_an_existing_database()
     {
         // 模擬這批預設資料加進 seeder 之前就存在的資料庫：先種一次，再把這批新的資料整批實體刪掉
         $this->deploySeed();
-        $newRelations = ['about', 'subjectOf', 'targets', 'targetedBy', 'influences', 'influencedBy'];
+        $newRelations = ['targets', 'targetedBy', 'influences', 'influencedBy'];
         Technique::withTrashed()->where('title', 'Claude Code')->forceDelete();
         Relation::whereIn('name', $newRelations)->update(['reverse_id' => null]);
         Relation::whereIn('name', $newRelations)->forceDelete();
@@ -158,7 +158,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame('0050', $repository->class_number.$repository->call_number);
         $this->assertSame(1, Technique::where('title', 'Claude Code')->count());
         $this->assertSame(Scope::where('name', 'assistant')->value('id'), Technique::where('title', 'Claude Code')->value('type'));
-        foreach ([['about', 'subjectOf'], ['targets', 'targetedBy'], ['influences', 'influencedBy']] as [$forward, $reverse]) {
+        foreach ([['targets', 'targetedBy'], ['influences', 'influencedBy']] as [$forward, $reverse]) {
             $forwardRelation = Relation::where('name', $forward)->firstOrFail();
             $reverseRelation = Relation::where('name', $reverse)->firstOrFail();
             $this->assertSame($reverseRelation->id, $forwardRelation->reverse_id);
@@ -178,10 +178,12 @@ class ReferenceDataSeederTest extends TestCase
         $expected = [
             'about' => ['0110', 'Documentation', 'Technique', 'subjectOf'],
             'subjectOf' => ['1010', 'Technique', 'Documentation', 'about'],
+            'aboutProject' => ['0210', 'Documentation', 'Implementation', 'projectSubjectOf'],
+            'projectSubjectOf' => ['2010', 'Implementation', 'Documentation', 'aboutProject'],
             'targets' => ['0120', 'Documentation', 'Technique', 'targetedBy'],
             'targetedBy' => ['1020', 'Technique', 'Documentation', 'targets'],
-            'influences' => ['0210', 'Documentation', 'Implementation', 'influencedBy'],
-            'influencedBy' => ['2010', 'Implementation', 'Documentation', 'influences'],
+            'influences' => ['0220', 'Documentation', 'Implementation', 'influencedBy'],
+            'influencedBy' => ['2020', 'Implementation', 'Documentation', 'influences'],
         ];
 
         foreach ($expected as $name => [$number, $subject, $object, $reverse]) {
@@ -197,16 +199,6 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame($numbers->count(), $numbers->unique()->count());
         $scopeNumbers = Scope::all()->map(fn (Scope $scope) => $scope->class_number.$scope->call_number);
         $this->assertSame($scopeNumbers->count(), $scopeNumbers->unique()->count());
-    }
-
-    #[TestDox('conversation 分類的說明寫明目前沒有使用')]
-    public function test_conversation_scope_comment_says_it_is_unused()
-    {
-        $this->deploySeed();
-
-        $comment = Scope::where('name', 'conversation')->value('comment');
-        $this->assertStringContainsString('值得引用的具體 AI 對話紀錄', $comment);
-        $this->assertStringContainsString('目前沒有使用', $comment);
     }
 
     #[TestDox('分類說明不超過資料表欄位的長度')]

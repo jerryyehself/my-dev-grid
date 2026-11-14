@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Exceptions\RelationLockedException;
+use App\Traits\ResolvesPositiveIntegerRouteKeys;
 use App\Traits\SetCURIEAttribute;
 use Closure;
 use Database\Factories\RelationFactory;
@@ -15,7 +16,7 @@ use Illuminate\Support\Str;
 class Relation extends Model
 {
     /** @use HasFactory<RelationFactory> */
-    use HasFactory, SetCURIEAttribute, SoftDeletes;
+    use HasFactory, ResolvesPositiveIntegerRouteKeys, SetCURIEAttribute, SoftDeletes;
 
     protected $fillable = [
         'subject_id',
@@ -35,11 +36,10 @@ class Relation extends Model
     protected $appends = ['ReferenceCode', 'NewChildCallNumber'];
 
     /**
-     * Once a Relation is referenced by an existing pivot link, its identity
-     * (subject_id/object_id/name/class_number/call_number/parent_class) is
-     * locked read-only — only note may still change. Semantics only evolve
-     * forward (new child relations) or disappear (soft delete), never
-     * mutate in place.
+     * 一旦 Relation 被既有的 pivot 連結參照，它的身分欄位
+     * （subject_id／object_id／name／class_number／call_number／parent_class）就會
+     * 鎖定為唯讀，只有 note 還能修改。語意只會往前演進（新增子關係）或消失（軟刪除），
+     * 不會原地修改。
      *
      * `parent_class` 的語意鎖死為「且僅為 rdfs:subPropertyOf」（真正的子謂詞：
      * 這個關係的每一筆事實都必然蘊含父關係成立）。明確排除兩種常見誤用：
@@ -308,6 +308,34 @@ class Relation extends Model
         }
 
         return false;
+    }
+
+    /**
+     * 刪除這條述詞前要檢查的兩種引用數量。
+     *
+     * - `links`：四張連結表裡用到它的列數。連結表沒有 `deleted_at`，所以全部都算；
+     *   連到已軟刪除實體的邊也算，跟 isReferenced() 一致。
+     * - `inverse_of`：把它設為 reverse_id 的其他述詞數，不含已軟刪除的。對稱關係
+     *   （reverse_id 指向自己）排除自己，不然它永遠刪不掉。
+     *
+     * 注意 reverse_id 一定是雙向的（見 syncReverse()），所以有配對的述詞，對方
+     * 一定會被算進 `inverse_of`，要先解除配對才能刪。
+     *
+     * @return array{links: int, inverse_of: int}
+     */
+    public function referenceCountsForDeletion(): array
+    {
+        $links = 0;
+        foreach (self::LINK_RELATIONS as $relation) {
+            $links += $this->{$relation}()->count();
+        }
+
+        return [
+            'links' => $links,
+            'inverse_of' => static::where('reverse_id', $this->id)
+                ->where('id', '!=', $this->id)
+                ->count(),
+        ];
     }
 
     /**

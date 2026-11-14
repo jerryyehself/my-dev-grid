@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Relation;
 use App\Models\Scope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -318,7 +319,7 @@ class relationCRUDTest extends TestCase
      * 全表不變量:每一條關係的 reverse_id 要嘛是 null,要嘛指向一條回指自己的關係。
      *
      * 在此之前只有 `requires`/`isRequiredBy` 這一對被斷言過(見檔尾那支),
-     * 其餘 6 對加上 `accompanies` 的自指完全沒有覆蓋——而 15 條（2026-09-30 加了 isVersionOf／hasVersion 變 17 條）全部成對,靠的
+     * 其餘 6 對加上 `accompanies` 的自指完全沒有覆蓋——而 15 條（之後加了 isVersionOf／hasVersion 、兩對 about 與外部參考的兩組述詞變 25 條）全部成對,靠的
      * 純粹是 RelationSeeder 剛好寫對了,沒有任何機制在維護。
      */
     #[TestDox('seeder 種出的關係全部互相配對')]
@@ -328,7 +329,7 @@ class relationCRUDTest extends TestCase
 
         $relations = Relation::all()->keyBy('id');
 
-        $this->assertCount(23, $relations, 'seeder 的關係數量變了,這支測試的預期要一起更新。');
+        $this->assertCount(25, $relations, 'seeder 的關係數量變了,這支測試的預期要一起更新。');
 
         foreach ($relations as $relation) {
             if (is_null($relation->reverse_id)) {
@@ -378,6 +379,81 @@ class relationCRUDTest extends TestCase
         ]);
 
         $response->assertUnauthorized();
+    }
+
+    #[TestDox('新增述詞沒帶 call_number 回 422')]
+    public function test_create_relation_requires_the_call_number_field()
+    {
+        $this->actingAsOwner();
+        [$subject, $object] = Scope::factory()->count(2)->create();
+
+        $this->postJson('/api/relations', [
+            'subject_id' => $subject->id,
+            'object_id' => $object->id,
+            'name' => 'Test',
+            'class_number' => '77',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('call_number');
+
+        $this->assertDatabaseMissing('relations', ['name' => 'Test']);
+    }
+
+    /**
+     * 欄位有送、但沒有值：JSON 的 null，以及空字串（框架會把空字串轉成 null）。
+     *
+     * @return iterable<string, array{string|null}>
+     */
+    public static function emptyCallNumbers(): iterable
+    {
+        yield 'null' => [null];
+        yield '空字串' => [''];
+    }
+
+    #[DataProvider('emptyCallNumbers')]
+    #[TestDox('call_number 有送但留空時，照常新增成子述詞並接到頂層述詞')]
+    public function test_create_relation_accepts_an_empty_call_number(?string $callNumber)
+    {
+        $this->actingAsOwner();
+        [$subject, $object] = Scope::factory()->count(2)->create();
+        $topLevel = Relation::factory()->create([
+            'subject_id' => $subject->id,
+            'object_id' => $object->id,
+            'class_number' => '77',
+            'call_number' => '00',
+            'name' => 'top-level-relation',
+        ]);
+
+        $this->postJson('/api/relations', [
+            'subject_id' => $subject->id,
+            'object_id' => $object->id,
+            'name' => 'Test',
+            'class_number' => '77',
+            'call_number' => $callNumber,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('relations', [
+            'name' => 'Test',
+            'call_number' => null,
+            'parent_class' => $topLevel->id,
+        ]);
+    }
+
+    #[TestDox('call_number 是 00 時新增成頂層述詞，不接父層')]
+    public function test_create_relation_with_call_number_00_has_no_parent()
+    {
+        $this->actingAsOwner();
+        [$subject, $object] = Scope::factory()->count(2)->create();
+
+        $this->postJson('/api/relations', [
+            'subject_id' => $subject->id,
+            'object_id' => $object->id,
+            'name' => 'Test',
+            'class_number' => '77',
+            'call_number' => '00',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('relations', ['name' => 'Test', 'call_number' => '00', 'parent_class' => null]);
     }
 
     #[TestDox('可檢視單一關係')]
@@ -441,8 +517,8 @@ class relationCRUDTest extends TestCase
         $this->actingAsOwner();
         $this->seed();
 
-        // A Scope happens to share this name; updating a Relation to the same
-        // name must not be blocked by a uniqueness check against the wrong table.
+        // 有一個 Scope 剛好使用相同的名稱；把 Relation 更新成同名時，
+        // 不應被錯誤資料表上的唯一性檢查擋下。
         $scopeName = Scope::first()->name;
         $relation = Relation::inRandomOrder()->first();
 
@@ -462,9 +538,10 @@ class relationCRUDTest extends TestCase
     public function test_delete_relation()
     {
         $this->actingAsOwner();
-        $this->seed();
 
-        $relation = Relation::first();
+        // 刪除要挑沒被引用的述詞：seeder 種的述詞都已配成一對（reverse_id 互指），
+        // 現在不能直接刪，見 RelationDeleteGuardTest。
+        $relation = Relation::factory()->create();
 
         $response = $this->deleteJson("/api/relations/{$relation->id}");
 

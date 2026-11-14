@@ -1,0 +1,1174 @@
+{
+    "techniques": [
+        {
+            "title": "Blade",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "Bootstrap",
+            "version": "5",
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "Bootstrap",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "CSS",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "Claude Code",
+            "version": null,
+            "scope": "assistant",
+            "deleted_at": null
+        },
+        {
+            "title": "Dockerfile",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "HTML",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "Heroku",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "JavaScript",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "Jupyter Notebook",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "Nuxt",
+            "version": "3",
+            "scope": "framework",
+            "deleted_at": null
+        },
+        {
+            "title": "Nuxt",
+            "version": null,
+            "scope": "framework",
+            "deleted_at": null
+        },
+        {
+            "title": "PHP",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "Python",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "Shell",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "TypeScript",
+            "version": null,
+            "scope": "language",
+            "deleted_at": null
+        },
+        {
+            "title": "Vue",
+            "version": "3",
+            "scope": "framework",
+            "deleted_at": null
+        },
+        {
+            "title": "Vue",
+            "version": null,
+            "scope": "framework",
+            "deleted_at": null
+        },
+        {
+            "title": "appscript",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "chartjs",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "cheerio",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "database",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "exceljs",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "graphviz",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "html5-qrcode",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "i18n",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "isbn3",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "json",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "laravel",
+            "version": null,
+            "scope": "framework",
+            "deleted_at": null
+        },
+        {
+            "title": "leetcode",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "linebot",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "pinia",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "rdflib",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "tailwind",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "vuetify",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        },
+        {
+            "title": "vueuse-core",
+            "version": null,
+            "scope": "packagetool",
+            "deleted_at": null
+        }
+    ],
+    "implementations": [
+        {
+            "git_repo_id": "1000327573",
+            "title": "my-dev-grid",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/my-dev-grid",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "1123193041",
+            "title": "isbn-scanner",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/isbn-scanner",
+            "maintain_status": false
+        },
+        {
+            "git_repo_id": "1264304513",
+            "title": "my-dev-grid-front",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/my-dev-grid-front",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "1348445257",
+            "title": "idea-trigger",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/idea-trigger",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "435626926",
+            "title": "shorturl",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/shorturl",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "435628368",
+            "title": "thesis",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/thesis",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "444067197",
+            "title": "vue-exercise",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/vue-exercise",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "449347319",
+            "title": "marqee-maker",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/marqee-maker",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "482983169",
+            "title": "Laravel-LearningLibrary",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/Laravel-LearningLibrary",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "489263384",
+            "title": "laravel-demo",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/laravel-demo",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "495950458",
+            "title": "api-demo",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/api-demo",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "815571749",
+            "title": "bulletin-api",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/bulletin-api",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "832530394",
+            "title": "leetcode-practice",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/leetcode-practice",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "886917793",
+            "title": "gym-people-count-parser",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/gym-people-count-parser",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "900001",
+            "title": "shadow-a",
+            "scope": "project",
+            "url": "https://github.com/example/shadow-a",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "900002",
+            "title": "shadow-b",
+            "scope": "project",
+            "url": "https://github.com/example/shadow-b",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "929886110",
+            "title": "my-profile",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/my-profile",
+            "maintain_status": true
+        },
+        {
+            "git_repo_id": "939945904",
+            "title": "business-card-generator",
+            "scope": "project",
+            "url": "https://github.com/jerryyehself/business-card-generator",
+            "maintain_status": true
+        }
+    ],
+    "documentations": [
+        {
+            "title": "JavaScript 官方文件",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
+            "scope": "sourcesite",
+            "status": 1
+        },
+        {
+            "title": "PHP 官方文件",
+            "url": "https://www.php.net/docs.php",
+            "scope": "sourcesite",
+            "status": 1
+        },
+        {
+            "title": "Python 官方文件",
+            "url": "https://docs.python.org/3/",
+            "scope": "sourcesite",
+            "status": 1
+        },
+        {
+            "title": "TypeScript 官方文件",
+            "url": "https://www.typescriptlang.org/docs/",
+            "scope": "sourcesite",
+            "status": 1
+        },
+        {
+            "title": "Vue 官方文件",
+            "url": "https://vuejs.org/",
+            "scope": "sourcesite",
+            "status": 1
+        },
+        {
+            "title": "laravel 官方文件",
+            "url": "https://laravel.com/docs",
+            "scope": "sourcesite",
+            "status": 1
+        },
+        {
+            "title": "影子文章",
+            "url": null,
+            "scope": "post",
+            "status": 0
+        }
+    ],
+    "technique_implementation": [
+        {
+            "technique": "Blade",
+            "implementation": "1000327573",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Blade",
+            "implementation": "435626926",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Blade",
+            "implementation": "449347319",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Blade",
+            "implementation": "482983169",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Blade",
+            "implementation": "815571749",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Bootstrap 5",
+            "implementation": "482983169",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "CSS",
+            "implementation": "1000327573",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "CSS",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "CSS",
+            "implementation": "1264304513",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "CSS",
+            "implementation": "815571749",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "CSS",
+            "implementation": "929886110",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "CSS",
+            "implementation": "939945904",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Dockerfile",
+            "implementation": "1000327573",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Dockerfile",
+            "implementation": "929886110",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "HTML",
+            "implementation": "1264304513",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "HTML",
+            "implementation": "435626926",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "HTML",
+            "implementation": "444067197",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Heroku",
+            "implementation": "482983169",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Heroku",
+            "implementation": "900001",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "JavaScript",
+            "implementation": "1000327573",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "JavaScript",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "JavaScript",
+            "implementation": "815571749",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "JavaScript",
+            "implementation": "886917793",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "JavaScript",
+            "implementation": "900002",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "JavaScript",
+            "implementation": "929886110",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "JavaScript",
+            "implementation": "939945904",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Jupyter Notebook",
+            "implementation": "435628368",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Nuxt 3",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Nuxt 3",
+            "implementation": "900002",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "PHP",
+            "implementation": "1000327573",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "PHP",
+            "implementation": "435626926",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "PHP",
+            "implementation": "449347319",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "PHP",
+            "implementation": "482983169",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "PHP",
+            "implementation": "489263384",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "PHP",
+            "implementation": "495950458",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "PHP",
+            "implementation": "815571749",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "PHP",
+            "implementation": "832530394",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "PHP",
+            "implementation": "900001",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Python",
+            "implementation": "435628368",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Shell",
+            "implementation": "1000327573",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Shell",
+            "implementation": "1264304513",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Shell",
+            "implementation": "435626926",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Shell",
+            "implementation": "449347319",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Shell",
+            "implementation": "900002",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "TypeScript",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "TypeScript",
+            "implementation": "1264304513",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "TypeScript",
+            "implementation": "929886110",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "TypeScript",
+            "implementation": "939945904",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Vue 3",
+            "implementation": "1000327573",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Vue 3",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Vue 3",
+            "implementation": "900001",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Vue 3",
+            "implementation": "939945904",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Vue",
+            "implementation": "1264304513",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Vue",
+            "implementation": "435626926",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Vue",
+            "implementation": "444067197",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Vue",
+            "implementation": "449347319",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "Vue",
+            "implementation": "900002",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "appscript",
+            "implementation": "886917793",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "chartjs",
+            "implementation": "482983169",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "cheerio",
+            "implementation": "886917793",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "database",
+            "implementation": "900001",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "exceljs",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "graphviz",
+            "implementation": "435628368",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "html5-qrcode",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "html5-qrcode",
+            "implementation": "900001",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "i18n",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "isbn3",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "isbn3",
+            "implementation": "900001",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "json",
+            "implementation": "435628368",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "laravel",
+            "implementation": "1000327573",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "laravel",
+            "implementation": "435626926",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "laravel",
+            "implementation": "449347319",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "laravel",
+            "implementation": "482983169",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "laravel",
+            "implementation": "489263384",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "laravel",
+            "implementation": "495950458",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "laravel",
+            "implementation": "815571749",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "laravel",
+            "implementation": "900001",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "leetcode",
+            "implementation": "832530394",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "linebot",
+            "implementation": "886917793",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "pinia",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "rdflib",
+            "implementation": "435628368",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "tailwind",
+            "implementation": "1000327573",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "tailwind",
+            "implementation": "900002",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "tailwind",
+            "implementation": "939945904",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "vuetify",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        },
+        {
+            "technique": "vueuse-core",
+            "implementation": "1123193041",
+            "relation": "usedBy",
+            "last_seen_at": "2026-11-02 03:17:00",
+            "created_at": "2026-11-01 03:17:00",
+            "updated_at": "2026-11-01 03:17:00"
+        }
+    ],
+    "entity_relations": [
+        {
+            "entity_type": "technique",
+            "subject": "Bootstrap 5",
+            "object": "Bootstrap",
+            "relation": "isVersionOf"
+        },
+        {
+            "entity_type": "technique",
+            "subject": "Nuxt 3",
+            "object": "Nuxt",
+            "relation": "isVersionOf"
+        },
+        {
+            "entity_type": "technique",
+            "subject": "Nuxt",
+            "object": "JavaScript",
+            "relation": "requires"
+        },
+        {
+            "entity_type": "technique",
+            "subject": "Vue 3",
+            "object": "Vue",
+            "relation": "isVersionOf"
+        },
+        {
+            "entity_type": "technique",
+            "subject": "Vue",
+            "object": "JavaScript",
+            "relation": "requires"
+        },
+        {
+            "entity_type": "technique",
+            "subject": "laravel",
+            "object": "PHP",
+            "relation": "requires"
+        }
+    ],
+    "documentation_technique": [
+        {
+            "documentation": "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
+            "technique": "JavaScript",
+            "relation": "specs"
+        },
+        {
+            "documentation": "https://docs.python.org/3/",
+            "technique": "Python",
+            "relation": "specs"
+        },
+        {
+            "documentation": "https://laravel.com/docs",
+            "technique": "laravel",
+            "relation": "specs"
+        },
+        {
+            "documentation": "https://vuejs.org/",
+            "technique": "Vue",
+            "relation": "specs"
+        },
+        {
+            "documentation": "https://www.php.net/docs.php",
+            "technique": "PHP",
+            "relation": "specs"
+        },
+        {
+            "documentation": "https://www.typescriptlang.org/docs/",
+            "technique": "TypeScript",
+            "relation": "specs"
+        },
+        {
+            "documentation": "影子文章",
+            "technique": "Vue 3",
+            "relation": "about"
+        },
+        {
+            "documentation": "影子文章",
+            "technique": "laravel",
+            "relation": "about"
+        }
+    ],
+    "documentation_implementation": [
+        {
+            "documentation": "影子文章",
+            "implementation": "1123193041",
+            "relation": "aboutProject"
+        },
+        {
+            "documentation": "影子文章",
+            "implementation": "900001",
+            "relation": "aboutProject"
+        }
+    ]
+}

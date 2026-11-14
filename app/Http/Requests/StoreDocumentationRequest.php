@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Implementation;
 use App\Models\Technique;
+use App\Rules\ForeignId;
 use App\Rules\RelationFitsLinkedScopes;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -20,7 +21,7 @@ class StoreDocumentationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => 'required|exists:scopes,id',
+            'type' => ['required', ...ForeignId::rules('scopes')],
             'title' => 'required|string|max:255',
             // 只收 http／https：這個欄位會被當成可點的連結輸出，不限 scheme 的話
             // javascript:、data: 這類網址存進來，點下去就可能在瀏覽器裡執行
@@ -37,19 +38,19 @@ class StoreDocumentationRequest extends FormRequest
             'status' => 'nullable|integer',
             'creation_date' => 'nullable|date',
             'techniques' => 'sometimes|array',
-            'techniques.*.id' => 'required|integer|exists:techniques,id',
+            'techniques.*.id' => ['required', ...ForeignId::rules('techniques')],
             // 連結表 documentation_technique 的主詞是文件、受詞是技術，所以這裡文件是主詞端
             /** 連結用的關係 id。兩端實體的分類須符合該關係規定的主詞與受詞分類（子分類也算符合）。 */
             'techniques.*.relation_id' => [
-                'required', 'integer', 'exists:relations,id',
+                'required', ...ForeignId::rules('relations'),
                 new RelationFitsLinkedScopes(RelationFitsLinkedScopes::OWN_IS_SUBJECT, Technique::class),
             ],
             'implementations' => 'sometimes|array',
-            'implementations.*.id' => 'required|integer|exists:implementations,id',
+            'implementations.*.id' => ['required', ...ForeignId::rules('implementations')],
             // 連結表 documentation_implementation 的主詞是文件、受詞是實作，所以這裡文件是主詞端
             /** 連結用的關係 id。兩端實體的分類須符合該關係規定的主詞與受詞分類（子分類也算符合）。 */
             'implementations.*.relation_id' => [
-                'required', 'integer', 'exists:relations,id',
+                'required', ...ForeignId::rules('relations'),
                 new RelationFitsLinkedScopes(RelationFitsLinkedScopes::OWN_IS_SUBJECT, Implementation::class),
             ],
         ];

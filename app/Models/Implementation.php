@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\ResolvesPositiveIntegerRouteKeys;
 use Database\Factories\ImplementationFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Implementation extends Model
 {
     /** @use HasFactory<ImplementationFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, ResolvesPositiveIntegerRouteKeys, SoftDeletes;
 
     protected $fillable = [
         'type',
@@ -69,11 +70,11 @@ class Implementation extends Model
 
     public function documentations()
     {
-        return $this->belongsToMany(Documentation::class)->withPivot('relation_id');
+        return $this->belongsToMany(Documentation::class)->withPivot('relation_id')->withTimestamps();
     }
 
     public function techniques()
     {
-        return $this->belongsToMany(Technique::class, 'technique_implementation')->withPivot('relation_id');
+        return $this->belongsToMany(Technique::class, 'technique_implementation')->withPivot('relation_id')->withTimestamps();
     }
 }

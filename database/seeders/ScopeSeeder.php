@@ -59,7 +59,7 @@ class ScopeSeeder extends Seeder
             'call_number' => '40',
             'parent_class' => $documentation->id,
             'name' => 'conversation',
-            'comment' => '值得引用的具體 AI 對話紀錄。目前沒有使用：網站上尚未有任何一筆放在這個分類。',
+            'comment' => '值得引用的具體 AI 對話紀錄',
         ]);
 
         // 0050：Documentation 底下已用 10～40，接著的第一個空號就是 50。
@@ -85,7 +85,7 @@ class ScopeSeeder extends Seeder
             'parent_class' => $technique->id,
             'name' => 'language',
             // 外部分類依據：Wikidata Q9143「programming language」
-            // ("language for communicating instructions to a machine")
+            // （「用來向機器傳達指令的語言」）
             // https://www.wikidata.org/wiki/Q9143
             'comment' => '`Technique` 底下的子分類，對應程式語言本身（例如 PHP、JavaScript），由 `SaveReposDataService::find_or_create_technique()` 依 GitHub repo 的 `languages` API 自動建立。外部分類對應 Wikidata Q9143「programming language」：https://www.wikidata.org/wiki/Q9143 。',
         ]);
@@ -118,7 +118,7 @@ class ScopeSeeder extends Seeder
             'parent_class' => $technique->id,
             'name' => 'framework',
             // 外部分類依據：Wikidata Q271680「software framework」
-            // ("software that supports solution development via inversion of control")
+            // （「透過控制反轉支援解決方案開發的軟體」）
             // https://www.wikidata.org/wiki/Q271680
             'comment' => '`Technique` 底下的子分類，對應軟體框架（例如 Vue、Laravel）；目前 `SaveReposDataService` 統一將 repo topics 歸類到 `packagetool`，`framework` 尚無自動化資料管線寫入，供 Triple 後台手動維護。外部分類對應 Wikidata Q271680「software framework」：https://www.wikidata.org/wiki/Q271680 。',
         ]);

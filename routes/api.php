@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ArticleSourceController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\TokenLoginController;
 use App\Http\Controllers\Auth\TokenRefreshController;
@@ -83,6 +84,10 @@ Route::apiResources([
 // 對應的 Policy（見 app/Policies），這裡的 middleware 只負責先擋掉
 // 完全沒有登入態的請求，回 401。
 Route::middleware('auth:sanctum')->group(function () {
+    // 從文章來源 repo 列出、匯入文章。清單會帶出來源檔案的路徑，連讀取也只給登入的人。
+    Route::get('article-sources', [ArticleSourceController::class, 'index']);
+    Route::post('article-sources/import', [ArticleSourceController::class, 'import']);
+
     Route::apiResources([
         'scopes' => ScopeController::class,
         'relations' => RelationController::class,
