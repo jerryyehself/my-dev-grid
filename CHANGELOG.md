@@ -4,6 +4,31 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [1.3.0] - 2026-11-15
+
+### 新增
+
+- 從 GitHub repo 匯入文章：`GET /api/article-sources` 列出來源 repo 最新 commit 裡 front matter 帶 `import: true` 的檔案與八種狀態（new／changed／unchanged／removed／site_deleted／conflict／possible_match／invalid），`POST /api/article-sources/import` 依選定的項目建立（草稿）、更新或連結既有文章；匯入前重算 blob SHA、比對對不上回 409，整批在同一個 transaction 裡寫入；已軟刪除的文章不會復活。來源 repo 與 token 由部署設定帶入，沒設定或 GitHub 讀取失敗時回帶 `reason` 的明確錯誤。匯入與連結寫入稽核事件（#175, #176, #177, #178）。
+- `documentations` 新增七個可為 NULL 的匯入來源欄位與 `(source_repo, source_key)` 唯一索引，不出現在任何 API 回應（#176）。
+- 新增 `about`／`subjectOf`（文章談到的技術）、`aboutProject`／`projectSubjectOf`（文章談到的專案）述詞；匯入文章時依 front matter 的 `about_techniques`、`about_projects` 建立連結，只新增、不刪除，不認得的名稱只回警告（#182）。
+- 預設資料補上 `repository` 分類、`targets`／`targetedBy`、`influences`／`influencedBy` 述詞與 `Claude Code` 技術節點（#187）。
+- `GET /api/graph` 的節點新增 `added_at`、`updated_at`，邊新增 `added_at`；未登入時未公開文件的節點與連到它的邊，時間欄位為 `null`；開始記錄連結建立的時間，之前存的連結為 `null`，不回填（#181）。
+- `GET /api/graph` 的邊新增 `stale` 欄位：專案到技術的同步連線超過 14 天沒有再被看到即標為過期；`GET /api/graph/path` 的路徑搜尋略過過期的連線（#183）。
+- 每日同步也讀各 repo 的 `package.json`、`composer.json`、`requirements.txt`，依對照表推出專案用到的技術並產生連結（#185）。
+- 新增 `nomens` 資料表與影子模式：同步與文章匯入除了照舊寫節點與連結，另外記一份讀到的名稱；`php artisan nomens:preview-switch` 預覽改用新規則後哪些連結會不同，不寫入任何資料（#186）。
+- CI 加入 Larastan 與測試覆蓋率報告，只報告、不擋 PR；GitHub Actions 改釘 commit SHA，並新增 Dependabot 每週檢查（#180, #168）。
+
+### 變更
+
+- 建立或更新時的外鍵欄位改用共用驗證規則：收到非整數回 422（原本在 PostgreSQL 上回 500），指向已軟刪除的資料也回 422；分類與述詞的 `name` 限 50 字、類號／索書號限兩位數字、`note`／`comment` 須為字串，超長或型別不符回 422（#165, #169）。
+- 網址中的 id 不是標準寫法的正整數（例如 `007`、`+1`）或超出整數範圍時回 404；`GET` 實作清單的 `type` 篩選須為整數，否則回 422（#166）。
+- 新增述詞時 `call_number` 欄位必須送出（可為 `null`），沒送回 422（#167）。
+- 分類名稱唯一性新增與更新都排除已軟刪除的資料；同一個上層分類底下的分類號不能重複；新增述詞的備註限 255 字（#173）。
+- 刪除述詞前先檢查：仍被連結或被其他述詞設為反向述詞的，回 422 並附 `reference_counts`（#184）。
+- 同步時忽略語言偵測的誤判（`hack`），並把 `procfile` 對應到 Heroku（#183）。
+- 升級 `laravel/framework` 13.30.1 到 13.40.0，`phpseclib` 4.0.1 到 4.0.3（修補安全通報）；`symfony/yaml` 改為正式相依（#171, #175）。
+- 專案自寫的程式註解改為繁體中文；文章 fixture 移除內部編號與報告路徑，測試補擋（#179, #174）。
+
 ## [1.2.0] - 2026-11-09
 
 ### 新增
@@ -144,6 +169,7 @@ GitHub 同步
 - CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
+[1.3.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.3.0
 [1.2.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.2.0
 [1.1.3]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.3
 [1.1.2]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.2
