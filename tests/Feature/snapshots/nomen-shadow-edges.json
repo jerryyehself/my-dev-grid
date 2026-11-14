@@ -25,6 +25,12 @@
             "deleted_at": null
         },
         {
+            "title": "Claude Code",
+            "version": null,
+            "scope": "assistant",
+            "deleted_at": null
+        },
+        {
             "title": "Dockerfile",
             "version": null,
             "scope": "language",

@@ -62,6 +62,17 @@ class ScopeSeeder extends Seeder
             'comment' => '值得引用的具體 AI 對話紀錄',
         ]);
 
+        // 0050：Documentation 底下已用 10～40，接著的第一個空號就是 50。
+        // 外部分類依據：Schema.org 的 SoftwareSourceCode 型別
+        // https://schema.org/SoftwareSourceCode
+        $this->scope([
+            'class_number' => '00',
+            'call_number' => '50',
+            'parent_class' => $documentation->id,
+            'name' => 'repository',
+            'comment' => '`Documentation` 底下的子分類，對應外部的程式碼庫（GitHub 等託管的 repo，包含 skill、工具）。url 存 repo 網址，body 寫它是什麼、與本站的關係。外部分類對應 Schema.org `SoftwareSourceCode`：https://schema.org/SoftwareSourceCode 。',
+        ]);
+
         $technique = $this->scope([
             'class_number' => '10',
             'name' => 'Technique',

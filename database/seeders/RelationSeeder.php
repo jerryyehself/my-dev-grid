@@ -293,6 +293,43 @@ class RelationSeeder extends Seeder
             $this->pairReverse($about, $subjectOf);
         }
 
+        // 外部參考（外部文章、repo、skill）還需要兩組述詞，主詞都是 Documentation 或 Implementation。
+        // 類號照其他述詞的規則：主詞頂層分類的第一碼＋受詞頂層分類的第一碼（文件→技術 01、文件→實作 02，
+        // 反向 10、20）。子類號接在該類號已用過的後面：01 已用 00（specs）、10（about），02 已用 00（documents）、
+        // 10（aboutProject），反向的 10 與 20 同理，所以兩組都用 20。放在最後面，原有述詞的 id 不變。
+        //
+        // - targets／targetedBy：這份來源（skill、外掛、工具）是給這個技術（通常是 AI 工具）用的。
+        //   Schema.org targetProduct；Schema.org 沒有反向詞條，照 assists／documentedBy 的先例沿用同一個詞條。
+        // - influences／influencedBy：這份來源的規則、做法或概念已經寫進這個實作。只有借來的東西真的進了
+        //   那個實作才連，還在計畫中的不連。W3C PROV-O prov:influenced／prov:wasInfluencedBy。
+        $documentationPredicates = [
+            ['01', 'targets', 'schema.org targetProduct — this Documentation (a skill, plugin or tool) is written for that Technique, usually an AI tool such as Claude Code.', 'schema', 'targetProduct'],
+            ['10', 'targetedBy', 'Reverse of targets. schema.org has no inverse term, so it reuses targetProduct as assists/documentedBy do.', 'schema', 'targetProduct'],
+            ['02', 'influences', 'W3C PROV-O prov:influenced — this Documentation\'s rules, practices or ideas have been adopted into the Implementation. Link only once the adoption has landed in that Implementation, not while it is still planned.', 'prov', 'influenced'],
+            ['20', 'influencedBy', 'W3C PROV-O prov:wasInfluencedBy — reverse of influences.', 'prov', 'wasInfluencedBy'],
+        ];
+
+        foreach ($documentationPredicates as [$classNumber, $name, $note, $sourceVocabulary, $sourceTerm]) {
+            // 主詞、受詞的頂層分類由類號的兩碼決定：第一碼是主詞、第二碼是受詞的頂層類號（"{碼}0"）。
+            // 反向述詞（類號 10、20）的主詞受詞剛好對調，所以直接用類號查，不另外寫一份對照。
+            $subject = $leadScopes->firstWhere('class_number', "{$classNumber[0]}0");
+            $object = $leadScopes->firstWhere('class_number', "{$classNumber[1]}0");
+
+            $seeded[$name] = $this->relation([
+                'subject_id' => $subject->id,
+                'object_id' => $object->id,
+                'class_number' => $classNumber,
+                'call_number' => '20',
+                'name' => $name,
+                'note' => $note,
+                'source_vocabulary' => $sourceVocabulary,
+                'source_term' => $sourceTerm,
+            ]);
+        }
+
+        $this->pairReverse($seeded['targets'], $seeded['targetedBy']);
+        $this->pairReverse($seeded['influences'], $seeded['influencedBy']);
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 
