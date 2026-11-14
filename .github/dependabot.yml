@@ -1,0 +1,17 @@
+# workflow 裡的 action 都釘在完整 commit SHA（行尾註解是對應的版本號），
+# tag 被移動也不會悄悄換掉執行的程式碼；SHA 不會自己更新，由 Dependabot 每週開 PR 升級。
+# cooldown：新版釋出後先等 7 天才提議升級，給社群時間發現被入侵或有問題的版本。
+# 不設 target-branch：Dependabot 的 PR 固定對預設分支。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
+        # 只把小版本、修補版合成一個 PR；大版本各自開 PR，另外檢查。
+        update-types: ["minor", "patch"]

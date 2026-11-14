@@ -1,0 +1,18 @@
+# Larastan（PHPStan 的 Laravel 擴充）設定。CI 的 `.github/workflows/larastan.yml` 與本機都讀這份；
+# 它只放報告，不擋 PR。怎麼跑、怎麼看結果見 docs/conventions/testing.md「靜態分析與覆蓋率報告」。
+includes:
+    - vendor/larastan/larastan/extension.neon
+    # 基準檔：記下現有程式碼已經有的問題，報告只列出「新增」的。
+    # 修掉其中一類問題之後，用 `vendor/bin/phpstan analyse --generate-baseline phpstan-baseline.neon` 重產，讓清單只減不增。
+    - phpstan-baseline.neon
+
+parameters:
+    # 5 = 檢查呼叫的方法與屬性存在、參數與回傳型別對得上；再往上會開始要求每個陣列都標內容型別，
+    # 現有程式碼補不完，雜訊會蓋過真正的問題。
+    level: 5
+    paths:
+        - app
+        - database/factories
+        - database/seeders
+        - routes
+    # database/migrations 不分析：那是歷史紀錄（匿名類別，寫完就不再改）。

@@ -14,7 +14,7 @@
 | `app/Http/Middleware/`               | middleware                                                    | `EnsureFrontendOrigin`                    |
 | `app/Http/` 根層                     | 只跟 HTTP 有關、不屬於上面任何一類的小工具                    | `ProblemDetails`、`RefreshTokenCookie`    |
 | `app/Policies/`                      | 授權，一個 model 一支                                         | `DocumentationPolicy`                     |
-| `app/Rules/`                         | 自訂驗證規則                                                  | `ReverseIsAvailable`                      |
+| `app/Rules/`                         | 自訂驗證規則，以及產生一組內建規則的工具                      | `ReverseIsAvailable`、`ForeignId`         |
 | `app/Models/`                        | Eloquent model、連結表 model                                  | `Relation`、`DocumentationTechniqueLink`  |
 | `app/Services/`                      | 跨 controller、指令共用的商業邏輯與查詢（含查詢物件）         | `RefreshTokenFamilies`、`RelationEdgeQuery` |
 | `app/Enums/`                         | enum（固定幾種的值）                                          | `RefreshTokenOutcome`、`SecurityEvent`    |
@@ -23,6 +23,7 @@
 | `app/OpenApi/`                       | Scramble 推不出來、要手動補的文件設定                         | `ProblemDetailsResponses`                 |
 | `app/Console/Commands/`              | artisan 指令                                                  | `SyncGitHubRepos`                         |
 | `app/Traits/`                        | 跨層共用的 trait                                              | `SyncsPivotRelations`                     |
+| `config/`                            | 設定檔；同步用的對照表（不是資料庫資料）也放這裡              | `package_technologies.php`                |
 | `database/seeders/fixtures/`         | seeder 讀的固定資料（JSON、Markdown）                         | `github-repos-snapshot.json`              |
 | `tests/Feature/`、`tests/Unit/`      | 測試，見 [`testing.md`](testing.md)                           |                                           |
 | `tests/Concerns/`                    | 測試共用的 trait                                              | `CapturesSecurityEvents`                  |
@@ -59,6 +60,7 @@ public function store(StoreDocumentationRequest $request)
 
 - 每個寫入 action 都收 `Store<Model>Request`／`Update<Model>Request`，controller 只讀 `$request->validated()`。
 - 一條規則寫不完的檢查，寫成 `app/Rules/` 的類別：`ReverseIsAvailable`、`ReverseIsSwapped`。
+- 好幾個欄位都要同一組內建規則時，寫成回傳規則清單的靜態方法，攤開放進欄位的規則陣列：外鍵欄位用 `ForeignId::rules()`（見 [`security.md`](security.md)「輸入」）。不要包成自訂的規則物件，Scramble 會推不出欄位型別。
 - FormRequest 的 `authorize()` 固定回 `true`，授權交給 Policy（見下一節）。
 
 ### 授權放 Policy

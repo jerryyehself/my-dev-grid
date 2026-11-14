@@ -13,39 +13,32 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * save git data
+ * 儲存 git 資料
  *
- * Pulls every public repo from GitService, upserts each one as an
- * Implementation (type: project), and links it to a Technique per
- * language/topic via the existing `usedBy` Relation (Technique usedBy
- * Implementation — the reverse of `uses`, because `technique_implementation`
- * always has the Technique as subject). A `topics` entry is
- * classified `framework` scope when it's a key in FRAMEWORK_BASE_LANGUAGE,
- * otherwise `packagetool` (see class_number/call_number in ScopeSeeder).
+ * 從 GitService 拉取每一個公開 repo，並將每筆 upsert 成一個 Implementation（type: project），
+ * 再依每個語言／topic，透過既有的 `usedBy` Relation 連到對應的 Technique
+ * （Technique usedBy Implementation，是 `uses` 的反向，因為 `technique_implementation`
+ * 永遠以 Technique 為 subject）。`topics` 的項目若是 FRAMEWORK_BASE_LANGUAGE 的 key，
+ * 就歸類到 `framework` scope，否則歸為 `packagetool`（見 ScopeSeeder 的 class_number／call_number）。
  *
- * Two additional, hand-maintained relations are filled in where known:
- * - A framework/library topic (e.g. `vue`) is linked to its single base
- *   language Technique (e.g. `JavaScript`) via `requires` (same-type,
- *   `entity_relations`) — see FRAMEWORK_BASE_LANGUAGE.
- * - A Technique with a known official documentation site gets a
- *   Documentation (type: sourcesite) linked to it via `specs` — see
- *   OFFICIAL_DOCS.
- * Both maps are deliberately small: a Technique not listed just doesn't
- * get the extra edge, rather than guessing at one.
+ * 除了語言與 topic，repo 的套件清單（package.json、composer.json、requirements.txt，見 GitService）
+ * 裡出現的套件，只要列在 `config/package_technologies.php` 的對照表就也會連到對應的 Technique；
+ * 沒列的（例如 ESLint 這類開發用工具）不會上圖。topic 沒有被取代，仍是手動補充的來源。
  *
- * NOTE(2026-09-07): before this fix, every `topics` entry — framework
- * topics included — was unconditionally classified `packagetool`. A
- * one-time backfill migration (`..._reclassify_framework_topics_...`)
- * re-points any pre-existing `packagetool`-scope Technique row whose title
- * matches a FRAMEWORK_BASE_LANGUAGE key over to `framework` **in place**
- * (same row id, so `technique_implementation`/`entity_relations`/
- * `documentation_technique` rows already pointing at it stay valid). That
- * migration's topic list is a point-in-time snapshot of
- * FRAMEWORK_BASE_LANGUAGE as of the fix — it is intentionally NOT kept in
- * sync with future edits to the const below. If FRAMEWORK_BASE_LANGUAGE
- * ever gains a new key, any `packagetool`-scope Technique already synced
- * under that title needs its own follow-up backfill (same pattern, new
- * migration) — this in-code reclassification only affects future syncs.
+ * 另外有兩組手動維護的關係，在已知時補上：
+ * - framework／library 類的 topic（例如 `vue`）會透過 `requires`（同類型，
+ *   `entity_relations`）連到它唯一的基礎語言 Technique（例如 `JavaScript`），見 FRAMEWORK_BASE_LANGUAGE。
+ * - 有已知官方文件網站的 Technique，會透過 `specs` 連到一筆 Documentation（type: sourcesite），見 OFFICIAL_DOCS。
+ * 兩張對照表刻意保持精簡：沒列出的 Technique 就不補這條額外的邊，而不是去猜。
+ *
+ * NOTE(2026-09-07): 在這次修正之前，每個 `topics` 項目（包括 framework 類）都無條件歸為
+ * `packagetool`。一次性的 backfill migration（`..._reclassify_framework_topics_...`）
+ * 會把既有、scope 為 `packagetool` 且 title 符合 FRAMEWORK_BASE_LANGUAGE 某個 key 的 Technique 列，
+ * **原地**改指到 `framework`（同一個 row id，所以已指向它的 `technique_implementation`／`entity_relations`／
+ * `documentation_technique` 仍然有效）。該 migration 的 topic 清單是修正當時 FRAMEWORK_BASE_LANGUAGE 的快照，
+ * 刻意不跟下面 const 之後的修改同步。如果 FRAMEWORK_BASE_LANGUAGE 之後新增了 key，
+ * 已經在該 title 下同步過的 `packagetool` Technique 需要另外補一次 backfill（同樣的做法，新的 migration）——
+ * 程式裡的重新分類只影響之後的同步。
  */
 class SaveReposDataService
 {
@@ -56,10 +49,12 @@ class SaveReposDataService
      */
     private array $scopeIdCache = [];
 
+    /** 影子模式：另外記下讀到的語言、topic 與套件字串，不影響這裡寫的邊（見 `NomenRecorder`）。 */
+    private NomenRecorder $nomens;
+
     /**
-     * GitHub repo `topics` (as GitHub stores them: lowercase) that are a
-     * framework/library with one unambiguous base language, mapped to that
-     * language exactly as GitHub's languages API names it.
+     * GitHub repo 的 `topics`（GitHub 儲存時皆為小寫），若是有唯一基礎語言的 framework／library，
+     * 就對應到該語言，名稱與 GitHub languages API 的寫法完全一致。
      */
     private const FRAMEWORK_BASE_LANGUAGE = [
         'vue' => 'JavaScript',
@@ -106,12 +101,21 @@ class SaveReposDataService
         'nuxtjs' => ['Nuxt', 'framework', null],
         'nuxt3' => ['Nuxt', 'framework', '3'],
         'bootstrap5' => ['Bootstrap', 'packagetool', '5'],
+        // Linguist 把 Procfile 當成一種「語言」，它其實是 Heroku 的部署設定檔
+        'procfile' => ['Heroku', 'packagetool', null],
     ];
 
     /**
-     * Official documentation site URL for a Technique, keyed by its title
-     * lowercased (looked up case-insensitively since 2026-09-30, when topic
-     * variants started resolving to canonical names like `Vue`).
+     * 同步時直接略過的 GitHub 語言名稱（小寫）：只放 Linguist 的偵測錯誤。`hack` 是把 PHP 檔誤判成
+     * Hack 語言。topic 是擁有者刻意貼的標籤（描述 repo 在講什麼），不論是不是技術都不略過。
+     * 略過的項目不建技術、也不更新 last_seen_at，所以以前已經連上的邊不會被刪，而是慢慢變成
+     * 「很久沒看到」，由 TechniqueImplementationLink::staleCutoff() 判成過期。
+     */
+    public const IGNORED_LANGUAGES = ['hack'];
+
+    /**
+     * Technique 的官方文件網站 URL，以其 title 小寫為 key（自 2026-09-30 起以不分大小寫的方式查找，
+     * 那時 topic 的變體開始解析成 `Vue` 之類的標準名稱）。
      */
     private const OFFICIAL_DOCS = [
         'vue' => 'https://vuejs.org/',
@@ -134,13 +138,13 @@ class SaveReposDataService
 
     /**
      * @param  Collection|null  $repos  Pre-fetched, already `GitService::clean_repo_info()`-shaped
-     *                                  repo data (e.g. a JSON snapshot loaded by
-     *                                  `GitHubReposSnapshotSeeder`). Defaults to a live
-     *                                  `GitService::get_repos()` call.
+     *                                  repo 資料（例如由 `GitHubReposSnapshotSeeder` 載入的 JSON 快照）。
+     *                                  預設為即時呼叫 `GitService::get_repos()`。
      */
-    public function __construct(?Collection $repos = null)
+    public function __construct(?Collection $repos = null, ?NomenRecorder $nomens = null)
     {
         $this->gitService = $repos ?? (new GitService)->get_repos();
+        $this->nomens = $nomens ?? new NomenRecorder(new NomenResolver);
     }
 
     public function save_repos_data(): void
@@ -152,8 +156,9 @@ class SaveReposDataService
         $requiresRelationId = $this->relation_id('requires');
         $specsRelationId = $this->relation_id('specs');
         $isVersionOfRelationId = $this->relation_id('isVersionOf');
+        $seenAt = now();
 
-        $this->gitService->each(function ($repo) use ($usesRelationId, $requiresRelationId, $specsRelationId, $isVersionOfRelationId) {
+        $this->gitService->each(function ($repo) use ($usesRelationId, $requiresRelationId, $specsRelationId, $isVersionOfRelationId, $seenAt) {
             $project = $this->save_repos_content($repo);
 
             $resolve = function (string $name, string $defaultScope) use ($requiresRelationId, $specsRelationId, $isVersionOfRelationId): Technique {
@@ -179,6 +184,7 @@ class SaveReposDataService
             };
 
             $techniques = collect($repo['languages'] ?? [])
+                ->reject(fn ($language) => $this->is_ignored_language($language))
                 ->map(fn ($language) => $resolve($language, 'language'))
                 ->concat(
                     // 是 FRAMEWORK_BASE_LANGUAGE 已知的 framework/library topic 就歸類到
@@ -188,6 +194,12 @@ class SaveReposDataService
                         $topic,
                         array_key_exists($topic, self::FRAMEWORK_BASE_LANGUAGE) ? 'framework' : 'packagetool',
                     ))
+                )
+                // 套件清單裡有、而且在對照表（config/package_technologies.php）裡的套件，
+                // 補上它們代表的技術。topic 是手動補充，兩邊重複的技術靠下面的 unique 合併。
+                ->concat(
+                    collect(PackageTechniqueMap::techniquesFor($repo['packages'] ?? []))
+                        ->map(fn (array $technique) => $resolve($technique[0], $technique[1]))
                 )
                 ->unique('id');
 
@@ -200,7 +212,10 @@ class SaveReposDataService
 
             $this->link_project_to_techniques($project, $techniques, $usesRelationId);
             $this->link_project_to_techniques($project, $impliedBases, $usesRelationId, createMissing: false);
+            $this->nomens->recordRepo($project, $repo, $seenAt);
         });
+
+        $this->nomens->resolve();
     }
 
     /**
@@ -234,6 +249,11 @@ class SaveReposDataService
                 ]);
             }
         }
+    }
+
+    private function is_ignored_language(string $name): bool
+    {
+        return in_array(mb_strtolower($name), self::IGNORED_LANGUAGES, true);
     }
 
     public function save_repos_content($repo)
@@ -274,11 +294,9 @@ class SaveReposDataService
     }
 
     /**
-     * If $framework is a known framework/library with a single base language
-     * (FRAMEWORK_BASE_LANGUAGE, looked up by its lowercased title), find-or-create
-     * that language's own Technique and link $framework to it via a same-type
-     * `requires` EntityRelation. A no-op for anything not in the map. Only the
-     * version-less record gets this edge; versions reach it via isVersionOf.
+     * 若 $framework 是有單一基礎語言的已知 framework／library（FRAMEWORK_BASE_LANGUAGE，以其小寫 title 查找），
+     * 就找出或建立該語言自己的 Technique，並透過同類型的 `requires` EntityRelation 把 $framework 連過去。
+     * 不在對照表中的項目不做任何事。只有沒有版本的紀錄會得到這條邊；各版本是透過 isVersionOf 連到它。
      */
     private function link_framework_to_base_language(Technique $framework, int $requiresRelationId): void
     {
@@ -299,9 +317,8 @@ class SaveReposDataService
     }
 
     /**
-     * If $technique has a known official documentation site (OFFICIAL_DOCS),
-     * find-or-create a Documentation (type: sourcesite) for it and link it
-     * to $technique via `specs`. A no-op for any Technique not in the map.
+     * 若 $technique 有已知的官方文件網站（OFFICIAL_DOCS），就找出或建立一筆 Documentation（type: sourcesite），
+     * 並透過 `specs` 連到 $technique。不在對照表中的 Technique 不做任何事。
      */
     private function link_official_docs(Technique $technique, int $specsRelationId): void
     {

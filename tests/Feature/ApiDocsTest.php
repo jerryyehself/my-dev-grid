@@ -82,6 +82,7 @@ class ApiDocsTest extends TestCase
             '/implementations', '/implementations/{implementation}',
             '/graph', '/graph/path',
             '/user', '/auth/login', '/auth/logout', '/auth/refresh', '/auth/session',
+            '/article-sources', '/article-sources/import',
         ] as $path) {
             $this->assertArrayHasKey($path, $paths, "{$path} 應該在 OpenAPI 文件裡。");
         }
@@ -107,11 +108,34 @@ class ApiDocsTest extends TestCase
         $schema = $this->document()['paths']['/graph']['get']['responses']['200']['content']['application/json']['schema'];
 
         $node = $schema['properties']['nodes']['items'];
-        $this->assertSame(['id', 'type', 'label', 'created_at', 'subtype', 'url', 'active'], array_keys($node['properties']));
+        $this->assertSame(['id', 'type', 'label', 'created_at', 'added_at', 'updated_at', 'subtype', 'url', 'active'], array_keys($node['properties']));
         $this->assertSame(
-            ['source', 'target', 'predicate', 'label', 'relation_id'],
+            ['source', 'target', 'predicate', 'label', 'relation_id', 'added_at', 'stale'],
             array_keys($schema['properties']['edges']['items']['properties'])
         );
+    }
+
+    #[TestDox('文章匯入清單與匯入結果在文件中有欄位說明')]
+    public function test_hand_built_article_source_responses_are_described()
+    {
+        $paths = $this->document()['paths'];
+
+        $listing = $paths['/article-sources']['get']['responses'];
+        $item = $listing['200']['content']['application/json']['schema']['properties']['items']['items'];
+        $this->assertSame(
+            ['key', 'path', 'blob_sha', 'title', 'status', 'documentation_id', 'published', 'reason', 'reason_message', 'warnings'],
+            array_keys($item['properties'])
+        );
+        $this->assertArrayHasKey('502', $listing);
+        $this->assertArrayHasKey('503', $listing);
+
+        $import = $paths['/article-sources/import']['post']['responses'];
+        $this->assertSame(
+            ['key', 'action', 'documentation_id', 'title', 'published', 'warnings'],
+            array_keys($import['200']['content']['application/json']['schema']['properties']['data']['items']['properties'])
+        );
+        $this->assertArrayHasKey('409', $import);
+        $this->assertArrayHasKey('422', $import);
     }
 
     #[TestDox('文件中的錯誤回應採用 problem details')]

@@ -55,11 +55,19 @@ name: Deploy to Cloud Run
 #                                   workflow 只負責讓 Job 跟服務用同一個映像檔；
 #                                   每天觸發它的是手動設一次的 Cloud Scheduler
 #                                   （docs/deployment-gcp.md 第 10 步）。沒設就跳過
+#   ARTICLES_SOURCE_REPO           匯入文章的 GitHub repo（owner/name），只給服務，
+#                                   服務上的環境變數名是 GITHUB_ARTICLES_REPO
+#                                   （repository variable 不能用 GITHUB_ 開頭）。
+#                                   沒設時服務拿到空字串，config 當成 null，
+#                                   服務照常啟動
 #
 # No repository *secrets* are needed — app secrets (APP_KEY, DB_PASSWORD,
-# GITHUB_TOKEN, GOOGLE_CLIENT_SECRET, LINE_CLIENT_SECRET) live in Secret
-# Manager and are wired in via --set-secrets/secrets below, never copied
-# through GitHub.
+# GITHUB_TOKEN, GITHUB_ARTICLES_TOKEN, GOOGLE_CLIENT_SECRET,
+# LINE_CLIENT_SECRET) live in Secret Manager and are wired in via
+# --set-secrets/secrets below, never copied through GitHub.
+# 注意：secrets 區塊列的每一個機密都必須已經在 Secret Manager 建好、至少有一個版本，
+# 執行用 service account 也要讀得到；少一個，新 revision 就起不來，這次部署失敗
+# （流量留在原本的 revision）。
 
 on:
   push:
@@ -120,18 +128,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
@@ -235,7 +243,7 @@ jobs:
       # - httpGet.port 要跟服務的 container port 一致（沒另外設定，是預設的 8080）。
       - name: Deploy new revision (no traffic)
         id: deploy
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@251330ba9a8a34bfbc1622895f42e1d53fd14522 # v2.7.6
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           region: ${{ vars.GCP_REGION }}
@@ -266,10 +274,14 @@ jobs:
             GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }}
             LINE_CLIENT_ID=${{ vars.LINE_CLIENT_ID }}
             LINE_REDIRECT_URI=${{ vars.LINE_REDIRECT_URI }}
+            GITHUB_ARTICLES_REPO=${{ vars.ARTICLES_SOURCE_REPO }}
+          # GITHUB_ARTICLES_TOKEN／GITHUB_ARTICLES_REPO 只給服務（匯入文章是服務上的功能），
+          # 下面每天同步的 Job 用不到，刻意不給。
           secrets: |
             APP_KEY=APP_KEY:latest
             DB_PASSWORD=DB_PASSWORD:latest
             GITHUB_TOKEN=GITHUB_TOKEN:latest
+            GITHUB_ARTICLES_TOKEN=GITHUB_ARTICLES_TOKEN:latest
             GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest
             LINE_CLIENT_SECRET=LINE_CLIENT_SECRET:latest
           flags: >-

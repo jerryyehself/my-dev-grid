@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\RelationInUseException;
 use App\Http\Requests\StoreRelationRequest;
 use App\Http\Requests\UpdateRelationRequest;
 use App\Http\Resources\RelationResource;
@@ -211,11 +212,17 @@ class RelationController extends Controller
 
     #[Endpoint(
         title: '刪除述詞',
-        description: '刪除指定的述詞。需要登入並有刪除權限。',
+        description: '刪除指定的述詞。需要登入並有刪除權限。仍被邊使用、或被其他述詞設為反向關係的述詞不能刪，回 422，訊息會列出各種引用的數量；有反向關係的述詞，要先把反向關係清空（雙方的配對一起解除）才能刪。',
     )]
     public function destroy(Relation $relation)
     {
         $this->authorize('delete', $relation);
+
+        // 軟刪除不會連帶處理引用它的邊與 reverse_id，有引用就不能刪。
+        $counts = $relation->referenceCountsForDeletion();
+        if ($counts['links'] > 0 || $counts['inverse_of'] > 0) {
+            throw new RelationInUseException($relation->name, $counts['links'], $counts['inverse_of']);
+        }
 
         $relationName = $relation->name;
         $relation->delete();

@@ -92,4 +92,41 @@ class RelationScopeSeededDataTest extends TestCase
             'implementations' => [['id' => $implementation->id, 'relation_id' => $this->relationId('uses')]],
         ])->assertUnprocessable()->assertJsonValidationErrors(['implementations.0.relation_id']);
     }
+
+    #[TestDox('文件（repository）可用 targets 連到技術（assistant），influences 連到實作（project）；反向與接錯對象的都不行')]
+    public function test_external_reference_predicates(): void
+    {
+        // 種出來的 Claude Code 就是外部參考要連的那個技術節點
+        $claudeCode = Technique::where('title', 'Claude Code')->firstOrFail();
+        $implementation = Implementation::factory()->create(['type' => $this->scopeId('project')]);
+
+        $this->postJson('/api/documentations', [
+            'type' => $this->scopeId('repository'),
+            'title' => 'Repository targets',
+            'techniques' => [['id' => $claudeCode->id, 'relation_id' => $this->relationId('targets')]],
+        ])->assertCreated();
+
+        $this->postJson('/api/documentations', [
+            'type' => $this->scopeId('repository'),
+            'title' => 'Repository influences',
+            'implementations' => [['id' => $implementation->id, 'relation_id' => $this->relationId('influences')]],
+        ])->assertCreated();
+
+        // 反向的三個述詞，以及接到另一種對象（targets／about 接實作、influences 接技術），都要被擋下來
+        foreach (['subjectOf', 'targetedBy', 'influencedBy', 'influences'] as $name) {
+            $this->postJson('/api/documentations', [
+                'type' => $this->scopeId('repository'),
+                'title' => "Wrong technique {$name}",
+                'techniques' => [['id' => $claudeCode->id, 'relation_id' => $this->relationId($name)]],
+            ])->assertUnprocessable()->assertJsonValidationErrors(['techniques.0.relation_id']);
+        }
+
+        foreach (['subjectOf', 'targetedBy', 'influencedBy', 'about', 'targets'] as $name) {
+            $this->postJson('/api/documentations', [
+                'type' => $this->scopeId('repository'),
+                'title' => "Wrong implementation {$name}",
+                'implementations' => [['id' => $implementation->id, 'relation_id' => $this->relationId($name)]],
+            ])->assertUnprocessable()->assertJsonValidationErrors(['implementations.0.relation_id']);
+        }
+    }
 }

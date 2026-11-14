@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\ResolvesPositiveIntegerRouteKeys;
 use Database\Factories\DocumentationFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Documentation extends Model
 {
     /** @use HasFactory<DocumentationFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, ResolvesPositiveIntegerRouteKeys, SoftDeletes;
 
     protected $fillable = [
         'type',
@@ -28,6 +29,9 @@ class Documentation extends Model
 
     /** 已發布。0 是草稿（my-dev-grid-front 編輯頁的「草稿／已發布」切換）。 */
     public const STATUS_PUBLISHED = 1;
+
+    /** 草稿。從文章來源 repo 匯入的新文章一律是草稿，發布要另外在編輯器做。 */
+    public const STATUS_DRAFT = 0;
 
     /**
      * 這次請求看不看得到草稿。
@@ -75,11 +79,11 @@ class Documentation extends Model
 
     public function techniques()
     {
-        return $this->belongsToMany(Technique::class)->withPivot('relation_id');
+        return $this->belongsToMany(Technique::class)->withPivot('relation_id')->withTimestamps();
     }
 
     public function implementations()
     {
-        return $this->belongsToMany(Implementation::class)->withPivot('relation_id');
+        return $this->belongsToMany(Implementation::class)->withPivot('relation_id')->withTimestamps();
     }
 }

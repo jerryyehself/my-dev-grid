@@ -86,6 +86,7 @@ class GitServiceTest extends TestCase
                 ]])
                 ->push([]),
             'https://api.github.com/repos/acme/repo-1/languages' => Http::response(['PHP' => 1]),
+            'https://api.github.com/repos/acme/repo-1/git/trees/*' => Http::response(['tree' => []]),
         ]);
 
         $repo = (new GitService)->get_repos()->first();
@@ -107,5 +108,22 @@ class GitServiceTest extends TestCase
 
         $this->assertCount(1, $repos);
         $this->assertSame([], $repos->first()['languages']);
+        $this->assertSame([], $repos->first()['language_bytes']);
+    }
+
+    #[TestDox('語言清單照舊只有名稱，位元組數另外放在 language_bytes')]
+    public function test_get_repos_keeps_language_bytes_next_to_the_names()
+    {
+        Http::fake([
+            'https://api.github.com/user/repos*' => Http::sequence()
+                ->push([['id' => 1, 'private' => false, 'name' => 'repo-1', 'html_url' => 'x', 'languages_url' => 'https://api.github.com/repos/a/repo-1/languages', 'topics' => []]])
+                ->push([]),
+            'https://api.github.com/repos/a/repo-1/languages' => Http::response(['PHP' => 12000, 'Shell' => 345]),
+        ]);
+
+        $repo = (new GitService)->get_repos()->first();
+
+        $this->assertSame(['PHP', 'Shell'], $repo['languages']);
+        $this->assertSame(['PHP' => 12000, 'Shell' => 345], $repo['language_bytes']);
     }
 }

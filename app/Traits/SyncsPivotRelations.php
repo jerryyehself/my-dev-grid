@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 trait SyncsPivotRelations
 {
     /**
-     * Convert a validated [{id, relation_id}, ...] array into the
-     * [id => ['relation_id' => ...]] shape belongsToMany::sync() expects.
+     * 把已驗證的 [{id, relation_id}, ...] 陣列，轉換成 belongsToMany::sync() 預期的
+     * [id => ['relation_id' => ...]] 格式。
      */
     protected function pivotSyncData(array $items): array
     {

@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\IndexImplementationRequest;
 use App\Http\Requests\StoreImplementationRequest;
 use App\Http\Requests\UpdateImplementationRequest;
 use App\Http\Resources\ImplementationResource;
 use App\Models\Implementation;
 use App\Traits\SyncsPivotRelations;
 use Dedoc\Scramble\Attributes\Endpoint;
-use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
@@ -18,13 +18,13 @@ class ImplementationController extends Controller
 
     #[Endpoint(
         title: '列出實作',
-        description: '回傳所有實作，依標題排序，每筆含所屬分類與關聯的技術。可用 `type` 查詢參數依類型篩選。未登入時不含設為不公開的實作。',
+        description: '回傳所有實作，依標題排序，每筆含所屬分類與關聯的技術。可用 `type` 查詢參數依類型篩選，`type` 不是整數時回 422。未登入時不含設為不公開的實作。',
     )]
-    public function index(Request $request)
+    public function index(IndexImplementationRequest $request)
     {
         $implementations = Implementation::visibleToViewer()
             ->with(['scope', 'techniques'])
-            ->when($request->filled('type'), fn ($query) => $query->where('type', $request->query('type')))
+            ->when($request->filled('type'), fn ($query) => $query->where('type', $request->validated('type')))
             ->orderBy('title')
             ->get();
 

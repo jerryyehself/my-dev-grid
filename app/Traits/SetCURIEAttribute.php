@@ -27,19 +27,14 @@ trait SetCURIEAttribute
     }
 
     /**
-     * Other records sharing this record's immediate parent (same
-     * `parent_class`) — includes the record itself, since Eloquent
-     * builds this relation's query against a fresh, key-less instance
-     * when eager loading (`Builder::getRelation()` calls the relation
-     * method on `newInstance()`), so a `where(id, '!=', $this->id)`
-     * baked in here would silently degrade to `id is not null` under
-     * eager loading and filter nothing. Callers exclude the record
-     * itself once the relation is actually loaded (see ScopeResource).
+     * 與此紀錄共用同一個直接父層（相同的 `parent_class`）的其他紀錄，包含紀錄本身。
+     * 之所以不在這裡排除自己：eager loading 時 Eloquent 會在一個新的、沒有 key 的 instance 上
+     * 建立這個關聯的查詢（`Builder::getRelation()` 會對 `newInstance()` 呼叫關聯方法），
+     * 如果把 `where(id, '!=', $this->id)` 寫死在這裡，eager loading 時會悄悄退化成 `id is not null`，
+     * 什麼都濾不掉。要排除自己的話，由呼叫端在關聯真正載入後處理（見 ScopeResource）。
      *
-     * A top-level record (no `parent_class`) has no siblings by
-     * definition, so the extra `whereNotNull` cancels out the
-     * `parent_class IS NULL` constraint that `hasMany` would otherwise
-     * build and yields an empty set.
+     * 頂層紀錄（沒有 `parent_class`）根據定義沒有兄弟，因此多加的 `whereNotNull` 會抵銷
+     * `hasMany` 原本加上的 `parent_class IS NULL` 條件，結果是空集合。
      */
     public function siblings()
     {

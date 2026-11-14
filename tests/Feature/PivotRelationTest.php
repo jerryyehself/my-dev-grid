@@ -10,9 +10,12 @@ use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
 use App\Models\TechniqueImplementationLink;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -182,5 +185,118 @@ class PivotRelationTest extends TestCase
 
         $this->assertNotNull($link->relation);
         $this->assertSame($relation->id, $link->relation->id);
+    }
+
+    /**
+     * 六條 belongsToMany（三張 pivot 各從兩端各一條）。每一條都要有 withTimestamps()，
+     * 否則 sync()／attach() 寫進去的列 created_at 是 NULL，圖譜的邊就沒有「加入時間」。
+     *
+     * @return array<string, array{0: class-string, 1: string, 2: class-string}>
+     */
+    public static function belongsToManyRelations(): array
+    {
+        return [
+            '文件 → 技術' => [Documentation::class, 'techniques', Technique::class],
+            '文件 → 實作' => [Documentation::class, 'implementations', Implementation::class],
+            '技術 → 文件' => [Technique::class, 'documentations', Documentation::class],
+            '技術 → 實作' => [Technique::class, 'implementations', Implementation::class],
+            '實作 → 文件' => [Implementation::class, 'documentations', Documentation::class],
+            '實作 → 技術' => [Implementation::class, 'techniques', Technique::class],
+        ];
+    }
+
+    /**
+     * @param  class-string  $ownerClass
+     * @param  class-string  $relatedClass
+     */
+    #[TestDox('sync() 新增連結時會寫入 created_at 與 updated_at')]
+    #[DataProvider('belongsToManyRelations')]
+    public function test_sync_writes_pivot_timestamps(string $ownerClass, string $method, string $relatedClass)
+    {
+        $owner = $ownerClass::factory()->create();
+        $related = $relatedClass::factory()->create();
+        $relation = Relation::factory()->create();
+
+        $this->travelTo('2026-11-01 08:00:00');
+        $owner->{$method}()->sync([$related->id => ['relation_id' => $relation->id]]);
+
+        $row = $this->pivotRow($owner->{$method}(), $related->id);
+        $this->assertSame('2026-11-01 08:00:00', $row->created_at);
+        $this->assertSame('2026-11-01 08:00:00', $row->updated_at);
+    }
+
+    /**
+     * @param  class-string  $ownerClass
+     * @param  class-string  $relatedClass
+     */
+    #[TestDox('syncWithoutDetaching() 新增連結時會寫入 created_at 與 updated_at')]
+    #[DataProvider('belongsToManyRelations')]
+    public function test_sync_without_detaching_writes_pivot_timestamps(string $ownerClass, string $method, string $relatedClass)
+    {
+        $owner = $ownerClass::factory()->create();
+        $related = $relatedClass::factory()->create();
+        $relation = Relation::factory()->create();
+
+        $this->travelTo('2026-11-01 08:00:00');
+        $owner->{$method}()->syncWithoutDetaching([$related->id => ['relation_id' => $relation->id]]);
+
+        $row = $this->pivotRow($owner->{$method}(), $related->id);
+        $this->assertSame('2026-11-01 08:00:00', $row->created_at);
+        $this->assertSame('2026-11-01 08:00:00', $row->updated_at);
+    }
+
+    /**
+     * @param  class-string  $ownerClass
+     * @param  class-string  $relatedClass
+     */
+    #[TestDox('sync() 改掉既有連結的述詞時，只更新 updated_at，created_at 不變')]
+    #[DataProvider('belongsToManyRelations')]
+    public function test_resync_keeps_created_at_and_moves_updated_at(string $ownerClass, string $method, string $relatedClass)
+    {
+        $owner = $ownerClass::factory()->create();
+        $related = $relatedClass::factory()->create();
+        [$first, $second] = Relation::factory()->count(2)->create();
+
+        $this->travelTo('2026-11-01 08:00:00');
+        $owner->{$method}()->sync([$related->id => ['relation_id' => $first->id]]);
+        $this->travelTo('2026-11-05 12:30:00');
+        $owner->{$method}()->sync([$related->id => ['relation_id' => $second->id]]);
+
+        $row = $this->pivotRow($owner->{$method}(), $related->id);
+        $this->assertEquals($second->id, $row->relation_id);
+        $this->assertSame('2026-11-01 08:00:00', $row->created_at);
+        $this->assertSame('2026-11-05 12:30:00', $row->updated_at);
+    }
+
+    /**
+     * 編輯文件、技術、實作的表單會把整份關聯再 sync() 一次。沒變的連結 created_at 不能被重寫，
+     * 不然圖譜上每條邊的「加入時間」都會變成最後一次存檔的時間。
+     * （Laravel 的 sync() 對既有連結一律會碰 updated_at，所以這裡不斷言 updated_at。）
+     */
+    #[TestDox('sync() 沒有變動的既有連結，created_at 不動')]
+    public function test_sync_with_unchanged_link_keeps_created_at()
+    {
+        $documentation = Documentation::factory()->create();
+        $technique = Technique::factory()->create();
+        $relation = Relation::factory()->create();
+
+        $this->travelTo('2026-11-01 08:00:00');
+        $documentation->techniques()->sync([$technique->id => ['relation_id' => $relation->id]]);
+        $this->travelTo('2026-11-05 12:30:00');
+        $documentation->techniques()->sync([$technique->id => ['relation_id' => $relation->id]]);
+
+        $row = $this->pivotRow($documentation->techniques(), $technique->id);
+        $this->assertSame('2026-11-01 08:00:00', $row->created_at);
+    }
+
+    /** 直接讀 pivot 表的原始列，不經過 Eloquent 的日期轉換。 */
+    private function pivotRow(BelongsToMany $relationship, int $relatedId): object
+    {
+        $row = DB::table($relationship->getTable())
+            ->where($relationship->getRelatedPivotKeyName(), $relatedId)
+            ->first();
+        $this->assertNotNull($row, '連結沒有寫進 pivot 表');
+
+        return $row;
     }
 }

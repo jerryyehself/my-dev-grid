@@ -6,7 +6,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * 預設資料（分類、述詞）：每次部署在 `php artisan migrate --force` 之後自動執行
+ * 預設資料（分類、述詞、預設的技術節點）：每次部署在 `php artisan migrate --force` 之後自動執行
  * （`.github/workflows/deploy-cloud-run.yml` 的「Seed reference data」），新增的預設資料
  * 跟著部署進正式環境，不用另外寫 migration。本機與測試的 `DatabaseSeeder` 也是跑這一支。
  *
@@ -30,10 +30,11 @@ use Illuminate\Support\Facades\DB;
  */
 class ReferenceDataSeeder extends Seeder
 {
-    /** 順序有意義：RelationSeeder 要用 ScopeSeeder 建的頂層分類。 */
+    /** 順序有意義：RelationSeeder 要用 ScopeSeeder 建的頂層分類，TechniqueSeeder 要用 ScopeSeeder 建的 assistant 分類。 */
     public const SEEDERS = [
         ScopeSeeder::class,
         RelationSeeder::class,
+        TechniqueSeeder::class,
     ];
 
     public function run(): void

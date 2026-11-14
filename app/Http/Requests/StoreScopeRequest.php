@@ -2,9 +2,12 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\ForeignId;
+use App\Rules\ScopeCallNumber;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 
 class StoreScopeRequest extends FormRequest
 {
@@ -14,7 +17,15 @@ class StoreScopeRequest extends FormRequest
         return true;
     }
 
-    /** @return array<string, ValidationRule|array<mixed>|string> */
+    /**
+     * 文字欄位的長度與型別規則對應 `scopes` 資料表的欄位，擋掉會讓資料庫寫入出錯的值。
+     *
+     * - `name`（varchar(50)）、`call_number`（兩個字元）：超過長度的值 SQLite 照樣寫入，PostgreSQL 會在
+     *   寫入時丟錯、變成 500。子類號有 `numeric`，`max:2` 比的會是數值大小，位數要用 `max_digits`。
+     * - `name`、`comment`、`note` 的 `string` 擋的是陣列：沒有它，陣列會一路送到查詢或寫入才出錯。
+     *
+     * @return array<string, ValidationRule|array<mixed>|string>
+     */
     public function rules(): array
     {
         return [
@@ -29,12 +40,15 @@ class StoreScopeRequest extends FormRequest
             /** 父分類的 id，必須是頂層分類。類號會依父分類自動帶入，不用傳。 */
             'parent_class' => [
                 'required',
-                Rule::exists('scopes', 'id')->whereNull('parent_class'),
+                ...ForeignId::rules('scopes', fn (Exists $rule) => $rule->whereNull('parent_class')),
             ],
-            'call_number' => 'nullable|numeric',
-            'name' => ['required', Rule::unique('scopes')->whereNull('deleted_at')],
-            'comment' => 'required|max:100',
-            'note' => 'max:255',
+            /** 子類號，最多兩位數字，可留空。同一個類號底下不能重複。 */
+            'call_number' => ScopeCallNumber::rules($this->input('parent_class')),
+            // 唯一性不算已軟刪除的分類,跟 UpdateScopeRequest 一致。
+            /** 分類名稱，最多 50 字；不能跟其他還在的分類重複，已刪除的分類用過的名稱可以再用。 */
+            'name' => ['required', 'string', 'max:50', Rule::unique('scopes')->withoutTrashed()],
+            'comment' => 'required|string|max:100',
+            'note' => 'nullable|string|max:255',
         ];
     }
 }

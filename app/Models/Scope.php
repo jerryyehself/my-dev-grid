@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\ResolvesPositiveIntegerRouteKeys;
 use App\Traits\SetCURIEAttribute;
 use Closure;
 use Database\Factories\ScopeFactory;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Scope extends Model
 {
     /** @use HasFactory<ScopeFactory> */
-    use HasFactory, SetCURIEAttribute, SoftDeletes;
+    use HasFactory, ResolvesPositiveIntegerRouteKeys, SetCURIEAttribute, SoftDeletes;
 
     protected $fillable = [
         'class_number',

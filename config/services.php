@@ -38,6 +38,17 @@ return [
         'token' => env('GITHUB_TOKEN'),
     ],
 
+    // 從另一個（私有）GitHub repo 匯入文章用，跟上面 GitService 的 GITHUB_TOKEN 分開：
+    // 這把 token 只需要讀那一個 repo 的內容，權限範圍不同。
+    // repo 是 `owner/name`，只從環境變數讀，不寫死在這個公開 repo 裡。
+    // 沒設或設成空字串都當成 null：部署時 repository variable 沒建，Cloud Run 拿到的是空字串，
+    // 這裡統一成 null，讓使用的地方只要判斷一種「沒設定」；設定缺漏不影響應用程式啟動。
+    'github_articles' => [
+        'token' => env('GITHUB_ARTICLES_TOKEN') ?: null,
+        'repo' => env('GITHUB_ARTICLES_REPO') ?: null,
+        'ref' => env('GITHUB_ARTICLES_REF') ?: 'main',
+    ],
+
     // Google 是 Socialite 內建 driver，不需要額外套件。
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),

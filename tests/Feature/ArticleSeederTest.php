@@ -113,13 +113,14 @@ class ArticleSeederTest extends TestCase
             $this->assertDoesNotMatchRegularExpression('/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/', $article->body, "{$article->title}: email");
             $this->assertDoesNotMatchRegularExpression('/\b(session_|cse_|trig_)[A-Za-z0-9]+/', $article->body, "{$article->title}: session/trigger id");
             $this->assertDoesNotMatchRegularExpression('/\b[0-9a-f]{32}\b/', $article->body, "{$article->title}: 32 位十六進位（帳號 id／token）");
+            $this->assertDoesNotMatchRegularExpression('/\\b[DT]-[0-9]+\\b/', $article->body, "{$article->title}: 內部決策／待辦編號");
             $this->assertStringNotContainsString('jerry40522', $article->body);
             $this->assertStringNotContainsString('jerry-dev', $article->body);
             $this->assertStringNotContainsString('求職', $article->body);
             $this->assertStringNotContainsString('履歷', $article->body);
             $this->assertStringNotContainsString('薪', $article->body);
             // 私有 repo 的指標與對話敘述不進公開文章（public-repo-content）
-            foreach (['daily-claude-summary', 'management-debt-ledger', 'decision-register', 'my-dev-grid-skills', 'roles/', '使用者提到'] as $needle) {
+            foreach (['daily-claude-summary', 'management-debt-ledger', 'decision-register', 'my-dev-grid-skills', 'roles/', 'reports/', '使用者提到'] as $needle) {
                 $this->assertStringNotContainsString($needle, $article->body, "{$article->title}: {$needle}");
             }
         }

@@ -2,7 +2,7 @@
 
 ## 一、為什麼選 Cloudflare（而不是 Vercel）
 
-免費前端託管的業界比較（詳見 `reports/frontend-build-tooling-qa.md` 第三節）：
+免費前端託管的業界比較（詳見本站〈前端建置工具與部署概念問答整理〉第三節）：
 
 | | Vercel | Cloudflare Pages/Workers | Netlify | GitHub Pages |
 |---|---|---|---|---|
