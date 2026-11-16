@@ -124,4 +124,67 @@ class PackageManifestParserTest extends TestCase
         $this->assertNull(PackageManifestParser::ecosystemFor('my-package.json'));
         $this->assertNull(PackageManifestParser::ecosystemFor('README.md'));
     }
+
+    /** @return array<string, array{0: string, 1: string, 2: list<string>}> */
+    public static function manifestsWithBom(): array
+    {
+        $bom = "\xEF\xBB\xBF";
+
+        return [
+            'npm' => ['npm', $bom.json_encode(['dependencies' => ['vue' => '^3'], 'devDependencies' => ['vite' => '^6']]), ['vue', 'vite']],
+            'composer' => ['composer', $bom.json_encode(['require' => ['laravel/framework' => '^13']]), ['laravel/framework']],
+            // BOM 不去掉的話，第一行會變成「BOM + django」，整行對不上而漏掉
+            'pip' => ['pip', $bom."django==5.0\nnumpy\n", ['django', 'numpy']],
+        ];
+    }
+
+    /** @param  list<string>  $expected */
+    #[DataProvider('manifestsWithBom')]
+    #[TestDox('開頭帶 UTF-8 BOM 的清單檔照樣讀得出套件')]
+    public function test_a_leading_utf8_bom_is_ignored(string $ecosystem, string $content, array $expected): void
+    {
+        $this->assertSame($expected, PackageManifestParser::parse($ecosystem, $content));
+    }
+
+    #[TestDox('BOM 只去開頭那一個，內容中間的不動，壞掉的 JSON 仍回空陣列')]
+    public function test_only_a_leading_bom_is_stripped(): void
+    {
+        $bom = "\xEF\xBB\xBF";
+
+        $this->assertSame([], PackageManifestParser::parse('npm', $bom.$bom.'{"dependencies": {"vue": "^3"}}'));
+        $this->assertSame([], PackageManifestParser::parse('npm', '{"dependencies": '.$bom.'{"vue": "^3"}}'));
+        $this->assertSame([], PackageManifestParser::parse('npm', $bom));
+    }
+
+    #[TestDox('parseVersionConstraints 讀出套件名稱對版本限制，dependencies 的優先於 devDependencies')]
+    public function test_version_constraints_are_read_per_package(): void
+    {
+        $content = "\xEF\xBB\xBF".json_encode([
+            'dependencies' => ['Vue' => '^3.5.0'],
+            'devDependencies' => ['vue' => '^2.6.0', 'vite' => '^6', 'broken' => ['x'], 'nothing' => null],
+        ]);
+
+        $this->assertSame(
+            ['vue' => '^3.5.0', 'vite' => '^6'],
+            PackageManifestParser::parseVersionConstraints('npm', $content),
+        );
+    }
+
+    /** @return array<string, array{0: string, 1: string}> */
+    public static function contentWithoutConstraints(): array
+    {
+        return [
+            'pip has no JSON sections' => ['pip', "django==5.0\n"],
+            'invalid json' => ['npm', '{ not json'],
+            'composer platform requirements' => ['composer', '{"require": {"php": "^8.4"}}'],
+            'unknown ecosystem' => ['cargo', '{"dependencies": {"vue": "^3"}}'],
+        ];
+    }
+
+    #[DataProvider('contentWithoutConstraints')]
+    #[TestDox('沒有版本限制可讀的內容回空陣列')]
+    public function test_content_without_constraints_returns_nothing(string $ecosystem, string $content): void
+    {
+        $this->assertSame([], PackageManifestParser::parseVersionConstraints($ecosystem, $content));
+    }
 }

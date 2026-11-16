@@ -24,6 +24,8 @@ use RuntimeException;
  * 除了語言與 topic，repo 的套件清單（package.json、composer.json、requirements.txt，見 GitService）
  * 裡出現的套件，只要列在 `config/package_technologies.php` 的對照表就也會連到對應的 Technique；
  * 沒列的（例如 ESLint 這類開發用工具）不會上圖。topic 沒有被取代，仍是手動補充的來源。
+ * 其中 Vue、Nuxt、Bootstrap 還會依清單檔的版本限制取主版號（`vue@^3.5` → Vue 3），連到有版本的那一筆，
+ * 讀不出主版號就連到不分版本的。
  *
  * 另外有兩組手動維護的關係，在已知時補上：
  * - framework／library 類的 topic（例如 `vue`）會透過 `requires`（同類型，
@@ -161,8 +163,11 @@ class SaveReposDataService
         $this->gitService->each(function ($repo) use ($usesRelationId, $requiresRelationId, $specsRelationId, $isVersionOfRelationId, $seenAt) {
             $project = $this->save_repos_content($repo);
 
-            $resolve = function (string $name, string $defaultScope) use ($requiresRelationId, $specsRelationId, $isVersionOfRelationId): Technique {
+            // $packageVersion 是套件清單檔讀到的主版號（只有 Vue、Nuxt、Bootstrap 會有，見 PackageTechniqueMap）。
+            // AUTHORITY 已經指定版本的名稱（vue3、nuxt3…）以 AUTHORITY 為準
+            $resolve = function (string $name, string $defaultScope, ?string $packageVersion = null) use ($requiresRelationId, $specsRelationId, $isVersionOfRelationId): Technique {
                 [$title, $scopeName, $version] = self::AUTHORITY[mb_strtolower($name)] ?? [$name, $defaultScope, null];
+                $version ??= $packageVersion;
 
                 $base = $this->find_or_create_technique($title, $scopeName);
                 $this->link_framework_to_base_language($base, $requiresRelationId);
@@ -198,8 +203,8 @@ class SaveReposDataService
                 // 套件清單裡有、而且在對照表（config/package_technologies.php）裡的套件，
                 // 補上它們代表的技術。topic 是手動補充，兩邊重複的技術靠下面的 unique 合併。
                 ->concat(
-                    collect(PackageTechniqueMap::techniquesFor($repo['packages'] ?? []))
-                        ->map(fn (array $technique) => $resolve($technique[0], $technique[1]))
+                    collect(PackageTechniqueMap::techniquesFor($repo['packages'] ?? [], $repo['package_versions'] ?? []))
+                        ->map(fn (array $technique) => $resolve($technique[0], $technique[1], $technique[2] ?? null))
                 )
                 ->unique('id');
 

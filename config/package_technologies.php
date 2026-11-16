@@ -9,17 +9,23 @@
  * - 不分 dependencies／devDependencies（require／require-dev）：Vite、TypeScript、Tailwind 這類
  *   技術通常就裝在 devDependencies，要不要上圖由這張表決定，不看裝在哪一區。
  * - key 是套件名稱，一律小寫（pip 套件名先正規化：小寫，`_`、`.` 視為 `-`），完全比對，
- *   不做前綴或模糊比對（列了 `vue` 不會讓 `vue-router` 跟著上圖）。
+ *   不做前綴或模糊比對（列了 `vue` 不會讓 `vuex` 跟著上圖）。
  * - value 是 [技術名稱, scope]，scope 是 `language`、`framework`、`packagetool` 其中之一。
  *   技術名稱要跟既有技術（包含 GitHub topic 建出來的）同名，比對時不分大小寫，
  *   寫成別的名字會多出一筆重複的技術。已在 SaveReposDataService::AUTHORITY 的名稱會再被
  *   換成標準名稱。
  * - topic 不受這張表影響，仍照原來的方式補上邊，當作手動補充。
+ * - 技術名稱是 Vue、Nuxt、Bootstrap 的套件，同步時還會依清單檔寫的版本限制帶出主版號
+ *   （`vue@^3.5` 變成 Vue 3），規則見 PackageTechniqueMap；其他技術不帶版本，這裡不用寫。
  */
 return [
 
     'npm' => [
         'vue' => ['Vue', 'framework'],
+        'vue-router' => ['vue-router', 'packagetool'],
+        'alpinejs' => ['Alpine.js', 'framework'],
+        'next' => ['Next.js', 'framework'],
+        'php-parser' => ['php-parser', 'packagetool'],
         'nuxt' => ['Nuxt', 'framework'],
         'react' => ['React', 'framework'],
         '@angular/core' => ['Angular', 'framework'],
@@ -52,6 +58,9 @@ return [
         'laravel/framework' => ['Laravel', 'framework'],
         'symfony/framework-bundle' => ['Symfony', 'framework'],
         'laravel/sanctum' => ['Sanctum', 'packagetool'],
+        'rebing/graphql-laravel' => ['GraphQL', 'packagetool'],
+        'nuwave/lighthouse' => ['GraphQL', 'packagetool'],
+        'nikic/php-parser' => ['php-parser', 'packagetool'],
         'laravel/socialite' => ['Socialite', 'packagetool'],
         'livewire/livewire' => ['Livewire', 'packagetool'],
         'inertiajs/inertia-laravel' => ['Inertia', 'packagetool'],
