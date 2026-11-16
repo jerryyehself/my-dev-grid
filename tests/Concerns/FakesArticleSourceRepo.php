@@ -10,7 +10,8 @@ use Illuminate\Support\Facades\Http;
 /**
  * 用 `Http::fake()` 模擬文章來源 repo 的 GitHub API：分支最新的 commit、recursive tree、
  * Contents API。每次 `publishSourceFiles()` 產生一個新 commit，舊 commit 的內容也查得到，
- * 跟 GitHub 一樣可以用 `?ref=<舊 commit>` 讀到當時的版本。
+ * 跟 GitHub 一樣可以用 `?ref=<舊 commit>` 讀到當時的版本。Compare API（`compare/<base>...<head>`）
+ * 把這些 commit 當成一條直線的歷史，依 publish 的先後回 `ahead`、`behind`、`identical`。
  *
  * 回應帶 ETag，請求帶相同的 `If-None-Match` 時回 304，用來測 conditional request。
  */
@@ -148,6 +149,25 @@ trait FakesArticleSourceRepo
             }
 
             return Http::response(['message' => 'Not Found'], 404);
+        }
+
+        if (str_starts_with($rest, 'compare/')) {
+            // 歷史是一條直線：越晚 publish 的 commit 越新。查不到的 commit 跟 GitHub 一樣回 404
+            [$base, $head] = explode('...', substr($rest, strlen('compare/')), 2) + [1 => ''];
+            $order = array_flip(array_keys($this->sourceCommits));
+            if (! isset($order[$base], $order[$head])) {
+                return Http::response(['message' => 'Not Found'], 404);
+            }
+
+            return $this->withEtag($request, [
+                'status' => match ($order[$head] <=> $order[$base]) {
+                    1 => 'ahead',
+                    -1 => 'behind',
+                    0 => 'identical',
+                },
+                'ahead_by' => max(0, $order[$head] - $order[$base]),
+                'behind_by' => max(0, $order[$base] - $order[$head]),
+            ]);
         }
 
         if (str_starts_with($rest, 'contents/')) {
