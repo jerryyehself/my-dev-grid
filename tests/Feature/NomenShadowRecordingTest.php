@@ -103,7 +103,7 @@ class NomenShadowRecordingTest extends TestCase
     public function test_sync_records_only_mapped_packages(): void
     {
         $this->sync([], [], packages: [
-            'npm' => ['vue', 'eslint', 'chart.js', 'vue-router'],
+            'npm' => ['vue', 'eslint', 'chart.js', 'vuex'],
             'composer' => ['laravel/framework', 'phpunit/phpunit'],
             'cargo' => ['serde'],
         ]);

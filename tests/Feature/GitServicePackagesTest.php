@@ -6,14 +6,16 @@ use App\Services\GitService;
 use Closure;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
  * 取 repo 時順便讀套件清單檔（package.json、composer.json、requirements.txt）。
- * 找清單檔只看根目錄與第一層子資料夾；任何一步失敗都只少一份清單，不中斷其他 repo。
+ * 找清單檔看根目錄、第一層子資料夾，以及 apps/、packages/ 底下的子專案；任何一步失敗都只少一份清單，不中斷其他 repo。
  */
 class GitServicePackagesTest extends TestCase
 {
@@ -110,11 +112,11 @@ class GitServicePackagesTest extends TestCase
         $this->assertNotSame($raw, $accepts['https://api.github.com/repos/acme/other/languages']);
     }
 
-    #[TestDox('monorepo 讀根目錄加第一層子資料夾的清單檔，更深的不讀')]
+    #[TestDox('monorepo 讀根目錄加第一層子資料夾的清單檔，其他更深的不讀')]
     public function test_it_reads_one_level_of_subdirectories_but_no_deeper(): void
     {
         $this->fakeRepo(
-            $this->tree(['frontend/package.json', 'backend/composer.json', 'packages/ui/package.json', 'a/b/c/requirements.txt']),
+            $this->tree(['frontend/package.json', 'backend/composer.json', 'a/b/package.json', 'a/b/c/requirements.txt', 'docs/guide/site/package.json']),
             [
                 'frontend/package.json' => json_encode(['dependencies' => ['vue' => '^3']]),
                 'backend/composer.json' => json_encode(['require' => ['laravel/framework' => '^13']]),
@@ -124,7 +126,156 @@ class GitServicePackagesTest extends TestCase
         $repo = (new GitService)->get_repos()->first();
 
         $this->assertEquals(['npm' => ['vue'], 'composer' => ['laravel/framework']], $repo['packages']);
-        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), 'packages/ui') || str_contains($request->url(), 'a/b/c'));
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), 'a/b') || str_contains($request->url(), 'docs/guide'));
+    }
+
+    #[TestDox('apps/、packages/ 底下的子專案（第三層）也讀，lmv 形狀的 monorepo 三份都讀得到')]
+    public function test_it_reads_workspace_packages_under_apps_and_packages(): void
+    {
+        $this->fakeRepo(
+            $this->tree(['package.json', 'apps/web/package.json', 'packages/migration-core/package.json', 'apps/api/composer.json', 'README.md']),
+            [
+                'package.json' => json_encode(['devDependencies' => ['typescript' => '^5']]),
+                'apps/web/package.json' => json_encode(['dependencies' => ['vue' => '^3.5']]),
+                'packages/migration-core/package.json' => json_encode(['dependencies' => ['php-parser' => '^3.2']]),
+                'apps/api/composer.json' => json_encode(['require' => ['laravel/framework' => '^13']]),
+            ],
+        );
+
+        $repo = (new GitService)->get_repos()->first();
+
+        $this->assertEqualsCanonicalizing(['typescript', 'vue', 'php-parser'], $repo['packages']['npm']);
+        $this->assertEquals(['laravel/framework'], $repo['packages']['composer']);
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/contents/packages/migration-core/package.json'));
+    }
+
+    /** @return array<string, array{0: string}> 不該被讀的第三層（以上）路徑 */
+    public static function pathsThatStayUnread(): array
+    {
+        return [
+            'third level under a normal directory' => ['lib/web/package.json'],
+            'name only starts like a container' => ['packages-extra/web/package.json'],
+            'name ends like a container' => ['my-apps/web/package.json'],
+            'fourth level under apps' => ['apps/web/src/package.json'],
+            'fourth level under packages' => ['packages/ui/fixtures/package.json'],
+            'skipped directory inside apps' => ['apps/node_modules/package.json'],
+            'tests inside packages' => ['packages/tests/package.json'],
+            'examples inside apps' => ['apps/examples/composer.json'],
+            'hidden directory inside packages' => ['packages/.cache/package.json'],
+            'vendor inside packages' => ['packages/vendor/composer.json'],
+            'not a manifest' => ['apps/web/package-lock.json'],
+        ];
+    }
+
+    #[DataProvider('pathsThatStayUnread')]
+    #[TestDox('apps/、packages/ 以外的第三層、更深的層級、跳過的資料夾都不讀')]
+    public function test_it_does_not_read_other_deep_or_skipped_paths(string $path): void
+    {
+        $this->fakeRepo($this->tree([$path]), []);
+
+        $repo = (new GitService)->get_repos()->first();
+
+        $this->assertSame([], $repo['packages']);
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), '/contents/'));
+    }
+
+    #[TestDox('第三層的清單檔也算進每個 repo 最多 10 份，排在根目錄與第一層之後')]
+    public function test_deeper_manifests_count_toward_the_cap_and_come_last(): void
+    {
+        $paths = ['package.json', 'web/package.json'];
+        $files = [
+            'package.json' => json_encode(['dependencies' => ['vue' => '^3']]),
+            'web/package.json' => json_encode(['dependencies' => ['pinia' => '^2']]),
+        ];
+
+        foreach (range(1, 12) as $i) {
+            $paths[] = sprintf('packages/p%02d/package.json', $i);
+            $files[sprintf('packages/p%02d/package.json', $i)] = json_encode(['dependencies' => ['react' => '^19']]);
+        }
+
+        $this->fakeRepo($this->tree($paths), $files);
+
+        $repo = (new GitService)->get_repos()->first();
+
+        $this->assertEqualsCanonicalizing(['vue', 'pinia', 'react'], $repo['packages']['npm']);
+        Http::assertSentCount(2 + 1 + 1 + 10);
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), 'packages/p09') || str_contains($request->url(), 'packages/p12'));
+    }
+
+    #[TestDox('tree 回應被 GitHub 截斷時記一筆 warning（含 repo 名稱），用已拿到的部分繼續，不中斷')]
+    public function test_a_truncated_tree_logs_a_warning_and_keeps_going(): void
+    {
+        $this->fakeRepo(
+            $this->tree(['package.json']) + ['truncated' => true],
+            ['package.json' => json_encode(['dependencies' => ['vue' => '^3']])],
+        );
+        $logs = [];
+        Log::listen(function (MessageLogged $message) use (&$logs) {
+            $logs[] = $message;
+        });
+
+        $repo = (new GitService)->get_repos()->first();
+
+        $warnings = array_values(array_filter($logs, fn (MessageLogged $log) => $log->level === 'warning'));
+        $this->assertCount(1, $warnings);
+        $this->assertSame('acme/demo', $warnings[0]->context['repo']);
+        $this->assertStringContainsString('truncated', $warnings[0]->message);
+        // 同步沒有中斷：其餘欄位照常，拿到的清單檔照讀
+        $this->assertSame(['vue'], $repo['packages']['npm']);
+        $this->assertSame('demo', $repo['title']);
+    }
+
+    /** @return array<string, array{0: array<string, mixed>}> */
+    public static function untruncatedTreeResponses(): array
+    {
+        return [
+            'truncated false' => [['truncated' => false]],
+            'truncated missing' => [[]],
+            // 接近但不是布林 true 的值不當成截斷
+            'truncated as string' => [['truncated' => 'false']],
+            'truncated null' => [['truncated' => null]],
+        ];
+    }
+
+    /** @param  array<string, mixed>  $extra */
+    #[DataProvider('untruncatedTreeResponses')]
+    #[TestDox('tree 沒有被截斷時不記 warning')]
+    public function test_an_untruncated_tree_logs_no_warning(array $extra): void
+    {
+        $this->fakeRepo($this->tree(['package.json']) + $extra, ['package.json' => '{}']);
+        $logs = [];
+        Log::listen(function (MessageLogged $message) use (&$logs) {
+            $logs[] = $message;
+        });
+
+        (new GitService)->get_repos();
+
+        $this->assertSame([], array_filter($logs, fn (MessageLogged $log) => $log->level === 'warning'));
+    }
+
+    #[TestDox('只記 Vue、Nuxt、Bootstrap 的版本限制到 package_versions，其他套件不記')]
+    public function test_it_records_version_constraints_only_for_versioned_packages(): void
+    {
+        $this->fakeRepo(
+            $this->tree(['package.json', 'web/package.json']),
+            [
+                'package.json' => "\xEF\xBB\xBF".json_encode(['dependencies' => ['vue' => '^3.5.0', 'pinia' => '^2'], 'devDependencies' => ['eslint' => '^9']]),
+                'web/package.json' => json_encode(['dependencies' => ['vue' => '^2.6', 'bootstrap' => '~5.3']]),
+            ],
+        );
+
+        $repo = (new GitService)->get_repos()->first();
+
+        // 根目錄的先讀，同名套件以先讀到的為準
+        $this->assertSame(['npm' => ['vue' => '^3.5.0', 'bootstrap' => '~5.3']], $repo['package_versions']);
+    }
+
+    #[TestDox('沒有任何版本限制可記時 package_versions 是空陣列')]
+    public function test_package_versions_is_empty_without_versioned_packages(): void
+    {
+        $this->fakeRepo($this->tree(['package.json']), ['package.json' => json_encode(['dependencies' => ['pinia' => '^2']])]);
+
+        $this->assertSame([], (new GitService)->get_repos()->first()['package_versions']);
     }
 
     #[TestDox('根目錄與子資料夾的同類清單檔，名稱合併且不重複')]
