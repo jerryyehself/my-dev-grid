@@ -39,6 +39,7 @@ class ArticleSourceController extends Controller
             .'只新增，不刪除也不改既有的連結，重複匯入不會重複，找不到、對上不只一筆或分類不符的名稱不會建立連結，也不會自動新增技術或專案，'
             .'只在該篇的 `warnings` 回報。伺服器會以 `commit_sha` 那個版本重新讀取，'
             .'檔案跟 `expected_blob_sha` 不同、或站上的狀態已經改變時回 409，整批都不寫入，請重新列清單。'
+            .'`update` 的 `commit_sha` 比站上那篇上次匯入時的 commit 舊（在它的歷史裡）時也回 409，不會把文章倒回舊內容。'
             .'狀態是 `conflict` 的項目要帶 `overwrite_site_edits: true` 才會更新。需要登入。',
     )]
     #[Response(200, type: 'array{commit_sha: string, data: list<array{key: string, action: "create"|"update"|"link", documentation_id: int, title: string, published: bool, warnings: list<array{code: string, message: string, line: int|null}>}>, message: string}')]
