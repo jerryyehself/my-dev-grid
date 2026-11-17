@@ -27,6 +27,9 @@ use RuntimeException;
  * 其中 Vue、Nuxt、Bootstrap 還會依清單檔的版本限制取主版號（`vue@^3.5` → Vue 3），連到有版本的那一筆，
  * 讀不出主版號就連到不分版本的。
  *
+ * `config/repo_sync.php` 的 `skip_technique_edges` 列出的 repo（改作或建置產物）只同步成專案，
+ * 不寫任何技術邊，nomen 照記。
+ *
  * 另外有兩組手動維護的關係，在已知時補上：
  * - framework／library 類的 topic（例如 `vue`）會透過 `requires`（同類型，
  *   `entity_relations`）連到它唯一的基礎語言 Technique（例如 `JavaScript`），見 FRAMEWORK_BASE_LANGUAGE。
@@ -163,6 +166,14 @@ class SaveReposDataService
         $this->gitService->each(function ($repo) use ($usesRelationId, $requiresRelationId, $specsRelationId, $isVersionOfRelationId, $seenAt) {
             $project = $this->save_repos_content($repo);
 
+            // 清單裡的 repo（config/repo_sync.php）不寫技術邊：連出來的技術不代表作者自己的技術。
+            // 不建技術、不連邊、不更新 last_seen_at，舊的邊照 staleCutoff() 淡出；nomen 照記。
+            if ($this->skips_technique_edges($repo)) {
+                $this->nomens->recordRepo($project, $repo, $seenAt);
+
+                return;
+            }
+
             // $packageVersion 是套件清單檔讀到的主版號（只有 Vue、Nuxt、Bootstrap 會有，見 PackageTechniqueMap）。
             // AUTHORITY 已經指定版本的名稱（vue3、nuxt3…）以 AUTHORITY 為準
             $resolve = function (string $name, string $defaultScope, ?string $packageVersion = null) use ($requiresRelationId, $specsRelationId, $isVersionOfRelationId): Technique {
@@ -254,6 +265,23 @@ class SaveReposDataService
                 ]);
             }
         }
+    }
+
+    /** repo 名稱完全相符（不分大小寫）才算，`my-profile-2` 這種只共用前綴的不算。 */
+    private function skips_technique_edges(array $repo): bool
+    {
+        $title = $repo['title'] ?? null;
+
+        if (! is_string($title)) {
+            return false;
+        }
+
+        $skipped = array_map(
+            fn ($name) => mb_strtolower((string) $name),
+            (array) config('repo_sync.skip_technique_edges', []),
+        );
+
+        return in_array(mb_strtolower($title), $skipped, true);
     }
 
     private function is_ignored_language(string $name): bool
