@@ -7,6 +7,7 @@ use App\Models\Implementation;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
+use App\Services\ArticleSourceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
@@ -276,7 +277,7 @@ class ArticleSourceAboutRelationsTest extends TestCase
         $documentation = Documentation::factory()->create(['type' => Scope::where('name', 'framework')->value('id'), 'body' => "第一版。\n"]);
         $documentation->forceFill([
             'source_repo' => $this->sourceRepo, 'source_key' => 'post-a', 'source_path' => 'a.md',
-            'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => hash('sha256', "第一版。\n"),
+            'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => ArticleSourceService::importedContentHash($documentation),
         ])->save();
         $this->actingAsOwner();
 
@@ -387,7 +388,7 @@ class ArticleSourceAboutRelationsTest extends TestCase
         $documentation = Documentation::factory()->create(['type' => $this->post->id, 'title' => '甲', 'body' => "舊版。\n"]);
         $documentation->forceFill([
             'source_repo' => $this->sourceRepo, 'source_key' => 'post-a', 'source_path' => 'a.md',
-            'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => hash('sha256', "舊版。\n"),
+            'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => ArticleSourceService::importedContentHash($documentation),
         ])->save();
         $this->actingAsOwner();
         // 所有事前檢查都會過；第一項 update 把連結寫完之後，第二項 create 才查 post 分類，查不到整批失敗

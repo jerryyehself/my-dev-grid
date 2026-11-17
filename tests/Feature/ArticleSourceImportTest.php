@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Documentation;
 use App\Models\Scope;
+use App\Services\ArticleSourceService;
 use Closure;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -67,7 +68,8 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame(self::blobSha($content), $documentation->source_blob_sha);
         $this->assertSame($commit, $documentation->source_commit_sha);
         $this->assertNotNull($documentation->source_imported_at);
-        $this->assertSame(hash('sha256', "## 小節\n\n內文。\n"), $documentation->source_body_hash);
+        // 讀回來的這一列算出的雜湊要跟寫入時記的一樣（PostgreSQL 讀回的日期多了時間），不然下次就會誤判成站上改過
+        $this->assertSame(ArticleSourceService::importedContentHash($documentation), $documentation->source_body_hash);
 
         $this->assertImportEvent('import', $user->id, $id, 'first-post', self::blobSha($content), $commit);
         $this->assertNotLogged('內文。');
@@ -104,7 +106,7 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("新版內文。\n", $documentation->body);
         $this->assertSame('新版標題', $documentation->title);
         $this->assertSame(self::blobSha($content), $documentation->source_blob_sha);
-        $this->assertSame(hash('sha256', "新版內文。\n"), $documentation->source_body_hash);
+        $this->assertSame(ArticleSourceService::importedContentHash($documentation), $documentation->source_body_hash);
     }
 
     #[TestDox('更新草稿：內容換成新版，維持草稿')]
@@ -137,6 +139,78 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("新版內文。\n", $documentation->refresh()->body);
     }
 
+    /** @return iterable<string, array{string, string}> */
+    public static function titleOrDateEdits(): iterable
+    {
+        yield '標題' => ['title', '站上改的標題'];
+        yield '日期' => ['creation_date', '2001-02-03'];
+    }
+
+    #[DataProvider('titleOrDateEdits')]
+    #[TestDox('站上只改過標題或日期時，也要帶 overwrite_site_edits 才覆蓋')]
+    public function test_title_or_date_edit_requires_overwrite_site_edits(string $column, string $siteValue): void
+    {
+        [$documentation] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $content = self::article('the-post', '新版標題', "新版內文。\n", ['creation_date' => '2026-10-01']);
+        $commit = $this->publishSourceFiles(['post.md' => $content]);
+        $documentation->forceFill([$column => $siteValue])->save();
+        $this->actingAsOwner();
+
+        $this->import([$this->item('the-post', $content, 'update')], $commit)
+            ->assertConflict()
+            ->assertJsonPath('reason', 'conflict')
+            ->assertJsonStructure(['errors' => ['items.0.overwrite_site_edits']]);
+        $documentation->refresh();
+        $this->assertStringStartsWith($siteValue, (string) $documentation->{$column});
+        $this->assertSame("舊版內文。\n", $documentation->body);
+
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true])], $commit)->assertOk();
+        $documentation->refresh();
+        $this->assertSame('新版標題', $documentation->title);
+        $this->assertStringStartsWith('2026-10-01', (string) $documentation->creation_date);
+        $this->assertSame("新版內文。\n", $documentation->body);
+    }
+
+    /**
+     * 匯入時記下的雜湊，要跟之後從資料庫讀回同一列算出的一樣，不然沒人改過的文章下次也會變成 conflict。
+     * 日期最容易出錯：寫入的是 `2026-09-22`，PostgreSQL 讀回來是 `2026-09-22 00:00:00`。
+     * 來源沒寫日期時，update 不改站上的日期，雜湊要用站上那個日期算。
+     *
+     * @return iterable<string, array{array<string, string>}>
+     */
+    public static function sourceDates(): iterable
+    {
+        yield '來源有日期' => [['creation_date' => '2026-09-22']];
+        yield '來源沒有日期' => [[]];
+    }
+
+    /**
+     * @param  array<string, string>  $date
+     */
+    #[DataProvider('sourceDates')]
+    #[TestDox('新增、更新、連結過的文章站上沒改時，來源再改版是 changed')]
+    public function test_untouched_article_is_changed_not_conflict_after_each_write(array $date): void
+    {
+        $this->actingAsOwner();
+        $v1 = self::article('the-post', '第一版', "第一版內文。\n", $date);
+        $c1 = $this->publishSourceFiles(['post.md' => $v1, 'legacy.md' => self::article('legacy', '既有文章')]);
+        $legacy = Documentation::factory()->create(['type' => $this->post->id, 'title' => '既有文章', 'body' => "站上的版本。\n", 'creation_date' => '2025-05-06']);
+        $this->import([
+            $this->item('the-post', $v1, 'create'),
+            $this->item('legacy', self::article('legacy', '既有文章'), 'link', ['documentation_id' => $legacy->id]),
+        ], $c1)->assertOk();
+
+        $v2 = self::article('the-post', '第二版', "第二版內文。\n", $date);
+        $c2 = $this->publishSourceFiles(['post.md' => $v2, 'legacy.md' => self::article('legacy', '既有文章', "來源改版。\n")]);
+        $this->assertSame(['legacy' => 'changed', 'the-post' => 'changed'], $this->statuses());
+
+        $this->import([$this->item('the-post', $v2, 'update')], $c2)->assertOk();
+        // 分支最新 commit 的快取 60 秒內不重打 GitHub
+        $this->travel(61)->seconds();
+        $this->publishSourceFiles(['post.md' => self::article('the-post', '第三版', "第三版內文。\n", $date), 'legacy.md' => self::article('legacy', '既有文章', "來源改版。\n")]);
+        $this->assertSame(['legacy' => 'changed', 'the-post' => 'changed'], $this->statuses());
+    }
+
     #[TestDox('連結既有文章：只寫來源欄位，標題與內文都不動')]
     public function test_link_only_writes_source_columns(): void
     {
@@ -159,7 +233,7 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame($before, $documentation->only(array_keys($before)));
         $this->assertSame('legacy', $documentation->source_key);
         $this->assertSame(self::blobSha($content), $documentation->source_blob_sha);
-        $this->assertSame(hash('sha256', "站上的版本。\n"), $documentation->source_body_hash);
+        $this->assertSame(ArticleSourceService::importedContentHash($documentation), $documentation->source_body_hash);
         // 連結不用下載內容
         $this->assertCount($contentRequests, $this->githubRequests('/contents/'));
         $this->assertImportEvent('link', $user->id, $documentation->id, 'legacy', self::blobSha($content), $commit);
@@ -174,7 +248,7 @@ class ArticleSourceImportTest extends TestCase
         $content = self::article('new-slug', '改過 slug 的文章');
         $commit = $this->publishSourceFiles(['post.md' => $content]);
         $documentation = Documentation::factory()->create(['type' => $this->post->id, 'title' => '改過 slug 的文章', 'body' => "內文第一段。\n"]);
-        $documentation->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'old-slug', 'source_path' => 'post.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => hash('sha256', "內文第一段。\n")])->save();
+        $documentation->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'old-slug', 'source_path' => 'post.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => ArticleSourceService::importedContentHash($documentation)])->save();
         $this->actingAsOwner();
 
         $statuses = collect($this->getJson('/api/article-sources')->json('items'))->pluck('status', 'key')->all();
@@ -191,7 +265,7 @@ class ArticleSourceImportTest extends TestCase
         $content = self::article('another', '另一篇');
         $commit = $this->publishSourceFiles(['taken.md' => $taken, 'another.md' => $content]);
         $documentation = Documentation::factory()->create(['type' => $this->post->id]);
-        $documentation->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'taken', 'source_path' => 'taken.md', 'source_blob_sha' => self::blobSha($taken), 'source_body_hash' => hash('sha256', '')])->save();
+        $documentation->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'taken', 'source_path' => 'taken.md', 'source_blob_sha' => self::blobSha($taken), 'source_body_hash' => ArticleSourceService::importedContentHash($documentation)])->save();
         $this->actingAsOwner();
 
         $this->import([$this->item('another', $content, 'link', ['documentation_id' => $documentation->id])], $commit)
@@ -224,7 +298,7 @@ class ArticleSourceImportTest extends TestCase
         $content = self::article('gone', '刪掉的文章', "新版。\n");
         $commit = $this->publishSourceFiles(['gone.md' => $content]);
         $deleted = Documentation::factory()->create(['type' => $this->post->id, 'body' => "舊版。\n"]);
-        $deleted->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'gone', 'source_path' => 'gone.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => hash('sha256', "舊版。\n")])->save();
+        $deleted->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'gone', 'source_path' => 'gone.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => ArticleSourceService::importedContentHash($deleted)])->save();
         $deleted->delete();
         $this->actingAsOwner();
         $this->getJson('/api/article-sources')->assertJsonPath('items.0.status', 'site_deleted');
@@ -394,10 +468,10 @@ class ArticleSourceImportTest extends TestCase
         $downloads = 0;
         $this->overrideGitHub(function (Request $request) use ($documentation, $c4, $c5, $v5, &$downloads) {
             if (str_contains($request->url(), '/contents/') && str_contains($request->url(), 'ref='.$c4) && ++$downloads === 2) {
-                Documentation::whereKey($documentation->id)->update([
-                    'title' => '第五版', 'body' => "第五版內文。\n",
+                $fifth = ['title' => '第五版', 'body' => "第五版內文。\n"];
+                Documentation::whereKey($documentation->id)->update($fifth + [
                     'source_blob_sha' => self::blobSha($v5), 'source_commit_sha' => $c5,
-                    'source_body_hash' => hash('sha256', "第五版內文。\n"),
+                    'source_body_hash' => ArticleSourceService::importedContentHash((clone $documentation)->forceFill($fifth)),
                 ]);
             }
 
@@ -451,7 +525,7 @@ class ArticleSourceImportTest extends TestCase
             $documentation->forceFill([
                 'source_repo' => $this->sourceRepo, 'source_key' => 'the-post', 'source_path' => 'post.md',
                 'source_blob_sha' => $status === 'unchanged' ? self::blobSha($content) : str_repeat('1', 40),
-                'source_body_hash' => hash('sha256', "內文第一段。\n"),
+                'source_body_hash' => ArticleSourceService::importedContentHash($documentation),
             ])->save();
         }
         $this->actingAsOwner();
@@ -535,7 +609,7 @@ class ArticleSourceImportTest extends TestCase
         $other = self::article('other', '還在的文章');
         $this->publishSourceFiles(['other.md' => $other]);
         $deleted = Documentation::factory()->create(['type' => $this->post->id]);
-        $deleted->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'gone', 'source_path' => 'gone.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => hash('sha256', '')])->save();
+        $deleted->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'gone', 'source_path' => 'gone.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => ArticleSourceService::importedContentHash($deleted)])->save();
         $deleted->delete();
         $this->actingAsOwner();
 
@@ -682,7 +756,7 @@ class ArticleSourceImportTest extends TestCase
         $documentation->forceFill([
             'source_repo' => $this->sourceRepo, 'source_key' => 'the-post', 'source_path' => 'post.md',
             'source_blob_sha' => str_repeat('1', 40), 'source_commit_sha' => str_repeat('2', 40),
-            'source_body_hash' => hash('sha256', "舊版內文。\n"),
+            'source_body_hash' => ArticleSourceService::importedContentHash($documentation),
         ])->save();
 
         return [$documentation, $content, $commit];
@@ -711,6 +785,12 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame($c3, $documentation->source_commit_sha);
 
         return [$documentation, $v2, $c2, $v3, $c3];
+    }
+
+    /** @return array<string, string> 清單上每一項的 key => status */
+    private function statuses(): array
+    {
+        return collect($this->getJson('/api/article-sources')->assertOk()->json('items'))->pluck('status', 'key')->sortKeys()->all();
     }
 
     /**

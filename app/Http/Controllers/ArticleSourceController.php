@@ -15,7 +15,7 @@ class ArticleSourceController extends Controller
         title: '列出可匯入的文章',
         description: '讀取設定好的文章來源 repo 最新版本，列出原稿 front matter 有 `import: true` 的 Markdown 檔，'
             .'以及它們跟站上文章的對應狀態：`new`（尚未匯入）、`changed`（來源有更新）、`unchanged`、'
-            .'`conflict`（來源有更新，站上的內文也在匯入後改過）、`possible_match`（尚未連結，但有標題相同的文章）、'
+            .'`conflict`（來源有更新，站上的標題、日期或內文也在匯入後改過）、`possible_match`（尚未連結，但有標題相同的文章）、'
             .'`site_deleted`（站上已刪除，不會再匯入）、`removed`（站上有連結，來源已經沒有這篇）、'
             .'`invalid`（不能匯入，原因在 `reason`）。`warnings` 是發布前要人工確認的內容（疑似憑證、email 等），只提醒不阻擋。'
             .'需要登入。來源未設定回 503（`reason: not_configured`）；GitHub 拒絕或出錯回 502，被 GitHub 限流回 503，'

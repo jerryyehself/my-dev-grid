@@ -50,7 +50,7 @@ class ImportArticleSourcesRequest extends FormRequest
                 'min:1',
                 'distinct',
             ],
-            /** 狀態是 `conflict`（站上改過內文）時，要設成 true 才會用來源的內容覆蓋。 */
+            /** 狀態是 `conflict`（站上改過標題、日期或內文）時，要設成 true 才會用來源的內容覆蓋。 */
             'items.*.overwrite_site_edits' => ['sometimes', 'boolean'],
         ];
     }
