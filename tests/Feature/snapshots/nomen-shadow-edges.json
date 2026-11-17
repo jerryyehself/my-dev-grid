@@ -472,14 +472,6 @@
         },
         {
             "technique": "CSS",
-            "implementation": "929886110",
-            "relation": "usedBy",
-            "last_seen_at": "2026-11-02 03:17:00",
-            "created_at": "2026-11-01 03:17:00",
-            "updated_at": "2026-11-01 03:17:00"
-        },
-        {
-            "technique": "CSS",
             "implementation": "939945904",
             "relation": "usedBy",
             "last_seen_at": "2026-11-02 03:17:00",
@@ -489,14 +481,6 @@
         {
             "technique": "Dockerfile",
             "implementation": "1000327573",
-            "relation": "usedBy",
-            "last_seen_at": "2026-11-02 03:17:00",
-            "created_at": "2026-11-01 03:17:00",
-            "updated_at": "2026-11-01 03:17:00"
-        },
-        {
-            "technique": "Dockerfile",
-            "implementation": "929886110",
             "relation": "usedBy",
             "last_seen_at": "2026-11-02 03:17:00",
             "created_at": "2026-11-01 03:17:00",
@@ -577,14 +561,6 @@
         {
             "technique": "JavaScript",
             "implementation": "900002",
-            "relation": "usedBy",
-            "last_seen_at": "2026-11-02 03:17:00",
-            "created_at": "2026-11-01 03:17:00",
-            "updated_at": "2026-11-01 03:17:00"
-        },
-        {
-            "technique": "JavaScript",
-            "implementation": "929886110",
             "relation": "usedBy",
             "last_seen_at": "2026-11-02 03:17:00",
             "created_at": "2026-11-01 03:17:00",
@@ -753,14 +729,6 @@
         {
             "technique": "TypeScript",
             "implementation": "1264304513",
-            "relation": "usedBy",
-            "last_seen_at": "2026-11-02 03:17:00",
-            "created_at": "2026-11-01 03:17:00",
-            "updated_at": "2026-11-01 03:17:00"
-        },
-        {
-            "technique": "TypeScript",
-            "implementation": "929886110",
             "relation": "usedBy",
             "last_seen_at": "2026-11-02 03:17:00",
             "created_at": "2026-11-01 03:17:00",

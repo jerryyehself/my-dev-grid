@@ -330,6 +330,46 @@ class RelationSeeder extends Seeder
         $this->pairReverse($seeded['targets'], $seeded['targetedBy']);
         $this->pairReverse($seeded['influences'], $seeded['influencedBy']);
 
+        // 改作與建置產物：這個實作是從另一份來源改出來的，或是由另一個專案建置出來的成品。
+        // 借 schema.org 的 isBasedOn／isBasisFor：
+        // https://schema.org/isBasedOn 、https://schema.org/isBasisFor 。
+        //
+        // 述詞的受詞只能指到一個頂層分類（RelationFitsLinkedScopes），名稱又不能重複，所以來源是
+        // 文件（例如外部 repo 的 Documentation）和來源是另一個實作各一對，後者加上 Project 字樣，
+        // 做法跟 about／aboutProject 一樣。兩對都對應同一組 schema.org 詞條。
+        // - 文件 isBasisFor 實作：外部 repo 是這個實作的基礎（改作）。類號 02／20，
+        //   子類號接在該類號已用過的 00、10、20 後面，所以用 30。
+        // - 實作 isBasedOnProject 實作：建置產物指向它的來源專案。類號 22，已用過 00 到 40，所以用 50、60。
+        //   跟 descendantOf 不同：descendantOf 是同一個譜系的前後代（含 fork），這一對是產物與來源。
+        // 放在最後面，原有述詞的 id 不變。
+        $derivationPredicates = [
+            // [類號, 子類號, 名稱, 說明, 詞條]
+            ['02', '30', 'isBasisFor', 'this Documentation (an external repository) is the basis the Implementation was adapted from.', 'isBasisFor'],
+            ['20', '30', 'isBasedOn', 'reverse of isBasisFor: the Implementation is adapted from this Documentation (an external repository).', 'isBasedOn'],
+            ['22', '50', 'isBasedOnProject', 'the Implementation is a build output of, or adapted from, another Implementation (the source project). Differs from descendantOf, which links two repos of the same lineage.', 'isBasedOn'],
+            ['22', '60', 'isBasisForProject', 'reverse of isBasedOnProject: this Implementation is the source of another Implementation\'s build output.', 'isBasisFor'],
+        ];
+
+        foreach ($derivationPredicates as [$classNumber, $callNumber, $name, $note, $sourceTerm]) {
+            // 主詞、受詞的頂層分類由類號的兩碼決定，做法跟上面外部參考的述詞一樣
+            $subject = $leadScopes->firstWhere('class_number', "{$classNumber[0]}0");
+            $object = $leadScopes->firstWhere('class_number', "{$classNumber[1]}0");
+
+            $seeded[$name] = $this->relation([
+                'subject_id' => $subject->id,
+                'object_id' => $object->id,
+                'class_number' => $classNumber,
+                'call_number' => $callNumber,
+                'name' => $name,
+                'note' => "schema.org {$sourceTerm} (https://schema.org/{$sourceTerm}) — {$note}",
+                'source_vocabulary' => 'schema',
+                'source_term' => $sourceTerm,
+            ]);
+        }
+
+        $this->pairReverse($seeded['isBasisFor'], $seeded['isBasedOn']);
+        $this->pairReverse($seeded['isBasedOnProject'], $seeded['isBasisForProject']);
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 

@@ -17,6 +17,9 @@ use Tests\TestCase;
  *
  * `snapshots/nomen-shadow-edges.json` 是在加上 nomens 之前的程式上跑同一段流程產生的，
  * 之後不要為了讓測試變綠而重新產生：這個檔案對不上，就表示影子寫入改到了既有的邊。
+ * 例外是有意的行為變更，快照只動被變更影響的那幾列：`config/repo_sync.php` 的 `skip_technique_edges`
+ * 讓 my-profile（929886110）不再寫技術邊，快照因此少了它的 4 條 usedBy（TypeScript、JavaScript、
+ * Dockerfile、CSS），其餘一列不動。
  * 只用自然鍵（標題、版本、git_repo_id、述詞名稱）比對，不比 id：PostgreSQL 的流水號在
  * `RefreshDatabase` 回滾後不會重設，id 在 SQLite 與 PostgreSQL 上會不同。
  */
