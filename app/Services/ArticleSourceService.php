@@ -6,11 +6,13 @@ use App\Exceptions\ArticleSourceException;
 use App\Logging\AdminAudit;
 use App\Models\Documentation;
 use App\Models\Scope;
+use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -31,8 +33,8 @@ use Illuminate\Validation\ValidationException;
  *
  * 狀態（清單上每一項的 `status`）：
  * - `new`：還沒有對應的文章。`possible_match`：沒有對應，但有一篇還沒連結的文章標題相同。
- * - `unchanged`：blob SHA 跟上次匯入時相同。`changed`：不同，站上的內文沒改過。
- * - `conflict`：不同，而且站上的內文在上次匯入之後改過（`body` 的 SHA-256 對不上 `source_body_hash`）。
+ * - `unchanged`：blob SHA 跟上次匯入時相同。`changed`：不同，站上的標題、日期與內文都沒改過。
+ * - `conflict`：不同，而且站上的標題、日期或內文在上次匯入之後改過（見 `importedContentHash()`）。
  * - `site_deleted`：對應的文章在站上已經軟刪除；不會再匯入，也不會讓它復活。
  * - `removed`：站上有連結，但這個版本的 repo 裡已經沒有選擇匯入、slug 相同的檔案。
  * - `invalid`：選擇了匯入但不能匯入（原因見 `ArticleSourceParser::INVALID_REASONS`）。
@@ -227,7 +229,7 @@ final class ArticleSourceService
                         // 放在 overwrite_site_edits 之前：覆蓋站上的修改也不能順便把文章倒回舊版
                         $conflicts[$field] = [$older];
                     } elseif ($status === self::STATUS_CONFLICT && ($item['overwrite_site_edits'] ?? false) !== true) {
-                        $conflicts["items.{$i}.overwrite_site_edits"] = ['站上的內文在上次匯入之後改過，要覆蓋請明確設定 overwrite_site_edits。'];
+                        $conflicts["items.{$i}.overwrite_site_edits"] = ['站上的標題、日期或內文在上次匯入之後改過，要覆蓋請明確設定 overwrite_site_edits。'];
                     } else {
                         $targets[$i] = $entry['row'];
                     }
@@ -274,10 +276,10 @@ final class ArticleSourceService
             ];
 
             if ($item['action'] === self::ACTION_LINK) {
-                // 連結：只寫來源欄位，內文與標題維持站上的版本；以站上目前的內文當作「匯入時的內文」，
+                // 連結：只寫來源欄位，內文與標題維持站上的版本；以站上目前的標題、日期與內文當作「匯入時的內容」，
                 // 之後站上再改才算有修改
                 $documentation = $targets[$i];
-                $documentation->forceFill($source + ['source_body_hash' => self::bodyHash($documentation->body)])->save();
+                $documentation->forceFill($source + ['source_body_hash' => self::importedContentHash($documentation)])->save();
                 $warnings = [];
             } else {
                 $article = $articles[$i];
@@ -294,7 +296,8 @@ final class ArticleSourceService
                     $documentation = $targets[$i]->fill($fields);
                 }
 
-                $documentation->forceFill($source + ['source_body_hash' => self::bodyHash($article['body'])])->save();
+                // 來源沒有 creation_date 時日期維持站上的值，所以雜湊要用寫入後的這一列算，不能只用來源的內容
+                $documentation->forceFill($source + ['source_body_hash' => self::importedContentHash($documentation)])->save();
                 // 連結只新增、不刪除；警告跟內容掃描的警告放在一起回報
                 $warnings = [...$this->warnings($article), ...$this->aboutLinker->link($documentation, $article['about'])];
             }
@@ -578,16 +581,54 @@ final class ArticleSourceService
         };
     }
 
-    /** 站上的內文跟上次匯入（或連結）時不同。沒有記錄就當作改過，要求明確覆蓋。 */
+    /**
+     * 站上的標題、日期或內文跟上次匯入（或連結）時不同。沒有記錄就當作改過，要求明確覆蓋。
+     *
+     * 只記了內文雜湊的舊紀錄（這個比對納入標題與日期之前匯入的）也對不上，會判成改過：
+     * 看不出那之後標題、日期有沒有被改，寧可多要求一次確認，也不要默默蓋掉。更新一次之後就是新的雜湊。
+     */
     private static function siteEdited(Documentation $row): bool
     {
         return ! is_string($row->source_body_hash)
-            || ! hash_equals($row->source_body_hash, self::bodyHash($row->body));
+            || ! hash_equals($row->source_body_hash, self::importedContentHash($row));
     }
 
-    private static function bodyHash(?string $body): string
+    /**
+     * 匯入會寫的三個欄位（標題、日期、內文）的 SHA-256，存在 `source_body_hash`。
+     *
+     * 欄位名稱是只比對內文時取的；改成三個欄位一起算，是因為 update 也會用來源的標題與日期覆蓋站上的值，
+     * 只比內文的話，後台改過標題的文章會被判成 `changed`，不經確認就被蓋掉。
+     * 每個值前面加上長度（NULL 寫成 `-`），欄位內容裡有什麼字元都不會讓兩組不同的值算出同一個字串。
+     * public 是給測試準備「上次匯入時的狀態」用，正式程式只有這個類別呼叫。
+     */
+    public static function importedContentHash(Documentation $documentation): string
     {
-        return hash('sha256', $body ?? '');
+        $fields = [$documentation->title, self::normalizedDate($documentation->creation_date), $documentation->body];
+
+        return hash('sha256', implode("\n", array_map(
+            fn (?string $value) => $value === null ? '-' : strlen($value).':'.$value,
+            $fields,
+        )));
+    }
+
+    /**
+     * `creation_date` 統一成 `Y-m-d H:i:s` 再算雜湊。
+     *
+     * 這欄沒有 cast，讀到的是資料庫給的字串：匯入時寫的是 `2026-09-22`，PostgreSQL（timestamp）讀回來是
+     * `2026-09-22 00:00:00`，SQLite 照原樣存。不統一的話，同一個日期寫入時跟讀回來時算出不同的雜湊。
+     * 解析不了的值（只可能是 SQLite 裡手動寫進去的）照原字串算。
+     */
+    private static function normalizedDate(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        try {
+            return Carbon::parse($value)->format('Y-m-d H:i:s');
+        } catch (InvalidFormatException) {
+            return (string) $value;
+        }
     }
 
     /**
