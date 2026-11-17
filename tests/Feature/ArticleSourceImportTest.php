@@ -652,7 +652,7 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("站上改過。\n", $documentation->refresh()->body);
     }
 
-    #[TestDox('寫到一半失敗（第二項找不到 post 分類）時，第一項已寫的更新會整批回滾')]
+    #[TestDox('寫到一半失敗（第二項找不到 post 分類）時，第一項已寫的更新會整批回滾，也不留稽核紀錄')]
     public function test_failure_on_a_later_write_rolls_back_the_earlier_write(): void
     {
         $newPost = self::article('new-post', '新文章');
@@ -662,6 +662,7 @@ class ArticleSourceImportTest extends TestCase
         $this->post->delete();
         $before = $documentation->refresh()->only(['title', 'body', 'status', 'source_key', 'source_path', 'source_blob_sha', 'source_commit_sha', 'source_imported_at', 'source_body_hash']);
         $this->actingAsOwner();
+        $this->captureLogs();
 
         $this->import([
             $this->item('the-post', $changed, 'update'),
@@ -674,6 +675,8 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("舊版內文。\n", $documentation->body);
         $this->assertSame(str_repeat('1', 40), $documentation->source_blob_sha);
         $this->assertSame(1, Documentation::withTrashed()->count());
+        // 第一項 update 在 transaction 裡觸發的稽核紀錄，跟著回滾，不會寫出去
+        $this->assertNoSecurityEvent('authz_admin');
     }
 
     #[TestDox('同一批兩項連到同一篇文章時，請求格式就擋下回 422，什麼都不寫')]

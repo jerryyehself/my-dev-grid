@@ -10,6 +10,7 @@ use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -24,6 +25,9 @@ use Illuminate\Support\Str;
  * 只記「已登入使用者在 HTTP 請求裡做的變更」。seeder、`snapshot:github-repos`
  * 這類指令沒有登入使用者，不記——那些是系統自己的批次寫入，一次上百筆，會把
  * 稽核紀錄淹掉。
+ *
+ * 在 transaction 裡的變更，等 commit 之後才寫（`DB::afterCommit()`）：回滾的變更沒有真的發生，
+ * 不留紀錄。不在 transaction 裡就馬上寫。要記的內容（使用者、欄位名稱）在變更當下就算好，不等 commit。
  *
  * 只記欄位名稱，不記欄位值：文件內文（Markdown）可能很長，整行 JSON 超過 php-fpm 的
  * log_limit 會被拆成多行（見 CloudLoggingFormatter）；要看改了什麼值，用資料庫本身。
@@ -110,12 +114,13 @@ final class AdminAudit
 
         $object = Str::snake(class_basename($model));
         $id = $model->getKey();
-
-        SecurityLog::write(SecurityEvent::AuthzAdmin, "使用者 {$userId} {$action} {$object} #{$id}", [
+        $context = [
             'user_id' => $userId,
             'action' => $action,
             'object' => $object,
             'object_id' => $id,
-        ] + $fields);
+        ] + $fields;
+
+        DB::afterCommit(fn () => SecurityLog::write(SecurityEvent::AuthzAdmin, "使用者 {$userId} {$action} {$object} #{$id}", $context));
     }
 }
