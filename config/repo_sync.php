@@ -6,7 +6,11 @@
 return [
 
     /*
-     * 不寫技術邊的 repo（repo 名稱，不分大小寫）。
+     * 不寫技術邊的 repo，用 `擁有者/repo 名稱` 指定（跟 GitHub 網址最後兩段一樣，不分大小寫）。
+     *
+     * 同步來源讀 `/user/repos`，不只自己擁有的 repo，也包含協作者、組織成員身分看得到的 repo，
+     * 別人名下可能有同名的 repo；只比對名稱會誤傷它們，所以一定要寫擁有者。
+     * 只寫名稱（沒有 `/`）的項目不會比對到任何 repo。同步到的 repo 讀不到擁有者時，同樣不略過。
      *
      * 這些 repo 的語言、topic、套件讀到的技術都不連到專案，因為連出來的邊是錯的：
      * 它們是改作自別人的專案，或是另一個專案的建置產物，用到的技術不代表作者自己的技術。
@@ -19,8 +23,8 @@ return [
      * @var list<string>
      */
     'skip_technique_edges' => [
-        'my-profile',
-        'laravel-migration-visualizer-pages',
+        'jerryyehself/my-profile',
+        'jerryyehself/laravel-migration-visualizer-pages',
     ],
 
 ];

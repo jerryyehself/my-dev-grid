@@ -37,13 +37,13 @@ class SaveReposDataSkippedReposTest extends TestCase
     }
 
     /** @return array<string, mixed> 一個 repo，語言、topic、套件各有一項會被對照到的技術 */
-    private function repo(string $title, int $id): array
+    private function repo(string $title, int $id, string $owner = 'jerryyehself'): array
     {
         return [
             'id' => $id,
             'git_repo_id' => $id,
             'title' => $title,
-            'html_url' => "https://github.com/acme/{$title}",
+            'html_url' => "https://github.com/{$owner}/{$title}",
             'description' => null,
             'topics' => ['vue'],
             'languages' => ['PHP'],
@@ -52,7 +52,7 @@ class SaveReposDataSkippedReposTest extends TestCase
             'package_versions' => [],
             'created_at' => '2026-06-15T00:00:00Z',
             'archived' => false,
-            'owner' => 'acme',
+            'owner' => $owner,
         ];
     }
 
@@ -69,11 +69,18 @@ class SaveReposDataSkippedReposTest extends TestCase
             ->count();
     }
 
-    #[TestDox('預設清單是 my-profile 與 laravel-migration-visualizer-pages')]
+    private function edgeCountByRepoId(int $gitRepoId): int
+    {
+        return DB::table('technique_implementation')
+            ->where('implementation_id', Implementation::where('git_repo_id', $gitRepoId)->value('id'))
+            ->count();
+    }
+
+    #[TestDox('預設清單是 jerryyehself 名下的 my-profile 與 laravel-migration-visualizer-pages')]
     public function test_default_list(): void
     {
         $this->assertSame(
-            ['my-profile', 'laravel-migration-visualizer-pages'],
+            ['jerryyehself/my-profile', 'jerryyehself/laravel-migration-visualizer-pages'],
             config('repo_sync.skip_technique_edges'),
         );
     }
@@ -98,6 +105,74 @@ class SaveReposDataSkippedReposTest extends TestCase
         yield 'my-profile' => ['my-profile'];
         yield 'laravel-migration-visualizer-pages' => ['laravel-migration-visualizer-pages'];
         yield '大小寫不同' => ['My-Profile'];
+    }
+
+    #[TestDox('擁有者的大小寫不同也算（GitHub 的帳號名稱不分大小寫）')]
+    public function test_owner_case_is_ignored(): void
+    {
+        $this->sync([$this->repo('my-profile', 111, 'JerryYehSelf')]);
+
+        $this->assertSame(0, $this->edgeCountByRepoId(111));
+    }
+
+    #[TestDox('別的擁有者名下同名的 repo 不被略過：照常建邊、更新 last_seen_at')]
+    public function test_same_name_repo_of_another_owner_is_synced_normally(): void
+    {
+        $this->sync([
+            $this->repo('my-profile', 111),
+            $this->repo('my-profile', 222, 'someone-else'),
+        ]);
+
+        $this->assertSame(2, Implementation::where('title', 'my-profile')->count());
+        $this->assertSame(0, $this->edgeCountByRepoId(111));
+        $this->assertSame(
+            ['Alpine.js', 'Laravel', 'PHP', 'Vue'],
+            Implementation::where('git_repo_id', 222)->firstOrFail()->techniques()->pluck('title')->sort()->values()->all(),
+        );
+
+        // 第二次同步：已存在的邊要更新 last_seen_at
+        Carbon::setTestNow('2026-11-18 03:00:00');
+        $this->sync([$this->repo('my-profile', 222, 'someone-else')]);
+
+        $seen = DB::table('technique_implementation')
+            ->where('implementation_id', Implementation::where('git_repo_id', 222)->value('id'))
+            ->pluck('last_seen_at')
+            ->map(fn ($value) => Carbon::parse($value)->format('Y-m-d H:i:s'))
+            ->unique()
+            ->all();
+        $this->assertSame(['2026-11-18 03:00:00'], $seen);
+    }
+
+    #[DataProvider('unconfirmedOwners')]
+    #[TestDox('擁有者讀不到、或只是長得像清單裡的擁有者，都不略過')]
+    public function test_unconfirmed_owner_is_not_skipped(mixed $owner): void
+    {
+        $repo = $this->repo('my-profile', 111);
+        $repo['owner'] = $owner;
+
+        $this->sync([$repo]);
+
+        $this->assertGreaterThan(0, $this->edgeCountByRepoId(111));
+    }
+
+    /** @return iterable<string, array{mixed}> */
+    public static function unconfirmedOwners(): iterable
+    {
+        yield 'null' => [null];
+        yield '空字串' => [''];
+        yield '不是字串' => [['login' => 'jerryyehself']];
+        yield '擁有者只共用前綴' => ['jerryyehself2'];
+        yield '擁有者只共用後綴' => ['not-jerryyehself'];
+    }
+
+    #[TestDox('清單項目只寫名稱（沒有擁有者）時不比對到任何 repo')]
+    public function test_bare_name_entry_matches_nothing(): void
+    {
+        config(['repo_sync.skip_technique_edges' => ['my-profile']]);
+
+        $this->sync([$this->repo('my-profile', 111)]);
+
+        $this->assertGreaterThan(0, $this->edgeCountByRepoId(111));
     }
 
     #[TestDox('清單裡的 repo 的語言、topic、套件字串照記進 nomens')]
@@ -193,7 +268,7 @@ class SaveReposDataSkippedReposTest extends TestCase
     #[TestDox('清單可以改：加進清單的 repo 就不建邊')]
     public function test_list_is_configurable(): void
     {
-        config(['repo_sync.skip_technique_edges' => ['some-other-repo']]);
+        config(['repo_sync.skip_technique_edges' => ['jerryyehself/some-other-repo']]);
 
         $this->sync([$this->repo('some-other-repo', 222), $this->repo('my-profile', 111)]);
 
