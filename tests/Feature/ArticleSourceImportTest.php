@@ -121,22 +121,111 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("新版內文。\n", $documentation->body);
     }
 
-    #[TestDox('站上改過內文時，沒帶 overwrite_site_edits 回 409，帶了才覆蓋')]
+    #[TestDox('站上改過內文時，沒帶 overwrite_site_edits 回 409，帶了（加上清單上的 site_version）才覆蓋')]
     public function test_conflict_requires_overwrite_site_edits(): void
     {
         [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
         $documentation->forceFill(['body' => "站上改過。\n"])->save();
         $this->actingAsOwner();
+        $version = $this->listedSiteVersion('the-post');
 
         $this->import([$this->item('the-post', $content, 'update')], $commit)
             ->assertConflict()
             ->assertJsonPath('reason', 'conflict')
             ->assertJsonStructure(['errors' => ['items.0.overwrite_site_edits']]);
-        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => false])], $commit)->assertConflict();
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => false, 'expected_site_version' => $version])], $commit)
+            ->assertConflict()
+            ->assertJsonStructure(['errors' => ['items.0.overwrite_site_edits']]);
         $this->assertSame("站上改過。\n", $documentation->refresh()->body);
 
-        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true])], $commit)->assertOk();
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $version])], $commit)->assertOk();
         $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+    }
+
+    #[TestDox('清單上只有 conflict 的項目附 site_version，值是站上目前標題、日期與內文的雜湊')]
+    public function test_listing_carries_site_version_only_for_conflicts(): void
+    {
+        $new = self::article('new-post', '新文章');
+        [$documentation] = $this->changedArticle(Documentation::STATUS_PUBLISHED, extraFiles: ['new.md' => $new]);
+        $this->actingAsOwner();
+
+        $items = collect($this->getJson('/api/article-sources')->assertOk()->json('items'))->keyBy('key');
+        $this->assertSame('changed', $items['the-post']['status']);
+        $this->assertNull($items['the-post']['site_version']);
+        $this->assertSame('new', $items['new-post']['status']);
+        $this->assertNull($items['new-post']['site_version']);
+
+        $documentation->forceFill(['body' => "站上改過。\n"])->save();
+        $item = collect($this->getJson('/api/article-sources')->assertOk()->json('items'))->firstWhere('key', 'the-post');
+        $this->assertSame('conflict', $item['status']);
+        $this->assertSame(ArticleSourceService::importedContentHash($documentation->refresh()), $item['site_version']);
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function siteFieldsEditedAgain(): iterable
+    {
+        yield '內文' => ['body', "列清單之後又改的內文。\n"];
+        yield '標題' => ['title', '列清單之後又改的標題'];
+        yield '日期' => ['creation_date', '2002-03-04'];
+    }
+
+    #[DataProvider('siteFieldsEditedAgain')]
+    #[TestDox('勾了覆蓋，但列清單之後站上又改過標題、日期或內文：回 409，什麼都不寫')]
+    public function test_site_edit_after_listing_blocks_overwrite(string $column, string $value): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $documentation->forceFill(['body' => "站上改過。\n"])->save();
+        $this->actingAsOwner();
+        $version = $this->listedSiteVersion('the-post');
+        // 看完清單、勾了覆蓋，送出之前站上又被改了一次
+        $documentation->forceFill([$column => $value])->save();
+        $before = $documentation->refresh()->only(['title', 'creation_date', 'body', 'status', 'source_blob_sha', 'source_commit_sha', 'source_imported_at', 'source_body_hash']);
+        $this->captureLogs();
+
+        $response = $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $version])], $commit)
+            ->assertConflict()
+            ->assertJsonPath('reason', 'conflict');
+        $this->assertSame(['items.0.expected_site_version'], array_keys($response->json('errors')));
+
+        $this->assertSame($before, $documentation->refresh()->only(array_keys($before)));
+        $this->assertNoSecurityEvent('authz_admin');
+
+        // 重新列清單拿到新的 site_version，就能覆蓋
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $this->listedSiteVersion('the-post')])], $commit)->assertOk();
+        $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+    }
+
+    #[TestDox('列清單之後站上只改了發布狀態（覆蓋不會動到的欄位）時，照樣能覆蓋')]
+    public function test_status_change_after_listing_does_not_block_overwrite(): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $documentation->forceFill(['body' => "站上改過。\n"])->save();
+        $this->actingAsOwner();
+        $version = $this->listedSiteVersion('the-post');
+        $this->travel(5)->seconds();
+        $documentation->forceFill(['status' => Documentation::STATUS_DRAFT])->save();
+
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $version])], $commit)->assertOk();
+        $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+        $this->assertSame(Documentation::STATUS_DRAFT, (int) $documentation->status);
+    }
+
+    #[TestDox('勾了覆蓋卻沒帶 expected_site_version：回 422，不打 GitHub，什麼都不寫')]
+    public function test_overwrite_without_site_version_is_rejected(): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $documentation->forceFill(['body' => "站上改過。\n"])->save();
+        $this->actingAsOwner();
+        $this->captureLogs();
+
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true])], $commit)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.expected_site_version']);
+
+        $this->assertSame("站上改過。\n", $documentation->refresh()->body);
+        $this->assertSame(str_repeat('1', 40), $documentation->source_blob_sha);
+        $this->assertNoSecurityEvent('authz_admin');
+        Http::assertNothingSent();
     }
 
     /** @return iterable<string, array{string, string}> */
@@ -164,7 +253,7 @@ class ArticleSourceImportTest extends TestCase
         $this->assertStringStartsWith($siteValue, (string) $documentation->{$column});
         $this->assertSame("舊版內文。\n", $documentation->body);
 
-        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true])], $commit)->assertOk();
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $this->listedSiteVersion('the-post')])], $commit)->assertOk();
         $documentation->refresh();
         $this->assertSame('新版標題', $documentation->title);
         $this->assertStringStartsWith('2026-10-01', (string) $documentation->creation_date);
@@ -369,7 +458,9 @@ class ArticleSourceImportTest extends TestCase
         [$documentation, $v2, $c2] = $this->importedFromNewerCommit();
         $documentation->forceFill(['body' => "站上改過。\n"])->save();
 
-        $this->import([$this->item('the-post', $v2, 'update', ['overwrite_site_edits' => true])], $c2)
+        $version = ArticleSourceService::importedContentHash($documentation->refresh());
+
+        $this->import([$this->item('the-post', $v2, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $version])], $c2)
             ->assertConflict()
             ->assertJsonStructure(['errors' => ['items.0.action']]);
 
@@ -681,6 +772,24 @@ class ArticleSourceImportTest extends TestCase
         yield 'documentation_id 不是整數' => [['commit_sha' => $sha, 'items' => [['action' => 'link', 'documentation_id' => 'abc'] + $item]], 'items.0.documentation_id'];
         yield 'documentation_id 超出 bigint' => [['commit_sha' => $sha, 'items' => [['action' => 'link', 'documentation_id' => '99999999999999999999'] + $item]], 'items.0.documentation_id'];
         yield 'overwrite_site_edits 不是布林' => [['commit_sha' => $sha, 'items' => [['overwrite_site_edits' => 'yes'] + $item]], 'items.0.overwrite_site_edits'];
+        $version = str_repeat('c', 64);
+        foreach (['true' => true, '1' => 1, "'1'" => '1'] as $label => $overwrite) {
+            yield "overwrite_site_edits={$label} 沒帶 expected_site_version" => [['commit_sha' => $sha, 'items' => [['overwrite_site_edits' => $overwrite] + $item]], 'items.0.expected_site_version'];
+        }
+        $badVersions = [
+            'null' => null,
+            '空字串' => '',
+            '63 位' => substr($version, 1),
+            '65 位' => $version.'c',
+            '大寫' => strtoupper($version),
+            '不是 hex' => str_repeat('g', 64),
+            '40 位的 blob SHA' => $sha,
+            '整數' => 1,
+            '陣列' => [$version],
+        ];
+        foreach ($badVersions as $label => $bad) {
+            yield "expected_site_version {$label}" => [['commit_sha' => $sha, 'items' => [['overwrite_site_edits' => true, 'expected_site_version' => $bad] + $item]], 'items.0.expected_site_version'];
+        }
     }
 
     /** @param  array<string, mixed>  $payload */
@@ -785,6 +894,16 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame($c3, $documentation->source_commit_sha);
 
         return [$documentation, $v2, $c2, $v3, $c3];
+    }
+
+    /** 清單上這一項的 `site_version`（只有 conflict 的項目有）。 */
+    private function listedSiteVersion(string $key): string
+    {
+        $item = collect($this->getJson('/api/article-sources')->assertOk()->json('items'))->firstWhere('key', $key);
+        $this->assertSame('conflict', $item['status']);
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $item['site_version']);
+
+        return $item['site_version'];
     }
 
     /** @return array<string, string> 清單上每一項的 key => status */

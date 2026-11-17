@@ -35,6 +35,8 @@ use Illuminate\Validation\ValidationException;
  * - `new`：還沒有對應的文章。`possible_match`：沒有對應，但有一篇還沒連結的文章標題相同。
  * - `unchanged`：blob SHA 跟上次匯入時相同。`changed`：不同，站上的標題、日期與內文都沒改過。
  * - `conflict`：不同，而且站上的標題、日期或內文在上次匯入之後改過（見 `importedContentHash()`）。
+ *   這一項另外附上 `site_version`（站上目前這三個欄位的雜湊）；要覆蓋時請求要原樣帶回，
+ *   列出清單之後站上又改過就對不上，不會蓋掉看清單時還沒看到的修改。
  * - `site_deleted`：對應的文章在站上已經軟刪除；不會再匯入，也不會讓它復活。
  * - `removed`：站上有連結，但這個版本的 repo 裡已經沒有選擇匯入、slug 相同的檔案。
  * - `invalid`：選擇了匯入但不能匯入（原因見 `ArticleSourceParser::INVALID_REASONS`）。
@@ -114,7 +116,7 @@ final class ArticleSourceService
     /**
      * 照清單上的選擇匯入。全部檢查過才寫入，任何一項不行就整批不寫。
      *
-     * @param  list<array{key: string, expected_blob_sha: string, action: string, documentation_id?: int|string|null, overwrite_site_edits?: bool|null}>  $requested
+     * @param  list<array{key: string, expected_blob_sha: string, action: string, documentation_id?: int|string|null, overwrite_site_edits?: bool|null, expected_site_version?: string|null}>  $requested
      * @return list<array<string, mixed>>
      *
      * @throws ArticleSourceException 清單過期、狀態變了、站上已經匯入較新的版本（409）或 GitHub 出錯（5xx）
@@ -230,6 +232,9 @@ final class ArticleSourceService
                         $conflicts[$field] = [$older];
                     } elseif ($status === self::STATUS_CONFLICT && ($item['overwrite_site_edits'] ?? false) !== true) {
                         $conflicts["items.{$i}.overwrite_site_edits"] = ['站上的標題、日期或內文在上次匯入之後改過，要覆蓋請明確設定 overwrite_site_edits。'];
+                    } elseif ($status === self::STATUS_CONFLICT && ! self::sameSiteVersion($entry['row'], $item['expected_site_version'] ?? null)) {
+                        // 同意覆蓋的是看清單時的站上內容；之後站上又改過，就不能連那次修改一起蓋掉
+                        $conflicts["items.{$i}.expected_site_version"] = ['站上的標題、日期或內文在列出清單之後又改過，請重新整理清單，確認後再決定要不要覆蓋。'];
                     } else {
                         $targets[$i] = $entry['row'];
                     }
@@ -495,6 +500,7 @@ final class ArticleSourceService
             'blob_sha' => $entry['sha'],
             'title' => $entry['title'],
             'status' => $entry['status'],
+            'site_version' => $entry['status'] === self::STATUS_CONFLICT ? self::importedContentHash($row) : null,
             'documentation_id' => $row?->id,
             'published' => $row === null || $row->trashed() ? null : $row->isPublished(),
             'reason' => $entry['invalid'],
@@ -591,6 +597,18 @@ final class ArticleSourceService
     {
         return ! is_string($row->source_body_hash)
             || ! hash_equals($row->source_body_hash, self::importedContentHash($row));
+    }
+
+    /**
+     * 站上目前的標題、日期與內文，跟清單上 `site_version`（列清單時用 `importedContentHash()` 算的）是不是同一版。
+     *
+     * 用內容的雜湊，不用 `updated_at`：`updated_at` 只到秒，同一秒內的修改分不出來；改發布狀態這類
+     * 覆蓋不會動到的欄位也會讓它變，會多擋。雜湊只看覆蓋會蓋掉的三個欄位，跟判斷 `conflict` 的是同一個值。
+     * 沒帶（null）一律當成對不上。
+     */
+    private static function sameSiteVersion(Documentation $row, ?string $expected): bool
+    {
+        return is_string($expected) && hash_equals(self::importedContentHash($row), $expected);
     }
 
     /**
