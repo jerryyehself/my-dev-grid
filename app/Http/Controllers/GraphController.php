@@ -39,12 +39,12 @@ class GraphController extends Controller
      * 邊的 added_at 是連結列（三張 pivot 或 entity_relations）的 created_at。2026-10-02 首次匯入的資料
      * 是基準，不是實際建立的時間；連結列在開始寫入時間之前存下來的沒有值，也不回補，所以邊的 added_at 可能是 null。
      * 沒登入時，未公開文件的 added_at／updated_at，以及連到它的邊的 added_at，也一律是 null。
-     * stale 已停用，一律 false：技術與實作之間的基本關聯不會過期。欄位暫時保留給還在讀它的前端，之後會移除。
+     * stale 已停用，一律 false：技術與實作之間的基本關聯不會過期。之後的版本會移除這個欄位。
      */
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
         title: '取得知識圖譜',
-        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。`stale` 已停用，一律為 false（技術與實作之間的基本關聯不會過期，包括 GitHub 同步建立的邊；repo 後來拿掉某個技術，這條邊也會留著），欄位暫時保留給還在讀它的前端，之後會移除。`predicate_deprecated` 為 true 表示這條邊的述詞已棄用，`predicate_replaced_by` 是建議改用的述詞名稱（改用的述詞後來也棄用時，給最後仍在使用的那一條；沒有可用的述詞時為 null）：邊照常回傳，述詞名稱維持原本的，路徑查詢也照常經過。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype`、`url`、`added_at`、`updated_at` 為 null，連到它的邊 `added_at` 也是 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
+        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。`stale` 已停用，一律為 false（技術與實作之間的基本關聯不會過期，包括 GitHub 同步建立的邊；repo 後來拿掉某個技術，這條邊也會留著），之後的版本會移除這個欄位。`predicate_deprecated` 為 true 表示這條邊的述詞已棄用，`predicate_replaced_by` 是建議改用的述詞名稱（改用的述詞後來也棄用時，給最後仍在使用的那一條；沒有可用的述詞時為 null）：邊照常回傳，述詞名稱維持原本的，路徑查詢也照常經過。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype`、`url`、`added_at`、`updated_at` 為 null，連到它的邊 `added_at` 也是 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
     )]
     #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, added_at: string|null, updated_at: string|null, subtype: string|null, url: string|null, active: bool}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, added_at: string|null, stale: bool, predicate_deprecated: bool, predicate_replaced_by: string|null}>}')]
     public function index()
@@ -102,7 +102,7 @@ class GraphController extends Controller
     // 同 index()：手動組的回應，在這裡寫明形狀。找不到路徑時 found 是 false、nodes／edges 是空陣列。
     #[Endpoint(
         title: '查詢最短路徑',
-        description: '以 `start`、`end`（節點 id，格式同 `GET /graph` 的 `id`，例如 `technique-12`；格式不符時回 422）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。路徑可以經過未公開的文件，未登入時它的 `label` 同樣是「未公開」。路徑會經過所有的邊，包括述詞已棄用的邊，每一步的 `predicate_deprecated`、`predicate_replaced_by` 依實際走的方向所對應的述詞給。找不到路徑，或起訖點不存在（沒有這個 id，或已刪除），或未登入時起訖點是不公開的實作時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
+        description: '以 `start`、`end`（節點 id，格式同 `GET /graph` 的 `id`，例如 `technique-12`；格式不符時回 422）查詢兩個節點之間的最短路徑，只回傳一條。邊可以逆向走，每一步回傳實際走的方向所對應的述詞名稱。路徑可以經過未公開的文件，未登入時它的 `label` 同樣是「未公開」。`GET /graph` 回傳的邊都可以經過，包括述詞已棄用的邊，每一步的 `predicate_deprecated`、`predicate_replaced_by` 依實際走的方向所對應的述詞給。找不到路徑，或起訖點不存在（沒有這個 id，或已刪除），或未登入時起訖點是不公開的實作時，`found` 為 false，`nodes` 與 `edges` 為空陣列。',
     )]
     #[Response(200, type: 'array{found: bool, nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, storedDirection: "forward"|"reverse", hasDefinedReverse: bool, predicate_deprecated: bool, predicate_replaced_by: string|null}>}')]
     public function path(Request $request)
