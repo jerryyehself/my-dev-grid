@@ -17,6 +17,17 @@ class UpdateImplementationTechniqueRequest extends FormRequest
         return true;
     }
 
+    /**
+     * 只交出 relation_id 給驗證：RelationFitsLinkedScopes 會讀請求裡的 type 當「自己這一端的分類」，
+     * 這個端點不改 type，多帶的 type 不能影響分類檢查。
+     *
+     * @return array<string, mixed>
+     */
+    public function validationData(): array
+    {
+        return $this->only('relation_id');
+    }
+
     /** @return array<string, ValidationRule|array<mixed>|string> */
     public function rules(): array
     {

@@ -140,16 +140,6 @@ class SaveReposDataService
         'tailwind-css' => ['tailwind', 'packagetool', null],
         'threejs' => ['Three.js', 'packagetool', null],
         'd3js' => ['D3', 'packagetool', null],
-        // topic 的寫法對到套件對照表（config/package_technologies.php）已經在用的技術名稱，
-        // 不然 topic 與套件各長一個節點（Next.js／nextjs、Alpine.js／alpinejs）
-        'nextjs' => ['Next.js', 'framework', null],
-        'alpinejs' => ['Alpine.js', 'framework', null],
-        'reactjs' => ['React', 'framework', null],
-        'expressjs' => ['Express', 'framework', null],
-        'tailwindcss' => ['tailwind', 'packagetool', null],
-        'tailwind-css' => ['tailwind', 'packagetool', null],
-        'threejs' => ['Three.js', 'packagetool', null],
-        'd3js' => ['D3', 'packagetool', null],
         // Linguist 把 Procfile 當成一種「語言」，它其實是 Heroku 的部署設定檔
         'procfile' => ['Heroku', 'packagetool', null],
     ];
@@ -353,15 +343,18 @@ class SaveReposDataService
      * 標成改作自外部 repo 的專案 id（作為 key）：有一條文件連結、述詞沿改用解析後是 `isBasisFor`，而且文件沒有被刪除。
      *
      * 只看 `isBasisFor`（文件 → 實作）。`isBasedOnProject`（建置產物）不算：建置產物的技術邊照常同步。
-     * 述詞還沒種（全新資料庫只跑了 migration）時沒有專案被略過，不讓同步停下來。
+     * 述詞完全沒種時，前面取 `usedBy` 就會丟例外，走不到這裡；只有其他述詞都在、唯獨 `isBasisFor` 沒有時，
+     * 才會回空清單（沒有專案被略過）。這種情況不讓同步停下來，但會記一筆 warning，因為略過條件失效了。
      *
-     * @return array<int, true>
+     * @return array<int, bool>
      */
     private function derived_project_ids(): array
     {
         $isBasisFor = Relation::resolveByName('isBasisFor');
 
         if ($isBasisFor === null) {
+            Log::warning('找不到述詞「isBasisFor」，改作專案的略過條件失效（只剩 config/repo_sync.php 的清單）。');
+
             return [];
         }
 

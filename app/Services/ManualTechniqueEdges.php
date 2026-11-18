@@ -73,7 +73,7 @@ final class ManualTechniqueEdges
         AdminAudit::pivotSynced($implementation->techniques(), ['updated' => [$technique->id]]);
     }
 
-    /** @return Collection<int, object> */
+    /** @return Collection<int, \stdClass> */
     private function rows(Implementation $implementation, Technique $technique): Collection
     {
         return DB::table('technique_implementation')
@@ -85,7 +85,7 @@ final class ManualTechniqueEdges
             });
     }
 
-    /** @param  Collection<int, object>  $rows */
+    /** @param  Collection<int, \stdClass>  $rows */
     private function target(Collection $rows): object
     {
         $synced = [
@@ -103,7 +103,7 @@ final class ManualTechniqueEdges
             if ($candidates->count() === 1) {
                 return $candidates->first();
             }
-            abort_if($candidates->count() > 1, 409, '這個專案與技術之間有多條邊，分不出要改哪一條，請在編輯頁處理。');
+            abort_if($candidates->count() > 1, 409, '這個專案與技術之間有多條邊，分不出要改哪一條。請先刪掉多出來的那一列（資料庫裡同一對只該留一列），或聯絡維護者處理。');
         }
 
         abort(404, '這個專案與技術之間沒有邊。');

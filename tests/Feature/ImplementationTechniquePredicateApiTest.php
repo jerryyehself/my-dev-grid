@@ -182,11 +182,13 @@ class ImplementationTechniquePredicateApiTest extends TestCase
         yield '已刪除' => ['trashed'];
         yield '不存在' => ['missing'];
         yield '不是整數' => ['abc'];
+        yield '多帶 type：about 加上 type abc' => ['about', 'abc'];
+        yield '多帶 type：requires 加上語言分類的 id' => ['requires', 'language'];
     }
 
     #[DataProvider('invalidRelations')]
     #[TestDox('PATCH：述詞分類不符、已棄用、已刪除、不存在或格式不對都 422，資料不變')]
-    public function test_patch_rejects_invalid_relations(string $case): void
+    public function test_patch_rejects_invalid_relations(string $case, ?string $extraType = null): void
     {
         $project = $this->sync();
         $php = $this->technique('PHP');
@@ -200,7 +202,13 @@ class ImplementationTechniquePredicateApiTest extends TestCase
             default => $this->relationId($case),
         };
 
-        $this->patchJson($this->patchUrl($project, $php), ['relation_id' => $relationId])
+        $payload = ['relation_id' => $relationId];
+        if ($extraType !== null) {
+            // 多帶的 type 不能影響分類檢查（'language' 代表語言分類的 id）
+            $payload['type'] = $extraType === 'language' ? Scope::where('name', 'language')->value('id') : $extraType;
+        }
+
+        $this->patchJson($this->patchUrl($project, $php), $payload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['relation_id']);
 
