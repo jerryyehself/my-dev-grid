@@ -73,6 +73,7 @@ class SaveReposDataService
         'nextjs' => 'JavaScript',
         // 套件清單產生的技術名稱是 Next.js，查基底語言用的是小寫 title
         'next.js' => 'JavaScript',
+        'alpine.js' => 'JavaScript',
         'nuxt' => 'JavaScript',
         'nuxtjs' => 'JavaScript',
         'express' => 'JavaScript',
@@ -129,8 +130,7 @@ class SaveReposDataService
     /**
      * 同步時直接略過的 GitHub 語言名稱（小寫）：只放 Linguist 的偵測錯誤。`hack` 是把 PHP 檔誤判成
      * Hack 語言。topic 是擁有者刻意貼的標籤（描述 repo 在講什麼），不論是不是技術都不略過。
-     * 略過的項目不建技術、也不更新 last_seen_at，所以以前已經連上的邊不會被刪，而是慢慢變成
-     * 「很久沒看到」，由 TechniqueImplementationLink::staleCutoff() 判成過期。
+     * 略過的項目不建技術、也不更新 last_seen_at；以前已經連上的邊不會被刪，也不會過期，照常留著。
      */
     public const IGNORED_LANGUAGES = ['hack'];
 
@@ -183,7 +183,7 @@ class SaveReposDataService
             $project = $this->save_repos_content($repo);
 
             // 清單裡的 repo（config/repo_sync.php）不寫技術邊：連出來的技術不代表作者自己的技術。
-            // 不建技術、不連邊、不更新 last_seen_at，舊的邊照 staleCutoff() 淡出；nomen 照記。
+            // 不建技術、不連邊、不更新 last_seen_at，舊的邊照常留著；nomen 照記。
             if ($this->skips_technique_edges($repo)) {
                 $this->nomens->recordRepo($project, $repo, $seenAt);
 
@@ -371,8 +371,8 @@ class SaveReposDataService
     /**
      * 寫一條技術之間的邊（`entity_relations`），已經有同一件事的邊就不動。
      *
-     * 「同一件事」包含用舊述詞建的邊：述詞棄用後同步改寫改用對象，但 `entity_relations` 沒有
-     * last_seen_at，舊邊不會過期；這裡不認得它的話，同一對技術就會永遠有新舊兩條。所以只要
+     * 「同一件事」包含用舊述詞建的邊：述詞棄用後同步改寫改用對象，但舊邊不會被刪也不會過期；
+     * 這裡不認得它的話，同一對技術就會永遠有新舊兩條。所以只要
      * 這一對已經有一條邊、它的述詞沿改用解析後就是這次要寫的述詞，就當成已經存在。
      */
     private function linkTechniques(Technique $subject, Technique $object, int $relationId): void
@@ -449,7 +449,7 @@ class SaveReposDataService
      * linkTechniques()、link_official_docs()）。只有原本沒有邊的新配對才用改用對象寫。
      *
      * 沒辦法往下找的棄用述詞（沒有改用對象，只有直接改資料庫才會發生），照舊用它寫，不讓同步停下來：
-     * 停下來的話，所有技術邊都會因為沒再被看到而過期。兩種情況都記一筆日誌。
+     * 停下來的話，這次同步就什麼都沒寫進去。兩種情況都記一筆日誌。
      */
     private function relation_id(string $name): int
     {
