@@ -16,6 +16,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
@@ -103,18 +104,89 @@ class DeprecatedSystemPredicateTest extends TestCase
         $this->assertNotEmpty(array_filter($logs, fn (MessageLogged $m) => $m->level === 'info' && str_contains($m->message, '述詞「usedBy」已棄用，同步改用「employedBy」')));
     }
 
-    #[TestDox('棄用前同步建的邊保留原述詞，之後的同步不再更新它的 last_seen_at')]
+    /** @return list<array{technique_id: int, relation_id: int, last_seen_at: string|null}> */
+    private function projectEdges(Implementation $project): array
+    {
+        return DB::table('technique_implementation')->where('implementation_id', $project->id)->orderBy('technique_id')
+            ->get(['technique_id', 'relation_id', 'last_seen_at'])
+            ->map(fn (object $row) => ['technique_id' => (int) $row->technique_id, 'relation_id' => (int) $row->relation_id, 'last_seen_at' => $row->last_seen_at])
+            ->all();
+    }
+
+    #[TestDox('usedBy 棄用後同步兩次：棄用前的邊保留原述詞、照常更新 last_seen_at，同一對只有一列')]
     public function test_edges_written_before_the_deprecation_keep_their_predicate()
     {
         $usedBy = (int) Relation::where('name', 'usedBy')->value('id');
         $project = $this->sync();
         DB::table('technique_implementation')->update(['last_seen_at' => '2026-11-01 00:00:00']);
-        [$employedBy] = $this->deprecateInFavourOfNewPair('usedBy', 'employedBy');
+        $before = $this->projectEdges($project);
+        $this->assertNotEmpty($before);
+        $this->deprecateInFavourOfNewPair('usedBy', 'employedBy');
 
         $this->sync();
+        $this->sync();
 
-        $this->assertEqualsCanonicalizing([$usedBy, $employedBy->id], $this->projectEdgeRelationIds($project));
-        $this->assertSame('2026-11-01 00:00:00', DB::table('technique_implementation')->where('relation_id', $usedBy)->value('last_seen_at'));
+        $after = $this->projectEdges($project);
+        $this->assertSame(array_column($before, 'technique_id'), array_column($after, 'technique_id'), '同一對專案與技術只有一列');
+        $this->assertSame(array_fill(0, count($after), $usedBy), array_column($after, 'relation_id'), '舊邊不改寫述詞');
+        foreach ($after as $edge) {
+            $this->assertNotSame('2026-11-01 00:00:00', $edge['last_seen_at'], '舊邊照常更新 last_seen_at，不會過期');
+        }
+    }
+
+    #[TestDox('usedBy 棄用後，已經連著的專案再加新技術，新的那一對用改用對象寫；別的專案的新配對也是')]
+    public function test_new_project_technique_pairs_after_deprecation_use_the_replacement()
+    {
+        $usedBy = (int) Relation::where('name', 'usedBy')->value('id');
+        $project = $this->sync();
+        $php = Technique::where('title', 'PHP')->whereNull('version')->firstOrFail();
+        [$employedBy] = $this->deprecateInFavourOfNewPair('usedBy', 'employedBy');
+
+        (new SaveReposDataService(collect([[
+            'id' => 111, 'git_repo_id' => 111, 'title' => 'demo-111', 'html_url' => 'https://github.com/example/demo-111',
+            'description' => null, 'topics' => [], 'languages' => ['PHP', 'Python'], 'created_at' => '2026-06-15T00:00:00Z',
+            'archived' => false, 'owner' => 'example',
+        ]])))->save_repos_data();
+        $other = $this->sync(222);
+
+        $python = Technique::where('title', 'Python')->whereNull('version')->firstOrFail();
+        $edges = collect($this->projectEdges($project))->pluck('relation_id', 'technique_id')->all();
+        $this->assertSame([$php->id => $usedBy, $python->id => $employedBy->id], $edges);
+        $this->assertSame([$employedBy->id], array_column($this->projectEdges($other), 'relation_id'));
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function editedRelations(): iterable
+    {
+        yield '重送原述詞' => ['old'];
+        yield '改送改用對象' => ['new'];
+    }
+
+    #[DataProvider('editedRelations')]
+    #[TestDox('usedBy 棄用並同步後，後台存檔專案的技術清單、技術的專案清單都回 200')]
+    public function test_editor_can_save_after_used_by_is_deprecated(string $send)
+    {
+        $usedBy = (int) Relation::where('name', 'usedBy')->value('id');
+        $project = $this->sync();
+        [$employedBy] = $this->deprecateInFavourOfNewPair('usedBy', 'employedBy');
+        $this->sync();
+        $relationId = $send === 'old' ? $usedBy : $employedBy->id;
+        $technique = Technique::findOrFail($this->projectEdges($project)[0]['technique_id']);
+
+        $this->putJson("/api/implementations/{$project->id}", [
+            'type' => $project->type,
+            'title' => $project->title,
+            'techniques' => array_map(fn (array $edge) => ['id' => $edge['technique_id'], 'relation_id' => $edge['relation_id']], $this->projectEdges($project)),
+        ])->assertOk();
+
+        $this->putJson("/api/techniques/{$technique->id}", [
+            'type' => $technique->type,
+            'title' => $technique->title,
+            'implementations' => [['id' => $project->id, 'relation_id' => $relationId]],
+        ])->assertOk();
+
+        $this->assertSame(1, DB::table('technique_implementation')->where(['implementation_id' => $project->id, 'technique_id' => $technique->id])->count());
+        $this->assertSame($relationId, (int) DB::table('technique_implementation')->where(['implementation_id' => $project->id, 'technique_id' => $technique->id])->value('relation_id'));
     }
 
     #[TestDox('改用對象也棄用時，同步沿著改用一路找到仍在使用的那一條')]

@@ -239,17 +239,23 @@ class SaveReposDataService
      * 不用 `$project->techniques()->syncWithoutDetaching()`：它只用 technique_id 比對既有的邊，
      * 遇到同一對專案／技術還有別的述詞（例如手動建的 assists）時，會把那一筆的 relation_id
      * 也改掉。這裡明確限定在 usedBy 這個述詞上。同步只新增、不刪邊，升級前的版本會留著。
+     *
+     * 「usedBy 這個述詞」包含沿改用解析後就是它的舊述詞（見 relationIdsResolvingTo()）：usedBy 棄用、
+     * 同步改寫改用對象之後，棄用前建的邊照舊保留原述詞、照舊更新 last_seen_at，不另長一條。另長一條的話，
+     * 同一對專案與技術會有兩列，後台編輯器以技術 id 為鍵 sync() 時會把兩列改成同一個述詞、撞上唯一索引。
+     * 只有原本沒有邊的新配對，才用 $usesRelationId 寫。
      */
     private function link_project_to_techniques(Implementation $project, Collection $techniques, int $usesRelationId, bool $createMissing = true): void
     {
         $now = now();
 
         foreach ($techniques as $technique) {
-            $link = DB::table('technique_implementation')->where([
-                'implementation_id' => $project->id,
-                'technique_id' => $technique->id,
-                'relation_id' => $usesRelationId,
-            ]);
+            $link = DB::table('technique_implementation')
+                ->where([
+                    'implementation_id' => $project->id,
+                    'technique_id' => $technique->id,
+                ])
+                ->whereIn('relation_id', $this->relationIdsResolvingTo($usesRelationId));
 
             if ($link->exists()) {
                 $link->update(['last_seen_at' => $now]);
@@ -426,12 +432,9 @@ class SaveReposDataService
 
     /**
      * 依名稱取同步要寫的述詞。述詞已棄用、有改用對象時，改用改用對象寫新的邊（見 `Relation::resolveByName()`）。
-     * 舊邊的下場依連結表而不同：
-     * - `usedBy`（technique_implementation）：既有的邊以 relation_id 為鍵更新 last_seen_at，舊述詞的邊從此
-     *   不再更新，過一段時間會變成過期，同一對專案與技術另長一條改用對象的邊。
-     * - `requires`、`isVersionOf`（entity_relations）、`specs`（documentation_technique）：沒有過期機制，
-     *   舊邊照舊保留、不改寫，也不另長新邊（見 linkTechniques()、link_official_docs()）；只有棄用前沒有邊的
-     *   新配對才用改用對象寫。
+     * 四種述詞的舊邊一樣處理：同一對節點已經有一條邊、它的述詞沿改用解析後就是這次的述詞，就當成已經存在，
+     * 照舊保留原述詞、不改寫，也不另長新邊（`usedBy` 那條照常更新 last_seen_at，見 link_project_to_techniques()、
+     * linkTechniques()、link_official_docs()）。只有原本沒有邊的新配對才用改用對象寫。
      *
      * 沒辦法往下找的棄用述詞（沒有改用對象，只有直接改資料庫才會發生），照舊用它寫，不讓同步停下來：
      * 停下來的話，所有技術邊都會因為沒再被看到而過期。兩種情況都記一筆日誌。
