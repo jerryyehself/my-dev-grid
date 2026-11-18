@@ -88,6 +88,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('article-sources', [ArticleSourceController::class, 'index']);
     Route::post('article-sources/import', [ArticleSourceController::class, 'import']);
 
+    // 述詞的棄用與取消棄用。多一段 /deprecation，不會跟下面 apiResources 的 /relations/{relation} 打架。
+    Route::patch('relations/{relation}/deprecation', [RelationController::class, 'deprecate']);
+
     Route::apiResources([
         'scopes' => ScopeController::class,
         'relations' => RelationController::class,

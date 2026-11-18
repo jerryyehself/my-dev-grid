@@ -45,6 +45,13 @@ class SoftDeletedForeignKeyTest extends TestCase
         'scope' => ['parent_class'],
     ];
 
+    /**
+     * 不屬於 Store／Update 的請求裡的外鍵欄位。規則一樣要由 `ForeignId::rules()` 產生（下面的
+     * 掃描會檢查），指到已刪除資料回 422 的行為測在各自的測試：
+     * `RelationDeprecationTest::test_soft_deleted_replacement_is_rejected`。
+     */
+    private const OTHER_FOREIGN_KEYS = ['deprecate relation replaced_by_id'];
+
     /** @return iterable<string, array{string, string}> */
     public static function requests(): iterable
     {
@@ -133,7 +140,7 @@ class SoftDeletedForeignKeyTest extends TestCase
                         continue;
                     }
 
-                    $found[] = Str::of($name)->replaceMatches('/^(Store|Update|Index)(\w+)Request$/', '$1 $2')->lower()
+                    $found[] = Str::of($name)->replaceMatches('/^(Store|Update|Index|Deprecate)(\w+)Request$/', '$1 $2')->lower()
                         .' '.str_replace('.*.', '.0.', $field);
 
                     if (! in_array('bail', $strings, true) || ! in_array('integer', $strings, true)) {
@@ -149,7 +156,7 @@ class SoftDeletedForeignKeyTest extends TestCase
 
         $this->assertSame([], $violations);
 
-        $tested = array_keys(iterator_to_array(self::foreignKeys()));
+        $tested = [...array_keys(iterator_to_array(self::foreignKeys())), ...self::OTHER_FOREIGN_KEYS];
         sort($found);
         sort($tested);
         $this->assertSame($tested, $found, 'FormRequest 的外鍵欄位跟這份測試列的對不上，新欄位要補進 FOREIGN_KEYS。');

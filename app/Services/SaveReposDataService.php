@@ -10,6 +10,7 @@ use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -53,6 +54,9 @@ class SaveReposDataService
      * @var array<string, int>
      */
     private array $scopeIdCache = [];
+
+    /** @var array<int, list<int>> 述詞 id => 沿改用解析後會落在它的述詞 id，見 relationIdsResolvingTo() */
+    private array $resolvingRelationIdCache = [];
 
     /** 影子模式：另外記下讀到的語言、topic 與套件字串，不影響這裡寫的邊（見 `NomenRecorder`）。 */
     private NomenRecorder $nomens;
@@ -189,12 +193,7 @@ class SaveReposDataService
                 }
 
                 $versioned = $this->find_or_create_technique($title, $scopeName, $version);
-                EntityRelation::firstOrCreate([
-                    'entity_type' => 'technique',
-                    'subject_id' => $versioned->id,
-                    'object_id' => $base->id,
-                    'relation_id' => $isVersionOfRelationId,
-                ]);
+                $this->linkTechniques($versioned, $base, $isVersionOfRelationId);
 
                 return $versioned;
             };
@@ -240,17 +239,23 @@ class SaveReposDataService
      * 不用 `$project->techniques()->syncWithoutDetaching()`：它只用 technique_id 比對既有的邊，
      * 遇到同一對專案／技術還有別的述詞（例如手動建的 assists）時，會把那一筆的 relation_id
      * 也改掉。這裡明確限定在 usedBy 這個述詞上。同步只新增、不刪邊，升級前的版本會留著。
+     *
+     * 「usedBy 這個述詞」包含沿改用解析後就是它的舊述詞（見 relationIdsResolvingTo()）：usedBy 棄用、
+     * 同步改寫改用對象之後，棄用前建的邊照舊保留原述詞、照舊更新 last_seen_at，不另長一條。另長一條的話，
+     * 同一對專案與技術會有兩列，後台編輯器以技術 id 為鍵 sync() 時會把兩列改成同一個述詞、撞上唯一索引。
+     * 只有原本沒有邊的新配對，才用 $usesRelationId 寫。
      */
     private function link_project_to_techniques(Implementation $project, Collection $techniques, int $usesRelationId, bool $createMissing = true): void
     {
         $now = now();
 
         foreach ($techniques as $technique) {
-            $link = DB::table('technique_implementation')->where([
-                'implementation_id' => $project->id,
-                'technique_id' => $technique->id,
-                'relation_id' => $usesRelationId,
-            ]);
+            $link = DB::table('technique_implementation')
+                ->where([
+                    'implementation_id' => $project->id,
+                    'technique_id' => $technique->id,
+                ])
+                ->whereIn('relation_id', $this->relationIdsResolvingTo($usesRelationId));
 
             if ($link->exists()) {
                 $link->update(['last_seen_at' => $now]);
@@ -348,12 +353,37 @@ class SaveReposDataService
 
         $baseLanguage = $this->find_or_create_technique($baseLanguageName, 'language');
 
-        EntityRelation::firstOrCreate([
+        $this->linkTechniques($framework, $baseLanguage, $requiresRelationId);
+    }
+
+    /**
+     * 寫一條技術之間的邊（`entity_relations`），已經有同一件事的邊就不動。
+     *
+     * 「同一件事」包含用舊述詞建的邊：述詞棄用後同步改寫改用對象，但 `entity_relations` 沒有
+     * last_seen_at，舊邊不會過期；這裡不認得它的話，同一對技術就會永遠有新舊兩條。所以只要
+     * 這一對已經有一條邊、它的述詞沿改用解析後就是這次要寫的述詞，就當成已經存在。
+     */
+    private function linkTechniques(Technique $subject, Technique $object, int $relationId): void
+    {
+        $attributes = [
             'entity_type' => 'technique',
-            'subject_id' => $framework->id,
-            'object_id' => $baseLanguage->id,
-            'relation_id' => $requiresRelationId,
-        ]);
+            'subject_id' => $subject->id,
+            'object_id' => $object->id,
+        ];
+
+        $exists = EntityRelation::where($attributes)
+            ->whereIn('relation_id', $this->relationIdsResolvingTo($relationId))
+            ->exists();
+
+        if (! $exists) {
+            EntityRelation::create($attributes + ['relation_id' => $relationId]);
+        }
+    }
+
+    /** @return list<int> */
+    private function relationIdsResolvingTo(int $relationId): array
+    {
+        return $this->resolvingRelationIdCache[$relationId] ??= Relation::idsResolvingTo($relationId);
     }
 
     /**
@@ -377,6 +407,18 @@ class SaveReposDataService
             ]
         );
 
+        // 已經用 specs（或沿改用解析後就是這次述詞的舊述詞）連著就不動。syncWithoutDetaching() 只用
+        // technique_id 比對，述詞棄用後會把舊邊的 relation_id 就地改寫成改用對象，原本主張的述詞
+        // 消失，也沒有稽核紀錄；這張表沒有 last_seen_at，也不需要每次碰一下。
+        $alreadyLinked = $documentation->techniques()
+            ->whereKey($technique->id)
+            ->wherePivotIn('relation_id', $this->relationIdsResolvingTo($specsRelationId))
+            ->exists();
+
+        if ($alreadyLinked) {
+            return;
+        }
+
         $documentation->techniques()->syncWithoutDetaching([
             $technique->id => ['relation_id' => $specsRelationId],
         ]);
@@ -388,9 +430,26 @@ class SaveReposDataService
             ?? throw new RuntimeException("Scope '{$name}' is not seeded; cannot sync GitHub repo data.");
     }
 
+    /**
+     * 依名稱取同步要寫的述詞。述詞已棄用、有改用對象時，改用改用對象寫新的邊（見 `Relation::resolveByName()`）。
+     * 四種述詞的舊邊一樣處理：同一對節點已經有一條邊、它的述詞沿改用解析後就是這次的述詞，就當成已經存在，
+     * 照舊保留原述詞、不改寫，也不另長新邊（`usedBy` 那條照常更新 last_seen_at，見 link_project_to_techniques()、
+     * linkTechniques()、link_official_docs()）。只有原本沒有邊的新配對才用改用對象寫。
+     *
+     * 沒辦法往下找的棄用述詞（沒有改用對象，只有直接改資料庫才會發生），照舊用它寫，不讓同步停下來：
+     * 停下來的話，所有技術邊都會因為沒再被看到而過期。兩種情況都記一筆日誌。
+     */
     private function relation_id(string $name): int
     {
-        return Relation::where('name', $name)->value('id')
+        $relation = Relation::resolveByName($name)
             ?? throw new RuntimeException("Relation '{$name}' is not seeded; cannot sync GitHub repo data.");
+
+        if ($relation->isDeprecated()) {
+            Log::warning("述詞「{$name}」已棄用但找不到可用的改用對象，同步照舊使用「{$relation->name}」。", ['relation_id' => $relation->id]);
+        } elseif ($relation->name !== $name) {
+            Log::info("述詞「{$name}」已棄用，同步改用「{$relation->name}」。", ['relation_id' => $relation->id]);
+        }
+
+        return $relation->id;
     }
 }

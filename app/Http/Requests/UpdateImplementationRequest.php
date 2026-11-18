@@ -6,6 +6,7 @@ use App\Models\Documentation;
 use App\Models\Technique;
 use App\Rules\ForeignId;
 use App\Rules\RelationFitsLinkedScopes;
+use App\Rules\RelationIsNotDeprecated;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -36,18 +37,20 @@ class UpdateImplementationRequest extends FormRequest
             'documentations' => 'sometimes|array',
             'documentations.*.id' => ['required', ...ForeignId::rules('documentations')],
             // 連結表 documentation_implementation 的主詞是文件、受詞是實作，所以這裡實作是受詞端
-            /** 連結用的關係 id。兩端實體的分類須符合該關係規定的主詞與受詞分類（子分類也算符合）。 */
+            /** 連結用的關係 id。兩端實體的分類須符合該關係規定的主詞與受詞分類（子分類也算符合）。不能用已棄用的關係建立新的連結，既有的連結照舊可以保留。 */
             'documentations.*.relation_id' => [
                 'required', ...ForeignId::rules('relations'),
                 new RelationFitsLinkedScopes(RelationFitsLinkedScopes::OWN_IS_OBJECT, Documentation::class, $this->route('implementation')?->type),
+                new RelationIsNotDeprecated($this->route('implementation'), 'documentations'),
             ],
             'techniques' => 'sometimes|array',
             'techniques.*.id' => ['required', ...ForeignId::rules('techniques')],
             // 連結表 technique_implementation 的主詞是技術、受詞是實作，所以這裡實作是受詞端
-            /** 連結用的關係 id。兩端實體的分類須符合該關係規定的主詞與受詞分類（子分類也算符合）。 */
+            /** 連結用的關係 id。兩端實體的分類須符合該關係規定的主詞與受詞分類（子分類也算符合）。不能用已棄用的關係建立新的連結，既有的連結照舊可以保留。 */
             'techniques.*.relation_id' => [
                 'required', ...ForeignId::rules('relations'),
                 new RelationFitsLinkedScopes(RelationFitsLinkedScopes::OWN_IS_OBJECT, Technique::class, $this->route('implementation')?->type),
+                new RelationIsNotDeprecated($this->route('implementation'), 'techniques'),
             ],
         ];
     }
