@@ -370,6 +370,36 @@ class RelationSeeder extends Seeder
         $this->pairReverse($seeded['isBasisFor'], $seeded['isBasedOn']);
         $this->pairReverse($seeded['isBasedOnProject'], $seeded['isBasisForProject']);
 
+        // 專案「關於」某個技術：GitHub 同步只在 topic 看到、程式裡（語言統計、套件清單）沒有證據的技術，
+        // 寫這一對，不寫 usedBy（見 SaveReposDataService）。借 schema.org 的 about／subjectOf。
+        //
+        // technique_implementation 一律以技術當主詞，同步寫的是 subjectOfProject（技術 → 專案），
+        // projectAbout 是反向，給圖上反著讀用。about／subjectOf 已經給「文件 ↔ 技術」用了、
+        // aboutProject／projectSubjectOf 已經給「文件 ↔ 專案」用了，名稱不能重複，所以在專案那一端加 Project 字樣。
+        // 跟 usedBy／uses、assists／assisted-by 平輩（類號 12／21 相同、子類號不同）：說一個專案在講某個技術，
+        // 不蘊含它用了那個技術。12 已用 00（usedBy）、10（assists），21 已用 00（uses）、10（assisted-by），所以用 20。
+        // 放在最後面，原有述詞的 id 不變。
+        $projectAboutPredicates = [
+            // [類號, 名稱, 主詞端, 受詞端, 詞條, 說明]
+            ['12', 'subjectOfProject', $technique, $implementation, 'subjectOf', 'the Technique is a subject of the Implementation (project): the project is about it, but its code shows no evidence of using it (it appears only in the repository topics).'],
+            ['21', 'projectAbout', $implementation, $technique, 'about', 'reverse of subjectOfProject: the Implementation (project) is about the Technique without using it in its code.'],
+        ];
+
+        foreach ($projectAboutPredicates as [$classNumber, $name, $subject, $object, $sourceTerm, $note]) {
+            $seeded[$name] = $this->relation([
+                'subject_id' => $subject->id,
+                'object_id' => $object->id,
+                'class_number' => $classNumber,
+                'call_number' => '20',
+                'name' => $name,
+                'note' => "schema.org {$sourceTerm} (https://schema.org/{$sourceTerm}) — {$note}",
+                'source_vocabulary' => 'schema',
+                'source_term' => $sourceTerm,
+            ]);
+        }
+
+        $this->pairReverse($seeded['subjectOfProject'], $seeded['projectAbout']);
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 

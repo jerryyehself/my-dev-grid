@@ -319,7 +319,7 @@ class relationCRUDTest extends TestCase
      * 全表不變量:每一條關係的 reverse_id 要嘛是 null,要嘛指向一條回指自己的關係。
      *
      * 在此之前只有 `requires`/`isRequiredBy` 這一對被斷言過(見檔尾那支),
-     * 其餘 6 對加上 `accompanies` 的自指完全沒有覆蓋——而 15 條（之後加了 isVersionOf／hasVersion 、兩對 about、外部參考的兩組述詞與改作的兩對變 29 條）全部成對,靠的
+     * 其餘 6 對加上 `accompanies` 的自指完全沒有覆蓋——而 15 條（之後加了 isVersionOf／hasVersion 、兩對 about、外部參考的兩組述詞、改作的兩對與專案關於技術的一對變 31 條）全部成對,靠的
      * 純粹是 RelationSeeder 剛好寫對了,沒有任何機制在維護。
      */
     #[TestDox('seeder 種出的關係全部互相配對')]
@@ -329,7 +329,7 @@ class relationCRUDTest extends TestCase
 
         $relations = Relation::all()->keyBy('id');
 
-        $this->assertCount(29, $relations, 'seeder 的關係數量變了,這支測試的預期要一起更新。');
+        $this->assertCount(31, $relations, 'seeder 的關係數量變了,這支測試的預期要一起更新。');
 
         foreach ($relations as $relation) {
             if (is_null($relation->reverse_id)) {
