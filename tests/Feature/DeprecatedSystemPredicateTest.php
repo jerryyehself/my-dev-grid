@@ -197,4 +197,145 @@ class DeprecatedSystemPredicateTest extends TestCase
         $this->assertSame('about_predicate_deprecated', $warnings[0]['code']);
         $this->assertSame(0, DB::table('documentation_technique')->where('documentation_id', $documentation->id)->count());
     }
+
+    /** 對已棄用的述詞重送棄用、把改用對象清成 null，回狀態碼。 */
+    private function clearReplacement(Relation $relation): int
+    {
+        return $this->patchJson("/api/relations/{$relation->id}/deprecation", ['deprecated' => true, 'replaced_by_id' => null])->status();
+    }
+
+    #[TestDox('已棄用的系統述詞再送一次，不能把改用對象清掉（清成 null 或不帶都擋），匯入照常用改用對象')]
+    public function test_redeprecating_a_system_predicate_cannot_clear_its_replacement()
+    {
+        $about = Relation::where('name', 'about')->firstOrFail();
+        $subjectOf = Relation::where('name', 'subjectOf')->firstOrFail();
+        [$discusses] = $this->deprecateInFavourOfNewPair('about', 'discusses');
+
+        $this->patchJson("/api/relations/{$about->id}/deprecation", ['deprecated' => true, 'replaced_by_id' => null])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('replaced_by_id');
+        $this->patchJson("/api/relations/{$about->id}/deprecation", ['deprecated' => true])->assertUnprocessable();
+        $this->assertSame(422, $this->clearReplacement($subjectOf), '從反向那條清也一樣擋');
+
+        $this->assertSame($discusses->id, $about->fresh()->replaced_by_id);
+        $this->assertSame($discusses->id, Relation::resolveByName('about')->id);
+
+        $documentation = Documentation::factory()->create(['type' => Scope::where('name', 'post')->value('id')]);
+        Technique::factory()->create(['type' => Scope::where('name', 'framework')->value('id'), 'title' => 'Alpha', 'version' => null]);
+        $warnings = (new ArticleAboutLinker(new NomenRecorder(new NomenResolver)))->link($documentation, ['techniques' => ['Alpha'], 'projects' => []]);
+        $this->assertSame([], $warnings);
+    }
+
+    #[TestDox('改用鏈中間的述詞（和它的反向）不能把改用對象清掉；換成另一條可用的改用對象、或取消棄用都可以')]
+    public function test_middle_of_the_chain_cannot_clear_its_replacement()
+    {
+        [$employedBy, $employedByRev] = $this->deprecateInFavourOfNewPair('usedBy', 'employedBy');
+        [$appliedIn] = $this->deprecateInFavourOfNewPair('employedBy', 'appliedIn');
+        $uses = Relation::where('name', 'uses')->firstOrFail();
+
+        $this->assertSame(422, $this->clearReplacement($employedBy->fresh()));
+        $this->assertSame(422, $this->clearReplacement($employedByRev->fresh()));
+        $this->assertSame(422, $this->clearReplacement($uses), '起點的反向也擋');
+        $this->assertSame($appliedIn->id, Relation::resolveByName('usedBy')->id);
+
+        [$other] = $this->deprecateInFavourOfNewPair('appliedIn', 'reliedOnBy');
+        $this->patchJson("/api/relations/{$employedBy->id}/deprecation", ['deprecated' => true, 'replaced_by_id' => $other->id])->assertOk();
+        $this->assertSame($other->id, Relation::resolveByName('usedBy')->id);
+
+        $this->patchJson("/api/relations/{$employedBy->id}/deprecation", ['deprecated' => false])->assertOk();
+        $this->assertSame($employedBy->id, Relation::resolveByName('usedBy')->id, '取消棄用後，路徑停在它身上');
+    }
+
+    #[TestDox('第一次棄用系統述詞的反向，也要指定改用對象')]
+    public function test_reverse_of_a_system_predicate_requires_a_replacement()
+    {
+        $uses = Relation::where('name', 'uses')->firstOrFail();
+        $this->actingAsOwner();
+
+        $this->patchJson("/api/relations/{$uses->id}/deprecation", ['deprecated' => true])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('replaced_by_id');
+    }
+
+    private function syncFramework(string $topic, string $language, int $id = 111): void
+    {
+        (new SaveReposDataService(collect([[
+            'id' => $id, 'git_repo_id' => $id, 'title' => "demo-{$id}", 'html_url' => "https://github.com/example/demo-{$id}",
+            'description' => null, 'topics' => [$topic], 'languages' => [$language], 'created_at' => '2026-06-15T00:00:00Z',
+            'archived' => false, 'owner' => 'example',
+        ]])))->save_repos_data();
+    }
+
+    /** @return array<string, list<array<string, int>>> 三種沒有過期機制的邊：每一列的 id 與述詞 */
+    private function nonExpiringEdges(): array
+    {
+        $rows = fn (string $table, array $columns) => DB::table($table)->orderBy('id')->get(['id', 'relation_id', ...$columns])
+            ->map(fn (object $row) => array_map('intval', (array) $row))->all();
+
+        return [
+            'documentation_technique' => $rows('documentation_technique', ['documentation_id', 'technique_id']),
+            'entity_relations' => $rows('entity_relations', ['subject_id', 'object_id']),
+        ];
+    }
+
+    #[TestDox('specs、requires、isVersionOf 棄用後同步兩次：既有的邊列數與述詞都不變，不改寫、不重複')]
+    public function test_existing_non_expiring_edges_are_left_alone_after_deprecation()
+    {
+        $this->syncFramework('vue3', 'JavaScript');
+        $before = $this->nonExpiringEdges();
+        $old = Relation::whereIn('name', ['specs', 'requires', 'isVersionOf'])->pluck('id', 'name')->map(fn ($id) => (int) $id);
+        $this->assertContains($old['specs'], array_column($before['documentation_technique'], 'relation_id'), '前置條件：有 specs 邊');
+        $this->assertContains($old['requires'], array_column($before['entity_relations'], 'relation_id'), '前置條件：有 requires 邊');
+        $this->assertContains($old['isVersionOf'], array_column($before['entity_relations'], 'relation_id'), '前置條件：有 isVersionOf 邊');
+
+        foreach (['specs', 'requires', 'isVersionOf'] as $name) {
+            $this->deprecateInFavourOfNewPair($name, $name.'Next');
+        }
+        $this->syncFramework('vue3', 'JavaScript');
+        $this->syncFramework('vue3', 'JavaScript');
+
+        $this->assertSame($before, $this->nonExpiringEdges());
+    }
+
+    #[TestDox('棄用前沒有邊的新配對，用改用對象寫；再同步一次不會多出來')]
+    public function test_new_pairs_after_deprecation_use_the_replacement()
+    {
+        $this->syncFramework('vue3', 'JavaScript');
+        $replacements = [];
+        foreach (['specs', 'requires', 'isVersionOf'] as $name) {
+            [$replacements[$name]] = $this->deprecateInFavourOfNewPair($name, $name.'Next');
+        }
+        $before = $this->nonExpiringEdges();
+
+        // Nuxt 3 是新的技術：Nuxt requires JavaScript、Nuxt 3 isVersionOf Nuxt；PHP 有官方文件（specs）
+        $this->syncFramework('nuxt3', 'PHP', id: 222);
+        $this->syncFramework('nuxt3', 'PHP', id: 222);
+
+        $nuxt = Technique::where('title', 'Nuxt')->whereNull('version')->firstOrFail();
+        $nuxt3 = Technique::where('title', 'Nuxt')->where('version', '3')->firstOrFail();
+        $javascript = Technique::where('title', 'JavaScript')->firstOrFail();
+        $php = Technique::where('title', 'PHP')->whereNull('version')->firstOrFail();
+
+        $after = $this->nonExpiringEdges();
+        $added = fn (string $table) => array_values(array_udiff($after[$table], $before[$table], fn ($a, $b) => $a['id'] <=> $b['id']));
+        $this->assertEqualsCanonicalizing([
+            ['subject_id' => $nuxt->id, 'object_id' => $javascript->id, 'relation_id' => $replacements['requires']->id],
+            ['subject_id' => $nuxt3->id, 'object_id' => $nuxt->id, 'relation_id' => $replacements['isVersionOf']->id],
+        ], array_map(fn ($row) => ['subject_id' => $row['subject_id'], 'object_id' => $row['object_id'], 'relation_id' => $row['relation_id']], $added('entity_relations')));
+        $this->assertSame(
+            [['technique_id' => $php->id, 'relation_id' => $replacements['specs']->id]],
+            array_map(fn ($row) => ['technique_id' => $row['technique_id'], 'relation_id' => $row['relation_id']], $added('documentation_technique')),
+        );
+    }
+
+    #[TestDox('沒棄用時，specs 邊再同步也不會被改動（不重寫 relation_id、不多出列）')]
+    public function test_specs_edges_are_stable_without_deprecation()
+    {
+        $this->syncFramework('vue3', 'JavaScript');
+        $before = $this->nonExpiringEdges();
+
+        $this->syncFramework('vue3', 'JavaScript');
+
+        $this->assertSame($before, $this->nonExpiringEdges());
+    }
 }

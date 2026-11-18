@@ -6,6 +6,7 @@ use App\Models\Documentation;
 use App\Models\Relation;
 use App\Models\Scope;
 use App\Models\Technique;
+use Database\Seeders\RelationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -387,7 +388,7 @@ class RelationDeprecationTest extends TestCase
         foreach ([$usedBy, $uses] as $relation) {
             $this->deprecation($relation, ['deprecated' => true])
                 ->assertUnprocessable()
-                ->assertJsonValidationErrors(['replaced_by_id' => '這條述詞（或它的反向）會被同步或文章匯入自動使用，棄用時必須指定改用的述詞。']);
+                ->assertJsonValidationErrors(['replaced_by_id' => '這條述詞（或它的反向）是同步或文章匯入取用述詞時會經過的，棄用時必須指定改用的述詞，已棄用的也不能把改用對象清掉。']);
             $this->deprecation($relation, ['deprecated' => true, 'replaced_by_id' => null])->assertUnprocessable();
         }
 
@@ -553,5 +554,24 @@ class RelationDeprecationTest extends TestCase
         // 直接改資料庫做出環（API 擋得住，這裡測的是不會卡死）
         $c->forceFill(['replaced_by_id' => $a->id])->save();
         $this->assertTrue(Relation::resolveByName('first')->isDeprecated());
+    }
+
+    #[TestDox('seeder 不會把新建的述詞配給一條已棄用的述詞')]
+    public function test_seeder_does_not_pair_a_new_relation_with_a_deprecated_one()
+    {
+        $this->seed();
+        $targets = Relation::where('name', 'targets')->firstOrFail();
+        $targetedBy = Relation::where('name', 'targetedBy')->firstOrFail();
+        // 後台解除配對、把原本的反向改名（沒有邊，名稱沒鎖），再把 targets 標為棄用
+        $targetedBy->update(['reverse_id' => null]);
+        $targetedBy->update(['name' => 'renamedTargetedBy']);
+        $targets->fresh()->deprecate(null);
+
+        $this->seed(RelationSeeder::class);
+
+        $recreated = Relation::where('name', 'targetedBy')->firstOrFail();
+        $this->assertNotSame($targetedBy->id, $recreated->id, '前置條件：seeder 重建了 targetedBy');
+        $this->assertNull($recreated->reverse_id);
+        $this->assertNull($targets->fresh()->reverse_id);
     }
 }

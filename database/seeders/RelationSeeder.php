@@ -396,6 +396,8 @@ class RelationSeeder extends Seeder
      *   取消的配對（反向關係清成 null），重跑不能把它配回去。
      * - 兩邊都沒被刪除：不把新建的述詞配給後台刪掉的那一筆。
      * - 兩邊都還沒配對：不搶走別筆的反向關係。
+     * - 兩邊都沒有棄用：成對的兩邊棄用狀態要一致（見 Relation::deprecate()），新建的述詞不能配給
+     *   一條已棄用的。這種情況要在後台處理（取消棄用、或另指定反向）。
      */
     private function pairReverse(Relation $relation, Relation $reverse): void
     {
@@ -404,6 +406,10 @@ class RelationSeeder extends Seeder
         }
 
         if ($relation->trashed() || $reverse->trashed()) {
+            return;
+        }
+
+        if ($relation->isDeprecated() || $reverse->isDeprecated()) {
             return;
         }
 

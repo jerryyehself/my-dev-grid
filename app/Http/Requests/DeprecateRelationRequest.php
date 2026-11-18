@@ -20,8 +20,9 @@ class DeprecateRelationRequest extends FormRequest
     /**
      * 取消棄用時 `replaced_by_id` 一定不能帶：「改用」只在棄用狀態下存在，取消棄用會一起清掉。
      *
-     * 同步與文章匯入依名稱取用的述詞（`Relation::SYSTEM_PREDICATES`，以及它們目前的改用對象）棄用時，
-     * 程式會改用改用對象寫新的邊，所以一定要指定；沒有改用對象的話，程式就沒有述詞可用。
+     * 同步與文章匯入依名稱取用述詞時會經過的述詞（`Relation::SYSTEM_PREDICATES`、沿改用走過的每一條，
+     * 以及它們的反向，見 `Relation::isUsedByProgram()`）棄用時，程式會改用改用對象寫新的邊，所以一定要
+     * 指定；已經棄用的再送一次也一樣，不然把改用對象清成 null，路徑就斷在一條棄用的述詞上。
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -47,7 +48,7 @@ class DeprecateRelationRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'replaced_by_id.required' => '這條述詞（或它的反向）會被同步或文章匯入自動使用，棄用時必須指定改用的述詞。',
+            'replaced_by_id.required' => '這條述詞（或它的反向）是同步或文章匯入取用述詞時會經過的，棄用時必須指定改用的述詞，已棄用的也不能把改用對象清掉。',
             'replaced_by_id.prohibited' => '取消棄用時不能指定改用的述詞。',
         ];
     }

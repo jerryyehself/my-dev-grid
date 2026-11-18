@@ -103,4 +103,19 @@ class DeprecatedPredicateGraphTest extends TestCase
             ->assertJsonPath('edges.0.predicate_deprecated', true)
             ->assertJsonPath('edges.0.predicate_replaced_by', 'newSpecifiedBy');
     }
+
+    #[TestDox('改用對象後來也棄用時，predicate_replaced_by 給最後仍在使用的那一條；一路都棄用時為 null')]
+    public function test_replaced_by_follows_the_chain()
+    {
+        $newest = Relation::factory()->create(['name' => 'newestSpecs', 'subject_id' => $this->old->subject_id, 'object_id' => $this->old->object_id]);
+        Relation::factory()->create(['name' => 'newestSpecifiedBy', 'subject_id' => $this->old->object_id, 'object_id' => $this->old->subject_id, 'reverse_id' => $newest->id]);
+        $this->old->fresh()->deprecate($this->new->fresh());
+        $this->new->fresh()->deprecate($newest->fresh());
+
+        $this->assertSame('newestSpecs', $this->edge()['predicate_replaced_by']);
+
+        $newest->fresh()->deprecate(null);
+        $this->assertNull($this->edge()['predicate_replaced_by']);
+        $this->assertTrue($this->edge()['predicate_deprecated']);
+    }
 }

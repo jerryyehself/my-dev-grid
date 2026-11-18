@@ -303,34 +303,103 @@ class Relation extends Model
      */
     public static function resolveByName(string $name): ?self
     {
-        $relation = static::where('name', $name)->first();
+        $path = self::resolutionPathByName($name);
 
-        for ($hops = 0; $relation?->isDeprecated() && $relation->replaced_by_id !== null && $hops < self::MAX_REPLACEMENT_HOPS; $hops++) {
-            $next = static::find($relation->replaced_by_id);
-            if ($next === null) {
-                break;
-            }
-            $relation = $next;
-        }
-
-        return $relation;
+        return $path === [] ? null : $path[array_key_last($path)];
     }
 
     /**
-     * 這條述詞（或它的反向）是不是程式此刻依名稱取用的述詞。
+     * 名稱對應的述詞，以及從它沿「改用」走過的每一條（含終點）。名稱不存在時是空陣列。
      *
-     * 看的是 resolveByName() 解析後的結果，所以已經被當成改用對象、正在被同步使用的述詞也算。
-     * 這種述詞棄用時一定要指定改用對象，不然同步沒有述詞可以寫新的邊。
+     * @return list<self>
+     */
+    private static function resolutionPathByName(string $name): array
+    {
+        $start = static::where('name', $name)->first();
+
+        return $start === null ? [] : self::replacementPath($start, fn (int $id) => static::find($id));
+    }
+
+    /**
+     * 從 $relation 沿「改用」往下走過的述詞，第一個是 $relation 自己。
+     *
+     * 停在：仍在使用的、已棄用但沒有改用對象的、改用對象找不到的（已刪除），或走滿 MAX_REPLACEMENT_HOPS 步。
+     *
+     * @param  callable(int): (self|null)  $find  依 id 取述詞；可以傳查資料庫的，也可以傳查已載入清單的
+     * @return non-empty-list<self>
+     */
+    public static function replacementPath(self $relation, callable $find): array
+    {
+        $path = [$relation];
+
+        for ($hops = 0; $relation->isDeprecated() && $relation->replaced_by_id !== null && $hops < self::MAX_REPLACEMENT_HOPS; $hops++) {
+            $relation = $find((int) $relation->replaced_by_id);
+            if ($relation === null) {
+                break;
+            }
+            $path[] = $relation;
+        }
+
+        return $path;
+    }
+
+    /**
+     * 建議改用的述詞：沿「改用」往下找到仍在使用的那一條。直接的改用對象後來也棄用時，
+     * 建議它的改用對象，不建議一條同樣用不了的。沒有改用對象，或一路都是棄用的，回 null。
+     *
+     * @param  callable(int): (self|null)|null  $find  同 replacementPath()；不給就查資料庫
+     */
+    public function finalReplacement(?callable $find = null): ?self
+    {
+        if (! $this->isDeprecated() || $this->replaced_by_id === null) {
+            return null;
+        }
+
+        $path = self::replacementPath($this, $find ?? fn (int $id) => static::find($id));
+        $last = $path[array_key_last($path)];
+
+        return $last->id !== $this->id && ! $last->isDeprecated() ? $last : null;
+    }
+
+    /**
+     * 沿「改用」解析後會落在 $targetId 的述詞 id（含它自己）。
+     *
+     * 同步判斷「這一對節點是不是已經有這種邊」用：棄用前用舊述詞建的邊，跟改用對象是同一件事，
+     * 不要再長一條，也不要把舊的那條改寫掉。
+     *
+     * @return list<int>
+     */
+    public static function idsResolvingTo(int $targetId): array
+    {
+        $byId = static::all()->keyBy('id');
+
+        return $byId
+            ->filter(function (self $relation) use ($byId, $targetId) {
+                $path = self::replacementPath($relation, fn (int $id) => $byId->get($id));
+
+                return $path[array_key_last($path)]->id === $targetId;
+            })
+            ->keys()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * 這條述詞（或它的反向）在不在程式依名稱取用的解析路徑上：起點（SYSTEM_PREDICATES 本身）、
+     * 中間被改用過的，以及終點（同步此刻實際寫的那條）。
+     *
+     * 這些述詞棄用時一定要指定改用對象：終點沒有改用對象，同步就沒有述詞可寫；起點或中間的改用對象
+     * 被清掉，路徑就斷在一條棄用的述詞上。已經棄用的再送一次、把改用對象清成 null，一樣要擋。
      */
     public function isUsedByProgram(): bool
     {
         $ids = collect(self::SYSTEM_PREDICATES)
-            ->map(fn (string $name) => static::resolveByName($name)?->id)
-            ->filter()
+            ->flatMap(fn (string $name) => array_map(fn (self $relation) => $relation->id, self::resolutionPathByName($name)))
             ->all();
 
         return in_array($this->id, $ids, true)
-            || ($this->reverse_id !== null && in_array($this->reverse_id, $ids, true));
+            || ($this->reverse_id !== null && in_array((int) $this->reverse_id, $ids, true));
     }
 
     public function subject()

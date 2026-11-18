@@ -45,7 +45,7 @@ class RelationIsNotDeprecated implements DataAwareRule, ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         $relationId = self::asId($value);
-        $relation = $relationId === null ? null : Relation::with('replacedBy')->find($relationId);
+        $relation = $relationId === null ? null : Relation::find($relationId);
 
         if (! $relation || ! $relation->isDeprecated()) {
             return;
@@ -56,8 +56,10 @@ class RelationIsNotDeprecated implements DataAwareRule, ValidationRule
             return;
         }
 
-        $fail($relation->replacedBy
-            ? "{$item}：述詞「{$relation->name}」已棄用，請改用「{$relation->replacedBy->name}」。"
+        // 建議的是沿改用找到仍在使用的那一條：直接的改用對象後來也棄用的話，建議它一樣會被擋
+        $replacement = $relation->finalReplacement();
+        $fail($replacement
+            ? "{$item}：述詞「{$relation->name}」已棄用，請改用「{$replacement->name}」。"
             : "{$item}：述詞「{$relation->name}」已棄用，新的連結不能再用它。");
     }
 

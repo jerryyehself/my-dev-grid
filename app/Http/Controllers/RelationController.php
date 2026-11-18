@@ -210,7 +210,7 @@ class RelationController extends Controller
     // 同時改 reverse_id 又棄用時，配對與棄用的先後會互相影響；分開就不會有這種組合。
     #[Endpoint(
         title: '棄用或取消棄用述詞',
-        description: '把述詞標為棄用（`deprecated` 為 true，可同時以 `replaced_by_id` 指定改用的述詞），或取消棄用（`deprecated` 為 false，改用對象一併清除）。反向述詞會一起棄用或取消，指定改用對象時，反向述詞改用改用對象的反向述詞。已棄用的述詞，既有的邊照常保留，新的邊不能再用它。已被邊使用的述詞也可以棄用。同步或匯入文章會自動使用的述詞（或它的反向）棄用時必須指定改用對象，之後改用該述詞。重送同樣的內容回 200，棄用時間維持第一次棄用的時間。需要登入並有更新權限。',
+        description: '把述詞標為棄用（`deprecated` 為 true，可同時以 `replaced_by_id` 指定改用的述詞），或取消棄用（`deprecated` 為 false，改用對象一併清除）。反向述詞會一起棄用或取消，指定改用對象時，反向述詞改用改用對象的反向述詞。已棄用的述詞，既有的邊照常保留，新的邊不能再用它。已被邊使用的述詞也可以棄用。同步或匯入文章會自動使用的述詞（含它們沿改用走過的述詞，以及這些述詞的反向）棄用時必須指定改用對象，已棄用的再送一次也不能把改用對象清掉；之後同步與匯入改用該述詞。重送同樣的內容回 200，棄用時間維持第一次棄用的時間。需要登入並有更新權限。',
     )]
     public function deprecate(DeprecateRelationRequest $request, Relation $relation)
     {

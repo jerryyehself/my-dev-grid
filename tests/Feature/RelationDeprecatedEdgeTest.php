@@ -184,4 +184,16 @@ class RelationDeprecatedEdgeTest extends TestCase
             ->map(fn ($id) => (int) $id)
             ->all();
     }
+
+    #[TestDox('改用對象後來也棄用時，訊息建議最後仍在使用的那一條')]
+    public function test_message_suggests_the_final_replacement()
+    {
+        $newer = Relation::factory()->create(['name' => 'newerOne', 'subject_id' => $this->scope->id, 'object_id' => $this->scope->id]);
+        $this->live->deprecate($newer);
+        $technique = Technique::factory()->create(['type' => $this->scope->id]);
+
+        $this->postJson('/api/documentations', $this->payload('techniques', [['id' => $technique->id, 'relation_id' => $this->deprecated->id]]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['techniques.0.relation_id' => 'techniques.0：述詞「oldOne」已棄用，請改用「newerOne」。']);
+    }
 }
