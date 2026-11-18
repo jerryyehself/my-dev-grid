@@ -153,6 +153,8 @@ class GuestApiSweepTest extends TestCase
             'PUT api/implementations/{implementation}' => self::auth(),
             'PATCH api/implementations/{implementation}' => self::auth(),
             'DELETE api/implementations/{implementation}' => self::auth(),
+            'PATCH api/implementations/{implementation}/techniques/{technique}' => self::auth('站主指定專案與技術之間的關係，沒登入一律 401。'),
+            'DELETE api/implementations/{implementation}/techniques/{technique}/manual' => self::auth('把關係交還給同步，沒登入一律 401。'),
 
             // 從文章來源 repo 匯入文章：清單帶出來源檔案路徑，連讀取也要登入
             'GET api/article-sources' => self::auth('列出文章來源 repo 的檔案與匯入狀態，只給登入的人看。'),

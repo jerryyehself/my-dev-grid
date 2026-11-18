@@ -410,4 +410,58 @@ class DeprecatedSystemPredicateTest extends TestCase
 
         $this->assertSame($before, $this->untrackedEdges());
     }
+
+    #[TestDox('isBasisFor 棄用並指定改用對象之後：棄用前的 isBasisFor 連結與改用對象的連結都讓專案略過技術邊')]
+    public function test_derivation_skip_follows_a_deprecated_is_basis_for()
+    {
+        $isBasisFor = Relation::where('name', 'isBasisFor')->value('id');
+        $repository = Scope::where('name', 'repository')->value('id');
+        $project = fn (int $id) => Implementation::factory()->create(['git_repo_id' => $id, 'type' => Scope::where('name', 'project')->value('id')]);
+        $before = $project(111);
+        Documentation::factory()->create(['type' => $repository])->implementations()->attach($before->id, ['relation_id' => $isBasisFor]);
+
+        [$adaptedFrom] = $this->deprecateInFavourOfNewPair('isBasisFor', 'adaptedFrom');
+        $after = $project(222);
+        Documentation::factory()->create(['type' => $repository])->implementations()->attach($after->id, ['relation_id' => $adaptedFrom->id]);
+
+        $this->sync(111);
+        $this->sync(222);
+        $this->sync(333);
+
+        $this->assertSame([], $this->projectEdgeRelationIds($before));
+        $this->assertSame([], $this->projectEdgeRelationIds($after));
+        $this->assertNotSame([], $this->projectEdgeRelationIds(Implementation::where('git_repo_id', 333)->firstOrFail()));
+    }
+
+    #[TestDox('subjectOfProject、isBasisFor 第一次棄用時一定要指定改用對象')]
+    public function test_new_system_predicates_require_a_replacement()
+    {
+        $this->actingAsOwner();
+
+        foreach (['subjectOfProject', 'projectAbout', 'isBasisFor'] as $name) {
+            $relation = Relation::where('name', $name)->firstOrFail();
+
+            $this->patchJson("/api/relations/{$relation->id}/deprecation", ['deprecated' => true])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrorFor('replaced_by_id');
+        }
+    }
+
+    #[TestDox('subjectOfProject 棄用後，只有 topic 證據的新配對用改用對象寫；之後有程式證據照樣升成 usedBy')]
+    public function test_sync_follows_the_replacement_of_a_deprecated_subject_of_project()
+    {
+        [$mentions] = $this->deprecateInFavourOfNewPair('subjectOfProject', 'mentionedBy');
+        $repo = fn (array $languages) => [
+            'id' => 111, 'git_repo_id' => 111, 'title' => 'demo', 'html_url' => 'https://github.com/example/demo',
+            'description' => null, 'topics' => ['php'], 'languages' => $languages, 'created_at' => '2026-06-15T00:00:00Z',
+            'archived' => false, 'owner' => 'example',
+        ];
+
+        (new SaveReposDataService(collect([$repo([])])))->save_repos_data();
+        $project = Implementation::where('git_repo_id', 111)->firstOrFail();
+        $this->assertSame([$mentions->id], $this->projectEdgeRelationIds($project));
+
+        (new SaveReposDataService(collect([$repo(['PHP'])])))->save_repos_data();
+        $this->assertSame([(int) Relation::where('name', 'usedBy')->value('id')], $this->projectEdgeRelationIds($project));
+    }
 }
