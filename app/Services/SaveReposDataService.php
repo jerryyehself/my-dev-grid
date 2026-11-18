@@ -71,6 +71,8 @@ class SaveReposDataService
         'vue3' => 'JavaScript',
         'react' => 'JavaScript',
         'nextjs' => 'JavaScript',
+        // 套件清單產生的技術名稱是 Next.js，查基底語言用的是小寫 title
+        'next.js' => 'JavaScript',
         'nuxt' => 'JavaScript',
         'nuxtjs' => 'JavaScript',
         'express' => 'JavaScript',
@@ -111,6 +113,16 @@ class SaveReposDataService
         'nuxt3' => ['Nuxt', 'framework', '3'],
         'bootstrap5' => ['Bootstrap', 'packagetool', '5'],
         // Linguist 把 Procfile 當成一種「語言」，它其實是 Heroku 的部署設定檔
+        // topic 的寫法對到套件對照表（config/package_technologies.php）已經在用的技術名稱，
+        // 不然 topic 與套件各長一個節點（Next.js／nextjs、Alpine.js／alpinejs）
+        'nextjs' => ['Next.js', 'framework', null],
+        'alpinejs' => ['Alpine.js', 'framework', null],
+        'reactjs' => ['React', 'framework', null],
+        'expressjs' => ['Express', 'framework', null],
+        'tailwindcss' => ['tailwind', 'packagetool', null],
+        'tailwind-css' => ['tailwind', 'packagetool', null],
+        'threejs' => ['Three.js', 'packagetool', null],
+        'd3js' => ['D3', 'packagetool', null],
         'procfile' => ['Heroku', 'packagetool', null],
     ];
 
