@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 /**
  * 圖譜與最短路徑上，述詞已棄用的邊照常回傳、名稱照舊，只多 `predicate_deprecated` 與
- * `predicate_replaced_by` 兩個標記；路徑照常經過它們（跟 stale 不同）。
+ * `predicate_replaced_by` 兩個標記；路徑照常經過它們。
  */
 class DeprecatedPredicateGraphTest extends TestCase
 {

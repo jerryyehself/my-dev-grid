@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  * 只看最新一次同步、每篇文章最新一次匯入讀到的列（`NomenResolver::current()`）。切換後的規則：
  * - 專案的 `usedBy` 邊：GitHub 語言對上、而且過了證據門檻的節點，以及套件清單經對照表
  *   （`config/package_technologies.php`）對上的節點撐得起；topic 只當旁證，撐不起邊。
- *   撐不起的既有邊不會被刪，只是不再更新 `last_seen_at`，14 天後變成過期。
+ *   撐不起的既有邊不會被刪，只是不再更新 `last_seen_at`，邊會一直留著。
  *   跟現在的同步一樣，有版本的節點撐得起時，同名、沒有版本的那一筆也算撐得起。
  * - 文章的連結：front matter 的名稱對上的節點，文章還沒連過去的，會新增連結。
  *   這裡沒有檢查分類是否符合述詞（`ArticleAboutLinker` 會），實際切換時可能少幾筆。
