@@ -123,7 +123,7 @@ class ApiDocsTest extends TestCase
         $listing = $paths['/article-sources']['get']['responses'];
         $item = $listing['200']['content']['application/json']['schema']['properties']['items']['items'];
         $this->assertSame(
-            ['key', 'path', 'blob_sha', 'title', 'status', 'documentation_id', 'published', 'reason', 'reason_message', 'warnings'],
+            ['key', 'path', 'blob_sha', 'title', 'status', 'site_version', 'documentation_id', 'published', 'reason', 'reason_message', 'warnings'],
             array_keys($item['properties'])
         );
         $this->assertArrayHasKey('502', $listing);

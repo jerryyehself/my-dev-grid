@@ -378,7 +378,7 @@ class ArticleSourceAboutRelationsTest extends TestCase
         $this->assertCount(0, $this->syncEvents());
     }
 
-    #[TestDox('寫入中途失敗整批回滾時，前一項已經寫下的連結也不會留下')]
+    #[TestDox('寫入中途失敗整批回滾時，前一項已經寫下的連結與它的 sync 稽核紀錄都不會留下')]
     public function test_links_are_rolled_back_with_the_batch(): void
     {
         $this->target('technique', 'Alpha');
@@ -393,6 +393,7 @@ class ArticleSourceAboutRelationsTest extends TestCase
         $this->actingAsOwner();
         // 所有事前檢查都會過；第一項 update 把連結寫完之後，第二項 create 才查 post 分類，查不到整批失敗
         $this->post->delete();
+        $this->captureLogs();
 
         $this->import([$this->item('post-a', $updated, 'update'), $this->item('post-b', $created, 'create')], $commit)
             ->assertStatus(503)
@@ -400,6 +401,8 @@ class ArticleSourceAboutRelationsTest extends TestCase
 
         $this->assertSame("舊版。\n", $documentation->refresh()->body);
         $this->assertSame(0, DB::table('documentation_technique')->count());
+        // 回滾掉的 update 與連結沒有真的寫進去，transaction 裡記下的稽核紀錄也不寫出去
+        $this->assertSame([], $this->securityEvents('authz_admin'));
     }
 
     #[TestDox('about 格式不對的檔案列成 invalid 並說明原因，不能匯入')]
