@@ -50,7 +50,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->deploySeed();
 
         $this->assertSame(17, Scope::count());
-        $this->assertSame(25, Relation::count());
+        $this->assertSame(29, Relation::count());
         // 不建帳號、不碰內容資料；唯一的技術節點是預設的 Claude Code
         $this->assertSame(0, User::count());
         $this->assertSame(0, Documentation::count());
@@ -66,10 +66,10 @@ class ReferenceDataSeederTest extends TestCase
         $this->deploySeed();
 
         $this->assertSame(17, Scope::count());
-        $this->assertSame(25, Relation::count());
+        $this->assertSame(29, Relation::count());
         $this->assertSame(1, Technique::count());
         $this->assertSame(17, Scope::withTrashed()->distinct()->count('name'));
-        $this->assertSame(25, Relation::withTrashed()->distinct()->count('name'));
+        $this->assertSame(29, Relation::withTrashed()->distinct()->count('name'));
     }
 
     #[TestDox('重跑部署 seed 不蓋掉後台改過的內容')]
@@ -135,7 +135,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame('dcterms', $isVersionOf->source_vocabulary);
         // 原本就在的不動
         $this->assertSame($existingIds, Relation::whereNotIn('name', ['isVersionOf', 'hasVersion'])->orderBy('id')->pluck('id', 'name')->all());
-        $this->assertSame(25, Relation::count());
+        $this->assertSame(29, Relation::count());
     }
 
     #[TestDox('外部參考用的分類、兩組述詞與 Claude Code 技術節點會補進已有資料的資料庫')]
