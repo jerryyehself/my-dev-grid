@@ -344,7 +344,8 @@ class ArticleSourceListingTest extends TestCase
         yield '403 沒有權限' => [403, ['x-ratelimit-remaining' => '4999'], 502, 'github_forbidden'];
         yield '404 找不到 repo' => [404, [], 502, 'github_not_found'];
         yield '500 GitHub 出錯' => [500, [], 502, 'github_error'];
-        yield '403 主要限流' => [403, ['x-ratelimit-remaining' => '0', 'x-ratelimit-reset' => (string) (time() + 120)], 503, 'github_rate_limited'];
+        // data provider 在整批測試開始前就算好；Infection 跑到這裡可能已過兩分鐘，重置時間要留足一小時
+        yield '403 主要限流' => [403, ['x-ratelimit-remaining' => '0', 'x-ratelimit-reset' => (string) (time() + 3600)], 503, 'github_rate_limited'];
         yield '403 次要限流' => [403, ['retry-after' => '30'], 503, 'github_rate_limited'];
         yield '429 限流' => [429, ['retry-after' => '45'], 503, 'github_rate_limited'];
     }
