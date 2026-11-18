@@ -3,40 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
 
 class TechniqueImplementationLink extends Model
 {
     protected $table = 'technique_implementation';
 
-    /** 比同步最後一次看到的時間還早超過這麼多天沒被看到的邊，算「過期」（程式碼已經拿掉、或是當初誤判）。 */
-    public const STALE_AFTER_DAYS = 14;
-
     protected $fillable = ['implementation_id', 'technique_id', 'relation_id'];
 
+    /**
+     * `last_seen_at` 是 GitHub 同步最近一次看到這條邊的時間，只是紀錄，不拿來判斷邊有沒有效：
+     * 技術與實作之間的基本關聯不會過期，圖譜與最短路徑都照常用。
+     */
     protected function casts(): array
     {
         return ['last_seen_at' => 'datetime'];
-    }
-
-    /**
-     * 過期的分界時間：所有同步邊最新的 last_seen_at 往前推 STALE_AFTER_DAYS 天。
-     * 以最新一次同步為基準而不是 now()，同步停擺時邊不會因為時間流逝全部變成過期。
-     * 還沒有任何同步過的邊就回 null（沒有基準，沒有邊過期）。
-     */
-    public static function staleCutoff(): ?Carbon
-    {
-        $latest = static::query()->max('last_seen_at');
-
-        return $latest === null ? null : Carbon::parse($latest)->subDays(self::STALE_AFTER_DAYS);
-    }
-
-    /**
-     * 這條邊過期了嗎。last_seen_at 是 null（開始記錄前就有、或手動建立）永遠不算過期。
-     */
-    public function isStale(?Carbon $cutoff): bool
-    {
-        return $cutoff !== null && $this->last_seen_at !== null && $this->last_seen_at->lt($cutoff);
     }
 
     public function implementation()

@@ -130,7 +130,7 @@ class DeprecatedSystemPredicateTest extends TestCase
         $this->assertSame(array_column($before, 'technique_id'), array_column($after, 'technique_id'), '同一對專案與技術只有一列');
         $this->assertSame(array_fill(0, count($after), $usedBy), array_column($after, 'relation_id'), '舊邊不改寫述詞');
         foreach ($after as $edge) {
-            $this->assertNotSame('2026-11-01 00:00:00', $edge['last_seen_at'], '舊邊照常更新 last_seen_at，不會過期');
+            $this->assertNotSame('2026-11-01 00:00:00', $edge['last_seen_at'], '舊邊照常更新 last_seen_at');
         }
     }
 
