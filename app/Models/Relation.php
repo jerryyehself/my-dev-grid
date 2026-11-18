@@ -325,15 +325,37 @@ class Relation extends Model
      */
     public function referenceCountsForDeletion(): array
     {
+        return static::referenceCountsForBatchDeletion([$this->id]);
+    }
+
+    /**
+     * 一批述詞一起刪除前要檢查的兩種引用數量（刪分類時連帶軟刪除它的述詞用）。
+     *
+     * 跟 referenceCountsForDeletion() 同一套規則，只是對象是一整批：
+     * - `links`：四張連結表裡用到這批述詞任何一條的列數加總。
+     * - `inverse_of`：把這批述詞任何一條設為 reverse_id、而且**自己不在這批裡**的
+     *   述詞數（不含已軟刪除的）。同一批裡配成一對（或反向是自己）的互相指著，
+     *   會跟著一起刪，不算外部引用；只有批次外的述詞指進來才會留下指著已刪述詞的 reverse_id。
+     *
+     * @param  array<int, int>  $ids  要一起刪除的述詞 id
+     * @return array{links: int, inverse_of: int}
+     */
+    public static function referenceCountsForBatchDeletion(array $ids): array
+    {
+        if ($ids === []) {
+            return ['links' => 0, 'inverse_of' => 0];
+        }
+
+        // 連結表的清單沿用 LINK_RELATIONS，新增連結表時只要改一處。
         $links = 0;
         foreach (self::LINK_RELATIONS as $relation) {
-            $links += $this->{$relation}()->count();
+            $links += (new static)->{$relation}()->getRelated()->newQuery()->whereIn('relation_id', $ids)->count();
         }
 
         return [
             'links' => $links,
-            'inverse_of' => static::where('reverse_id', $this->id)
-                ->where('id', '!=', $this->id)
+            'inverse_of' => static::whereIn('reverse_id', $ids)
+                ->whereNotIn('id', $ids)
                 ->count(),
         ];
     }

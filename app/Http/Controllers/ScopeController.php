@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ScopeInUseException;
 use App\Http\Requests\StoreScopeRequest;
 use App\Http\Requests\UpdateScopeRequest;
 use App\Http\Resources\ScopeResource;
@@ -172,11 +173,18 @@ class ScopeController extends Controller
 
     #[Endpoint(
         title: '刪除分類',
-        description: '刪除指定的分類。需要登入並有刪除權限。',
+        description: '刪除指定的分類，並連帶刪除主體或客體是它的述詞。需要登入並有刪除權限。這些述詞仍被邊使用、或被分類以外的述詞設為反向關係時不能刪，回 422，訊息會列出各種引用的數量，什麼都不會被刪；同一分類內配成一對的述詞不算引用。',
     )]
     public function destroy(Scope $scope)
     {
         $this->authorize('delete', $scope);
+
+        // 刪分類會連帶軟刪除它的述詞，而軟刪除不會處理引用那些述詞的邊與 reverse_id，
+        // 所以先數引用，有就整個不刪（連帶刪除發生在 Model 的 deleting 事件，攔在它之前）。
+        $counts = $scope->predicateReferenceCountsForDeletion();
+        if ($counts['links'] > 0 || $counts['inverse_of'] > 0) {
+            throw new ScopeInUseException($scope->name, $counts['links'], $counts['inverse_of']);
+        }
 
         $scopeName = $scope->name;
         $scope->delete();

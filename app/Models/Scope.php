@@ -38,6 +38,33 @@ class Scope extends Model
         });
     }
 
+    /**
+     * 刪除這個分類時會連帶軟刪除的述詞（主體或客體是這個分類、還沒被刪除的）。
+     * 跟 booted() 的 deleting 連帶刪除是同一批；主體與客體都是自己的述詞只算一次。
+     *
+     * @return array<int, int> 述詞 id
+     */
+    public function cascadedRelationIds(): array
+    {
+        return Relation::where(fn ($query) => $query
+            ->where('subject_id', $this->id)
+            ->orWhere('object_id', $this->id))
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
+     * 刪除這個分類前要檢查的引用數量：連帶被軟刪除的那批述詞，還被多少東西引用。
+     * 軟刪除述詞不會處理引用它的邊與 reverse_id，所以任何一項大於 0 都不能刪。
+     * 計法見 Relation::referenceCountsForBatchDeletion()；同一批述詞之間互為反向不算。
+     *
+     * @return array{links: int, inverse_of: int}
+     */
+    public function predicateReferenceCountsForDeletion(): array
+    {
+        return Relation::referenceCountsForBatchDeletion($this->cascadedRelationIds());
+    }
+
     public function getAllRelationsAttribute()
     {
         return $this->subjectOf->concat($this->objectOf);
