@@ -56,10 +56,15 @@ final class PackageTechniqueMap
     /**
      * 版本限制的第一個主版號，例如 `^3.5.0` → `3`、`>=2.6 <4` → `2`、`3.x` → `3`、`^3 || ^4` → `3`。
      * 讀不出來就是 null，呼叫的一邊不帶版本：`*`、`latest`、`workspace:*`、git 網址、本機路徑、
-     * `npm:` 別名，以及主版號 0（0.x 沒有穩定的主版本）或超過三位數的怪值。
+     * `npm:` 別名，只寫上限的限制（`<4`、`<=3.2`：4 是不能用的版本，不是在用的版本），以及主版號 0（0.x 沒有穩定的主版本）或超過三位數的怪值。
      */
     public static function majorVersion(string $constraint): ?string
     {
+        // 開頭是 < 的只寫了上限，沒說在用哪個版本
+        if (str_starts_with(ltrim($constraint), '<')) {
+            return null;
+        }
+
         return preg_match('/^[\s~^<>=v]*([1-9]\d{0,2})(?=$|[.\s|,-])/', $constraint, $match) === 1 ? $match[1] : null;
     }
 

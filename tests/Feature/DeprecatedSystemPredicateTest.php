@@ -338,8 +338,8 @@ class DeprecatedSystemPredicateTest extends TestCase
         ]])))->save_repos_data();
     }
 
-    /** @return array<string, list<array<string, int>>> 三種沒有過期機制的邊：每一列的 id 與述詞 */
-    private function nonExpiringEdges(): array
+    /** @return array<string, list<array<string, int>>> 沒有 last_seen_at 的兩張連結表（文件—技術、技術之間）：每一列的 id 與述詞 */
+    private function untrackedEdges(): array
     {
         $rows = fn (string $table, array $columns) => DB::table($table)->orderBy('id')->get(['id', 'relation_id', ...$columns])
             ->map(fn (object $row) => array_map('intval', (array) $row))->all();
@@ -351,10 +351,10 @@ class DeprecatedSystemPredicateTest extends TestCase
     }
 
     #[TestDox('specs、requires、isVersionOf 棄用後同步兩次：既有的邊列數與述詞都不變，不改寫、不重複')]
-    public function test_existing_non_expiring_edges_are_left_alone_after_deprecation()
+    public function test_existing_untracked_edges_are_left_alone_after_deprecation()
     {
         $this->syncFramework('vue3', 'JavaScript');
-        $before = $this->nonExpiringEdges();
+        $before = $this->untrackedEdges();
         $old = Relation::whereIn('name', ['specs', 'requires', 'isVersionOf'])->pluck('id', 'name')->map(fn ($id) => (int) $id);
         $this->assertContains($old['specs'], array_column($before['documentation_technique'], 'relation_id'), '前置條件：有 specs 邊');
         $this->assertContains($old['requires'], array_column($before['entity_relations'], 'relation_id'), '前置條件：有 requires 邊');
@@ -366,7 +366,7 @@ class DeprecatedSystemPredicateTest extends TestCase
         $this->syncFramework('vue3', 'JavaScript');
         $this->syncFramework('vue3', 'JavaScript');
 
-        $this->assertSame($before, $this->nonExpiringEdges());
+        $this->assertSame($before, $this->untrackedEdges());
     }
 
     #[TestDox('棄用前沒有邊的新配對，用改用對象寫；再同步一次不會多出來')]
@@ -377,7 +377,7 @@ class DeprecatedSystemPredicateTest extends TestCase
         foreach (['specs', 'requires', 'isVersionOf'] as $name) {
             [$replacements[$name]] = $this->deprecateInFavourOfNewPair($name, $name.'Next');
         }
-        $before = $this->nonExpiringEdges();
+        $before = $this->untrackedEdges();
 
         // Nuxt 3 是新的技術：Nuxt requires JavaScript、Nuxt 3 isVersionOf Nuxt；PHP 有官方文件（specs）
         $this->syncFramework('nuxt3', 'PHP', id: 222);
@@ -388,7 +388,7 @@ class DeprecatedSystemPredicateTest extends TestCase
         $javascript = Technique::where('title', 'JavaScript')->firstOrFail();
         $php = Technique::where('title', 'PHP')->whereNull('version')->firstOrFail();
 
-        $after = $this->nonExpiringEdges();
+        $after = $this->untrackedEdges();
         $added = fn (string $table) => array_values(array_udiff($after[$table], $before[$table], fn ($a, $b) => $a['id'] <=> $b['id']));
         $this->assertEqualsCanonicalizing([
             ['subject_id' => $nuxt->id, 'object_id' => $javascript->id, 'relation_id' => $replacements['requires']->id],
@@ -404,10 +404,10 @@ class DeprecatedSystemPredicateTest extends TestCase
     public function test_specs_edges_are_stable_without_deprecation()
     {
         $this->syncFramework('vue3', 'JavaScript');
-        $before = $this->nonExpiringEdges();
+        $before = $this->untrackedEdges();
 
         $this->syncFramework('vue3', 'JavaScript');
 
-        $this->assertSame($before, $this->nonExpiringEdges());
+        $this->assertSame($before, $this->untrackedEdges());
     }
 }

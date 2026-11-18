@@ -119,6 +119,57 @@ class SaveReposDataPackagesTest extends TestCase
         $this->assertSame(1, Technique::whereRaw('lower(title) = ?', ['tailwind'])->count());
     }
 
+    /** @return array<string, array{0: string, 1: string, 2: string}> [topic, 套件, 技術名稱] */
+    public static function topicsThatMatchPackageNames(): array
+    {
+        return [
+            'nextjs' => ['nextjs', 'next', 'Next.js'],
+            'alpinejs' => ['alpinejs', 'alpinejs', 'Alpine.js'],
+            'reactjs' => ['reactjs', 'react', 'React'],
+            'expressjs' => ['expressjs', 'express', 'Express'],
+            'tailwindcss' => ['tailwindcss', 'tailwindcss', 'tailwind'],
+            'tailwind-css' => ['tailwind-css', 'tailwindcss', 'tailwind'],
+            'threejs' => ['threejs', 'three', 'Three.js'],
+            'd3js' => ['d3js', 'd3', 'D3'],
+        ];
+    }
+
+    #[DataProvider('topicsThatMatchPackageNames')]
+    #[TestDox('topic 的寫法對到套件產生的技術名稱，不會各長一個節點')]
+    public function test_topic_spellings_resolve_to_the_package_technique_name(string $topic, string $package, string $title): void
+    {
+        $this->sync(['npm' => [$package]], topics: [$topic]);
+
+        $this->assertSame([$title], $this->projectTechniques());
+        $this->assertSame(1, Technique::whereRaw('lower(title) = ?', [mb_strtolower($title)])->count());
+        $this->assertDatabaseMissing('techniques', ['title' => $topic]);
+    }
+
+    #[TestDox('Next.js 連到基底語言 JavaScript，只有 topic 的 nextjs 也一樣')]
+    public function test_next_js_links_to_javascript_from_package_and_from_topic(): void
+    {
+        $this->sync(['npm' => ['next']], id: 111);
+        $this->sync([], topics: ['nextjs'], id: 222);
+
+        $next = Technique::where('title', 'Next.js')->sole();
+        $this->assertDatabaseHas('entity_relations', [
+            'entity_type' => 'technique',
+            'subject_id' => $next->id,
+            'object_id' => Technique::where('title', 'JavaScript')->value('id'),
+            'relation_id' => Relation::where('name', 'requires')->value('id'),
+        ]);
+        $this->assertSame(['Next.js'], $this->projectTechniques(222));
+    }
+
+    #[TestDox('只寫上限的版本限制不建版本節點')]
+    public function test_upper_bound_only_constraint_creates_no_version_node(): void
+    {
+        $this->sync(['npm' => ['vue']], versions: ['npm' => ['vue' => '<4']]);
+
+        $this->assertSame(['Vue'], $this->projectTechniques());
+        $this->assertDatabaseMissing('techniques', ['title' => 'Vue', 'version' => '4']);
+    }
+
     #[TestDox('套件來的 Vue 跟 topic 的 vue3 並存時，只建 Vue 3 的邊')]
     public function test_package_vue_does_not_add_a_second_edge_next_to_a_vue3_topic(): void
     {

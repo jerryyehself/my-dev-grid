@@ -129,7 +129,7 @@ class GitServicePackagesTest extends TestCase
         Http::assertNotSent(fn (Request $request) => str_contains($request->url(), 'a/b') || str_contains($request->url(), 'docs/guide'));
     }
 
-    #[TestDox('apps/、packages/ 底下的子專案（第三層）也讀，lmv 形狀的 monorepo 三份都讀得到')]
+    #[TestDox('apps/、packages/ 底下的子專案（第三層）也讀，laravel-migration-visualizer 這種 monorepo 三份都讀得到')]
     public function test_it_reads_workspace_packages_under_apps_and_packages(): void
     {
         $this->fakeRepo(
