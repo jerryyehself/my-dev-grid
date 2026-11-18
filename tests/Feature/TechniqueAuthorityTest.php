@@ -184,7 +184,8 @@ class TechniqueAuthorityTest extends TestCase
     #[TestDox('同步不會改寫同一對實體上的其他述詞')]
     public function test_sync_does_not_rewrite_other_predicates_on_the_same_pair(): void
     {
-        // 手動建的「Claude assists 這個專案」，同步再看到 topic claude 時不能被改成 usedBy
+        // 手動建的「Claude assists 這個專案」，同步再看到 topic claude 時不能被改成同步的述詞。
+        // claude 只出現在 topic，同步在旁邊另寫一列 subjectOfProject（assists 不是同步管理的述詞）
         $this->sync([]);
         $project = Implementation::where('git_repo_id', 111)->firstOrFail();
         $claude = Technique::create(['type' => Scope::where('name', 'packagetool')->value('id'), 'title' => 'claude']);
@@ -202,7 +203,8 @@ class TechniqueAuthorityTest extends TestCase
         $relations = DB::table('technique_implementation')
             ->where(['implementation_id' => $project->id, 'technique_id' => $claude->id])
             ->pluck('relation_id')->sort()->values()->all();
-        $this->assertSame(collect([$assists, $this->usedBy()])->sort()->values()->all(), $relations);
+        $subjectOfProject = Relation::where('name', 'subjectOfProject')->value('id');
+        $this->assertSame(collect([$assists, $subjectOfProject])->sort()->values()->all(), $relations);
     }
 
     #[TestDox('Linguist 誤判的 Hack 語言不建技術，也不連邊')]

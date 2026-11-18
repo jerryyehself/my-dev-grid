@@ -20,6 +20,9 @@ use Tests\TestCase;
  * 例外是有意的行為變更，快照只動被變更影響的那幾列：`config/repo_sync.php` 的 `skip_technique_edges`
  * 讓 my-profile（929886110）不再寫技術邊，快照因此少了它的 4 條 usedBy（TypeScript、JavaScript、
  * Dockerfile、CSS），其餘一列不動。
+ * 另一次是同步改成依證據決定述詞：只在 topic 出現、程式裡（語言統計、套件清單）沒有證據的技術寫 `subjectOfProject`
+ * 而不是 `usedBy`。快照只有 36 列的述詞名稱從 usedBy 換成 subjectOfProject，節點、其他欄位與列數都沒動。
+ * 這份 fixture 沒有套件資料，所以只有 topic 證據的列比正式資料多。
  * 只用自然鍵（標題、版本、git_repo_id、述詞名稱）比對，不比 id：PostgreSQL 的流水號在
  * `RefreshDatabase` 回滾後不會重設，id 在 SQLite 與 PostgreSQL 上會不同。
  */
