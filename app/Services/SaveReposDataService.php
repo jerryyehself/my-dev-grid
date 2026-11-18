@@ -113,7 +113,6 @@ class SaveReposDataService
         'nuxtjs' => ['Nuxt', 'framework', null],
         'nuxt3' => ['Nuxt', 'framework', '3'],
         'bootstrap5' => ['Bootstrap', 'packagetool', '5'],
-        // Linguist 把 Procfile 當成一種「語言」，它其實是 Heroku 的部署設定檔
         // topic 的寫法對到套件對照表（config/package_technologies.php）已經在用的技術名稱，
         // 不然 topic 與套件各長一個節點（Next.js／nextjs、Alpine.js／alpinejs）
         'nextjs' => ['Next.js', 'framework', null],
@@ -124,6 +123,7 @@ class SaveReposDataService
         'tailwind-css' => ['tailwind', 'packagetool', null],
         'threejs' => ['Three.js', 'packagetool', null],
         'd3js' => ['D3', 'packagetool', null],
+        // Linguist 把 Procfile 當成一種「語言」，它其實是 Heroku 的部署設定檔
         'procfile' => ['Heroku', 'packagetool', null],
     ];
 
@@ -233,7 +233,7 @@ class SaveReposDataService
             // 同一個專案既有「Vue」（例如 languages API 算出的 .vue 檔）又有「Vue 3」（topic）時，
             // 只新建 Vue 3 的邊：用的是哪一版已經知道了，版本留空那筆從 isVersionOf 推得出來。
             // 但以前就建好的「Vue」邊還是照樣更新 last_seen_at——這次同步確實看到了，不更新的話
-            // 它會被當成「以前用過、現在沒在用」
+            // 它的 last_seen_at 會停在更早的時間，跟實際不符
             $versionedTitles = $techniques->whereNotNull('version')->map(fn ($t) => mb_strtolower($t->title))->all();
             [$impliedBases, $techniques] = $techniques->partition(fn ($t) => $t->version === null && in_array(mb_strtolower($t->title), $versionedTitles, true));
 
