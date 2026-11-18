@@ -18,7 +18,7 @@ return [
      *
      * 只影響「技術邊」：repo 本身照常同步成 Implementation，nomen 也照常記
      * （NomenRecorder::recordRepo）。已經連上的邊不會被刪，也不再更新 last_seen_at，
-     * 之後由 TechniqueImplementationLink::staleCutoff() 判成過期、慢慢淡出。
+     * 邊會一直留著（技術與實作之間的基本關聯不會過期）。
      *
      * @var list<string>
      */
