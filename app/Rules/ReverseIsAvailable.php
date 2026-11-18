@@ -17,6 +17,9 @@ use Illuminate\Contracts\Validation\ValidationRule;
  * - 目標的 reverse_id 是 null（還沒配對）
  * - 目標的 reverse_id 已經指向正在編輯的這一筆（本來就是一對，重送同樣的值）
  * - 目標就是自己（對稱關係，例如 `accompanies`）
+ *
+ * 另外，已棄用的述詞不能拿來配成新的一對：成對的兩邊棄用狀態要一致（見 `Relation::deprecate()`），
+ * 跟一條已棄用的配對，會變成一邊棄用、一邊使用中。重送既有配對（目標已經指向這一筆）不擋。
  */
 class ReverseIsAvailable implements ValidationRule
 {
@@ -32,6 +35,12 @@ class ReverseIsAvailable implements ValidationRule
         }
 
         if ($this->self && $target->id === $this->self->id) {
+            return;
+        }
+
+        if ($target->isDeprecated() && ! ($this->self && $target->reverse_id === $this->self->id)) {
+            $fail("關係「{$target->name}」已棄用，不能當這一筆的反向。");
+
             return;
         }
 

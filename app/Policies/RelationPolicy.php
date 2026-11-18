@@ -37,6 +37,12 @@ class RelationPolicy
         return $user !== null;
     }
 
+    // 棄用與取消棄用：跟 update／delete 同一個判斷。
+    public function deprecate(?User $user, Relation $relation): bool
+    {
+        return $user !== null;
+    }
+
     public function restore(User $user, Relation $relation): bool
     {
         return false;

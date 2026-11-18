@@ -106,7 +106,7 @@ class ScopeDeleteGuardTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('message', '分類「usedScope」底下的述詞仍被引用，不能刪除：被 2 筆邊使用。請先移除這些引用。')
             ->assertJsonPath('errors.scope.0', '分類「usedScope」底下的述詞仍被引用，不能刪除：被 2 筆邊使用。請先移除這些引用。')
-            ->assertJsonPath('reference_counts', ['links' => 2, 'inverse_of' => 0]);
+            ->assertJsonPath('reference_counts', ['links' => 2, 'inverse_of' => 0, 'replacement_of' => 0]);
 
         $this->assertNotSoftDeleted('scopes', ['id' => $scope->id]);
         $this->assertNotSoftDeleted('relations', ['id' => $relation->id]);
@@ -122,7 +122,7 @@ class ScopeDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/scopes/{$scope->id}")
             ->assertStatus(422)
-            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 0]);
+            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 0, 'replacement_of' => 0]);
 
         $this->assertNotSoftDeleted('scopes', ['id' => $scope->id]);
         $this->assertNotSoftDeleted('relations', ['id' => $relation->id]);
@@ -155,7 +155,7 @@ class ScopeDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/scopes/{$scope->id}")
             ->assertStatus(422)
-            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 0]);
+            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 0, 'replacement_of' => 0]);
     }
 
     #[TestDox('有被引用的述詞時，同分類沒被引用的述詞也不會被刪')]
@@ -186,7 +186,7 @@ class ScopeDeleteGuardTest extends TestCase
         $this->deleteJson("/api/scopes/{$scope->id}")
             ->assertStatus(422)
             ->assertJsonPath('message', '分類「pairedScope」底下的述詞仍被引用，不能刪除：被 1 條分類以外的述詞設為反向關係。請先移除這些引用。')
-            ->assertJsonPath('reference_counts', ['links' => 0, 'inverse_of' => 1]);
+            ->assertJsonPath('reference_counts', ['links' => 0, 'inverse_of' => 1, 'replacement_of' => 0]);
 
         $this->assertNotSoftDeleted('scopes', ['id' => $scope->id]);
         $this->assertNotSoftDeleted('relations', ['id' => $inside->id]);
@@ -205,7 +205,7 @@ class ScopeDeleteGuardTest extends TestCase
         $this->deleteJson("/api/scopes/{$scope->id}")
             ->assertStatus(422)
             ->assertJsonPath('message', '分類「bothScope」底下的述詞仍被引用，不能刪除：被 1 筆邊使用、被 1 條分類以外的述詞設為反向關係。請先移除這些引用。')
-            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 1]);
+            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 1, 'replacement_of' => 0]);
     }
 
     #[TestDox('同一分類內配成一對的述詞不算外部引用，一起軟刪除')]
@@ -237,7 +237,7 @@ class ScopeDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/scopes/{$scope->id}")
             ->assertStatus(422)
-            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 0]);
+            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 0, 'replacement_of' => 0]);
 
         $this->assertNotSoftDeleted('relations', ['id' => $a->id]);
         $this->assertNotSoftDeleted('relations', ['id' => $b->id]);
@@ -333,5 +333,29 @@ class ScopeDeleteGuardTest extends TestCase
         $scope->delete();
 
         $this->deleteJson("/api/scopes/{$scope->id}")->assertNotFound();
+    }
+
+    #[TestDox('底下的述詞被分類以外已棄用的述詞設為改用對象時回 422，什麼都不刪；同一分類內的不算')]
+    public function test_predicate_used_as_replacement_outside_the_scope_is_refused()
+    {
+        $this->actingAsOwner();
+        $scope = Scope::factory()->create(['name' => 'replacementScope']);
+        $inside = $this->predicateOf($scope);
+        $outside = Relation::factory()->create();
+        $outside->forceFill(['deprecated_at' => now(), 'replaced_by_id' => $inside->id])->save();
+
+        $this->deleteJson("/api/scopes/{$scope->id}")
+            ->assertStatus(422)
+            ->assertJsonPath('message', '分類「replacementScope」底下的述詞仍被引用，不能刪除：被 1 條分類以外已棄用的述詞設為改用對象。請先移除這些引用。')
+            ->assertJsonPath('reference_counts', ['links' => 0, 'inverse_of' => 0, 'replacement_of' => 1]);
+
+        $this->assertNotSoftDeleted('scopes', ['id' => $scope->id]);
+        $this->assertNotSoftDeleted('relations', ['id' => $inside->id]);
+
+        // 改用的那一條也在同一個分類裡：一起刪，不算外部引用
+        $outside->forceFill(['subject_id' => $scope->id])->save();
+        $this->deleteJson("/api/scopes/{$scope->id}")->assertOk();
+        $this->assertSoftDeleted('relations', ['id' => $inside->id]);
+        $this->assertSoftDeleted('relations', ['id' => $outside->id]);
     }
 }

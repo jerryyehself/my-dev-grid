@@ -10,6 +10,7 @@ use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -388,9 +389,24 @@ class SaveReposDataService
             ?? throw new RuntimeException("Scope '{$name}' is not seeded; cannot sync GitHub repo data.");
     }
 
+    /**
+     * 依名稱取同步要寫的述詞。述詞已棄用、有改用對象時，改用改用對象寫新的邊（見 `Relation::resolveByName()`）；
+     * 既有的邊以 relation_id 為鍵更新 last_seen_at，所以舊述詞的邊從此不再更新，過一段時間會變成過期。
+     *
+     * 沒辦法往下找的棄用述詞（沒有改用對象，只有直接改資料庫才會發生），照舊用它寫，不讓同步停下來：
+     * 停下來的話，所有技術邊都會因為沒再被看到而過期。兩種情況都記一筆日誌。
+     */
     private function relation_id(string $name): int
     {
-        return Relation::where('name', $name)->value('id')
+        $relation = Relation::resolveByName($name)
             ?? throw new RuntimeException("Relation '{$name}' is not seeded; cannot sync GitHub repo data.");
+
+        if ($relation->isDeprecated()) {
+            Log::warning("述詞「{$name}」已棄用但找不到可用的改用對象，同步照舊使用「{$relation->name}」。", ['relation_id' => $relation->id]);
+        } elseif ($relation->name !== $name) {
+            Log::info("述詞「{$name}」已棄用，同步改用「{$relation->name}」。", ['relation_id' => $relation->id]);
+        }
+
+        return $relation->id;
     }
 }

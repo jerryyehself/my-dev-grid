@@ -128,6 +128,7 @@ class GuestApiSweepTest extends TestCase
             'PUT api/relations/{relation}' => self::auth(),
             'PATCH api/relations/{relation}' => self::auth(),
             'DELETE api/relations/{relation}' => self::auth(),
+            'PATCH api/relations/{relation}/deprecation' => self::auth('棄用與取消棄用，沒登入一律 401。'),
 
             // 文件
             'GET api/documentations' => self::publicRead('草稿只給登入的人看。'),

@@ -10,9 +10,15 @@ use Database\Factories\RelationFactory;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
+/**
+ * @property Carbon|null $deprecated_at 棄用時間，null 代表仍在使用（見 deprecate()）
+ */
 class Relation extends Model
 {
     /** @use HasFactory<RelationFactory> */
@@ -34,6 +40,30 @@ class Relation extends Model
     protected $dateFormat = 'Y-m-d H:i:s';
 
     protected $appends = ['ReferenceCode', 'NewChildCallNumber'];
+
+    /**
+     * 同步與文章匯入依名稱取用的述詞。
+     *
+     * 這幾條可以棄用；棄用後程式改用它的改用對象（見 resolveByName()），所以棄用時一定要指定
+     * 改用對象（見 isUsedByProgram()）。新增依名稱取用的述詞時要加進這裡。
+     *
+     * @var list<string>
+     */
+    public const SYSTEM_PREDICATES = ['usedBy', 'requires', 'specs', 'isVersionOf', 'about', 'aboutProject'];
+
+    /** resolveByName() 沿「改用」往下找的步數上限。正常資料不會有環（見 ReplacementIsCompatible），這是防直接改資料庫的情況。 */
+    private const MAX_REPLACEMENT_HOPS = 10;
+
+    /**
+     * deprecated_at 與 replaced_by_id 刻意不在 $fillable 裡：只有 deprecate()／undeprecate() 會寫，
+     * `PUT /api/relations/{relation}` 的 update($validated) 碰不到，舊版前端送整份表單也不會把棄用清掉。
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['deprecated_at' => 'datetime'];
+    }
 
     /**
      * 一旦 Relation 被既有的 pivot 連結參照，它的身分欄位
@@ -199,6 +229,110 @@ class Relation extends Model
         return $this->belongsTo(self::class, 'reverse_id');
     }
 
+    /**
+     * 棄用後改用的述詞。跟 reverse() 一樣會套 SoftDeletes，指到已軟刪除的述詞時解析成 null；
+     * 被設為改用對象的述詞不能刪（見 referenceCountsForBatchDeletion()），正常不會發生。
+     */
+    /** @return BelongsTo<self, $this> */
+    public function replacedBy(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'replaced_by_id');
+    }
+
+    public function isDeprecated(): bool
+    {
+        return $this->deprecated_at !== null;
+    }
+
+    /**
+     * 標為棄用，可指定改用對象；反向那條一起棄用。
+     *
+     * 不變量：有反向的述詞，兩邊的 deprecated_at 同為 null 或同為非 null；replaced_by_id 兩邊
+     * 要嘛都是 null，要嘛互為反向（A 改用 X，A 的反向就改用 X 的反向）。邊只存單向，反著讀時
+     * 顯示的是反向的名字，只棄用一邊等於同一批事實正著讀是棄用、反著讀是使用中。
+     * 改用對象的形狀（有沒有反向、是不是對稱）由 ReplacementIsCompatible 先檢查過。
+     *
+     * 已經棄用的再送一次，保留原本的棄用時間，只更新改用對象。兩筆都用 save()，不用 saveQuietly()：
+     * 稽核紀錄（AdminAudit）是 model observer，saveQuietly() 會讓反向那筆的紀錄消失。
+     */
+    public function deprecate(?self $replacement): void
+    {
+        DB::transaction(function () use ($replacement) {
+            $now = now();
+            $this->markDeprecation($this->deprecated_at ?? $now, $replacement?->id);
+
+            $reverse = $this->pairedReverse();
+            if ($reverse) {
+                $reverse->markDeprecation($reverse->deprecated_at ?? $now, $replacement?->reverse_id);
+            }
+        });
+    }
+
+    /** 取消棄用，連同改用對象一起清掉；反向那條一起取消。理由同 deprecate()。 */
+    public function undeprecate(): void
+    {
+        DB::transaction(function () {
+            $this->markDeprecation(null, null);
+            $this->pairedReverse()?->markDeprecation(null, null);
+        });
+    }
+
+    private function markDeprecation(mixed $deprecatedAt, ?int $replacedById): void
+    {
+        $this->deprecated_at = $deprecatedAt;
+        $this->replaced_by_id = $replacedById;
+        $this->save();
+    }
+
+    /** 反向那一條；沒有反向、反向是自己（對稱），或反向已軟刪除時是 null。 */
+    private function pairedReverse(): ?self
+    {
+        if (is_null($this->reverse_id) || $this->reverse_id === $this->id) {
+            return null;
+        }
+
+        return static::find($this->reverse_id);
+    }
+
+    /**
+     * 依名稱取程式要用的述詞：名稱對應的述詞已棄用、而且有改用對象時，沿「改用」往下找到
+     * 仍在使用的那一條。同步與文章匯入都透過這裡取 SYSTEM_PREDICATES 裡的述詞。
+     *
+     * 找不到名稱回 null。回傳的述詞仍是棄用狀態，代表沒辦法往下走（沒有改用對象、改用對象
+     * 已被刪除，或改用形成環），由呼叫端決定怎麼處理。
+     */
+    public static function resolveByName(string $name): ?self
+    {
+        $relation = static::where('name', $name)->first();
+
+        for ($hops = 0; $relation?->isDeprecated() && $relation->replaced_by_id !== null && $hops < self::MAX_REPLACEMENT_HOPS; $hops++) {
+            $next = static::find($relation->replaced_by_id);
+            if ($next === null) {
+                break;
+            }
+            $relation = $next;
+        }
+
+        return $relation;
+    }
+
+    /**
+     * 這條述詞（或它的反向）是不是程式此刻依名稱取用的述詞。
+     *
+     * 看的是 resolveByName() 解析後的結果，所以已經被當成改用對象、正在被同步使用的述詞也算。
+     * 這種述詞棄用時一定要指定改用對象，不然同步沒有述詞可以寫新的邊。
+     */
+    public function isUsedByProgram(): bool
+    {
+        $ids = collect(self::SYSTEM_PREDICATES)
+            ->map(fn (string $name) => static::resolveByName($name)?->id)
+            ->filter()
+            ->all();
+
+        return in_array($this->id, $ids, true)
+            || ($this->reverse_id !== null && in_array($this->reverse_id, $ids, true));
+    }
+
     public function subject()
     {
         return $this->belongsTo(Scope::class, 'subject_id');
@@ -311,17 +445,19 @@ class Relation extends Model
     }
 
     /**
-     * 刪除這條述詞前要檢查的兩種引用數量。
+     * 刪除這條述詞前要檢查的三種引用數量。
      *
      * - `links`：四張連結表裡用到它的列數。連結表沒有 `deleted_at`，所以全部都算；
      *   連到已軟刪除實體的邊也算，跟 isReferenced() 一致。
      * - `inverse_of`：把它設為 reverse_id 的其他述詞數，不含已軟刪除的。對稱關係
      *   （reverse_id 指向自己）排除自己，不然它永遠刪不掉。
+     * - `replacement_of`：把它設為改用對象（replaced_by_id）的其他述詞數，不含已軟刪除的。
+     *   刪掉的話，那些已棄用的述詞就查不到該改用誰。
      *
      * 注意 reverse_id 一定是雙向的（見 syncReverse()），所以有配對的述詞，對方
      * 一定會被算進 `inverse_of`，要先解除配對才能刪。
      *
-     * @return array{links: int, inverse_of: int}
+     * @return array{links: int, inverse_of: int, replacement_of: int}
      */
     public function referenceCountsForDeletion(): array
     {
@@ -329,21 +465,23 @@ class Relation extends Model
     }
 
     /**
-     * 一批述詞一起刪除前要檢查的兩種引用數量（刪分類時連帶軟刪除它的述詞用）。
+     * 一批述詞一起刪除前要檢查的三種引用數量（刪分類時連帶軟刪除它的述詞用）。
      *
      * 跟 referenceCountsForDeletion() 同一套規則，只是對象是一整批：
      * - `links`：四張連結表裡用到這批述詞任何一條的列數加總。
      * - `inverse_of`：把這批述詞任何一條設為 reverse_id、而且**自己不在這批裡**的
      *   述詞數（不含已軟刪除的）。同一批裡配成一對（或反向是自己）的互相指著，
      *   會跟著一起刪，不算外部引用；只有批次外的述詞指進來才會留下指著已刪述詞的 reverse_id。
+     * - `replacement_of`：把這批述詞任何一條設為 replaced_by_id、而且自己不在這批裡的述詞數
+     *   （不含已軟刪除的）。理由同 `inverse_of`。
      *
      * @param  array<int, int>  $ids  要一起刪除的述詞 id
-     * @return array{links: int, inverse_of: int}
+     * @return array{links: int, inverse_of: int, replacement_of: int}
      */
     public static function referenceCountsForBatchDeletion(array $ids): array
     {
         if ($ids === []) {
-            return ['links' => 0, 'inverse_of' => 0];
+            return ['links' => 0, 'inverse_of' => 0, 'replacement_of' => 0];
         }
 
         // 連結表的清單沿用 LINK_RELATIONS，新增連結表時只要改一處。
@@ -355,6 +493,9 @@ class Relation extends Model
         return [
             'links' => $links,
             'inverse_of' => static::whereIn('reverse_id', $ids)
+                ->whereNotIn('id', $ids)
+                ->count(),
+            'replacement_of' => static::whereIn('replaced_by_id', $ids)
                 ->whereNotIn('id', $ids)
                 ->count(),
         ];

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\RelationInUseException;
+use App\Http\Requests\DeprecateRelationRequest;
 use App\Http\Requests\StoreRelationRequest;
 use App\Http\Requests\UpdateRelationRequest;
 use App\Http\Resources\RelationResource;
@@ -18,14 +19,14 @@ class RelationController extends Controller
 {
     #[Endpoint(
         title: '列出述詞',
-        description: '回傳所有述詞，依類號、子類號排序，每筆含父層、主體與客體分類，以及被引用的狀態與使用它的邊數。未登入時邊數不含連到草稿文件或設為不公開之實作的邊。',
+        description: '回傳所有述詞，依類號、子類號排序，每筆含父層、主體與客體分類，以及被引用的狀態、使用它的邊數與棄用狀態。已棄用的述詞也會列出（`deprecated` 為 true），建立新連結時不能選用。未登入時邊數不含連到草稿文件或設為不公開之實作的邊。',
     )]
     public function index()
     {
         // withReferenceCounts() 是必要的,不是最佳化:RelationResource 會吐
         // is_referenced/referenced_via/locked_fields,沒有預載的話每一列都會各自
         // 去查 8 次連結表。實測不預載 344 次查詢,預載後 20 次。
-        $relationList = Relation::with(['parent', 'subject', 'object'])
+        $relationList = Relation::with(['parent', 'subject', 'object', 'replacedBy'])
             ->withReferenceCounts()
             ->orderBy('class_number')
             ->orderBy('call_number')
@@ -128,7 +129,7 @@ class RelationController extends Controller
         );
 
         return response()->json([
-            'data' => new RelationResource($relation->loadCount(Relation::referenceCounts())->load(['parent', 'children', 'reverse' => fn ($q) => $q->withCount(Relation::referenceCounts())])),
+            'data' => new RelationResource($relation->loadCount(Relation::referenceCounts())->load(['parent', 'children', 'replacedBy', 'reverse' => fn ($q) => $q->withCount(Relation::referenceCounts())])),
             'message' => $relation->wasRecentlyCreated
                 ? 'Relation created.'
                 : 'Relation already exists.',
@@ -137,16 +138,11 @@ class RelationController extends Controller
 
     #[Endpoint(
         title: '取得述詞',
-        description: '回傳單一述詞，含父層、子述詞、反向述詞，以及它被使用的邊數與是否被引用（未登入時邊數不含連到草稿文件或設為不公開之實作的邊）。另附建立子述詞時可用的下一個子類號。',
+        description: '回傳單一述詞，含父層、子述詞、反向述詞、棄用狀態與改用對象，以及它被使用的邊數與是否被引用（未登入時邊數不含連到草稿文件或設為不公開之實作的邊）。另附建立子述詞時可用的下一個子類號。',
     )]
     public function show(Relation $relation)
     {
-        $relation->load(['parent', 'children']);
-
-        // own_edges_count / reverse_edges_count / is_referenced 都靠這組計數。
-        // 不預載的話它們會各自去查連結表,而且反向那條還要再查一輪。
-        $relation->loadCount(Relation::referenceCounts())
-            ->load(['reverse' => fn ($query) => $query->withCount(Relation::referenceCounts())]);
+        $this->loadDetail($relation);
 
         // withFormHints()：只有這支端點算 new_child_call_number（預填新增表單的
         // 子類號用）。清單頁不開，那是 N+1 的來源（見 RelationResource 的註解）。
@@ -210,18 +206,54 @@ class RelationController extends Controller
         ]);
     }
 
+    // 獨立端點，不併進 update()：那條要求整份表單（subject_id 等欄位必填），而且同一個請求
+    // 同時改 reverse_id 又棄用時，配對與棄用的先後會互相影響；分開就不會有這種組合。
+    #[Endpoint(
+        title: '棄用或取消棄用述詞',
+        description: '把述詞標為棄用（`deprecated` 為 true，可同時以 `replaced_by_id` 指定改用的述詞），或取消棄用（`deprecated` 為 false，改用對象一併清除）。反向述詞會一起棄用或取消，指定改用對象時，反向述詞改用改用對象的反向述詞。已棄用的述詞，既有的邊照常保留，新的邊不能再用它。已被邊使用的述詞也可以棄用。同步或匯入文章會自動使用的述詞（或它的反向）棄用時必須指定改用對象，之後改用該述詞。重送同樣的內容回 200，棄用時間維持第一次棄用的時間。需要登入並有更新權限。',
+    )]
+    public function deprecate(DeprecateRelationRequest $request, Relation $relation)
+    {
+        $this->authorize('deprecate', $relation);
+
+        $validatedData = $request->validated();
+
+        if ($validatedData['deprecated']) {
+            $replacementId = $validatedData['replaced_by_id'] ?? null;
+            $relation->deprecate($replacementId === null ? null : Relation::findOrFail($replacementId));
+        } else {
+            $relation->undeprecate();
+        }
+
+        return response()->json([
+            'data' => new RelationResource($this->loadDetail($relation->fresh())),
+            'message' => 'Relation updated.',
+        ]);
+    }
+
+    /** show() 與 deprecate() 回傳單筆述詞前要預載的關聯與計數。 */
+    private function loadDetail(Relation $relation): Relation
+    {
+        $relation->load(['parent', 'children', 'replacedBy']);
+
+        // own_edges_count / reverse_edges_count / is_referenced 都靠這組計數。
+        // 不預載的話它們會各自去查連結表,而且反向那條還要再查一輪。
+        return $relation->loadCount(Relation::referenceCounts())
+            ->load(['reverse' => fn ($query) => $query->withCount(Relation::referenceCounts())]);
+    }
+
     #[Endpoint(
         title: '刪除述詞',
-        description: '刪除指定的述詞。需要登入並有刪除權限。仍被邊使用、或被其他述詞設為反向關係的述詞不能刪，回 422，訊息會列出各種引用的數量；有反向關係的述詞，要先把反向關係清空（雙方的配對一起解除）才能刪。',
+        description: '刪除指定的述詞。需要登入並有刪除權限。仍被邊使用、被其他述詞設為反向關係，或被已棄用的述詞設為改用對象的述詞不能刪，回 422，訊息會列出各種引用的數量；被邊使用時 `suggested_action` 為 `deprecate`，請改用 `PATCH /relations/{relation}/deprecation` 標為棄用。有反向關係的述詞，要先把反向關係清空（雙方的配對一起解除）才能刪。',
     )]
     public function destroy(Relation $relation)
     {
         $this->authorize('delete', $relation);
 
-        // 軟刪除不會連帶處理引用它的邊與 reverse_id，有引用就不能刪。
+        // 軟刪除不會連帶處理引用它的邊、reverse_id 與 replaced_by_id，有引用就不能刪。
         $counts = $relation->referenceCountsForDeletion();
-        if ($counts['links'] > 0 || $counts['inverse_of'] > 0) {
-            throw new RelationInUseException($relation->name, $counts['links'], $counts['inverse_of']);
+        if ($counts['links'] > 0 || $counts['inverse_of'] > 0 || $counts['replacement_of'] > 0) {
+            throw new RelationInUseException($relation->name, $counts['links'], $counts['inverse_of'], $counts['replacement_of']);
         }
 
         $relationName = $relation->name;

@@ -136,9 +136,10 @@ final class NomenRecorder
         );
     }
 
+    /** 跟同步與文章匯入寫邊時一樣，述詞棄用後記它的改用對象（`Relation::resolveByName()`）。 */
     private function relationId(string $name): ?int
     {
-        $id = Relation::where('name', $name)->value('id');
+        $id = Relation::resolveByName($name)?->id;
 
         return $id === null ? null : (int) $id;
     }

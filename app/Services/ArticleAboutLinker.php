@@ -13,7 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 /**
  * 匯入文章時，依 front matter 的 `about_techniques`、`about_projects`（見 `ArticleSourceParser`）
  * 把文章連到站上的技術與專案。連結存在 `documentation_technique`、`documentation_implementation`，
- * 跟後台編輯器寫的是同一批連結表，述詞是 `about`（技術）與 `aboutProject`（專案），見 `RelationSeeder`。
+ * 跟後台編輯器寫的是同一批連結表，述詞是 `about`（技術）與 `aboutProject`（專案），見 `RelationSeeder`；
+ * 這兩條棄用後改用它們的改用對象（`Relation::resolveByName()`）。
  *
  * 只新增，不刪除也不改：
  * - 名稱不在清單上的連結一律不動，不管是後台加的還是上次匯入加的，所以拿掉 front matter 的某一項
@@ -55,9 +56,16 @@ final class ArticleAboutLinker
             }
             [$predicate, $noun, $field] = self::KINDS[$kind];
 
-            $relation = Relation::where('name', $predicate)->first();
+            // 述詞已棄用、有改用對象時改用改用對象；改用對象的主詞與受詞分類跟原述詞相同（ReplacementIsCompatible）
+            $relation = Relation::resolveByName($predicate);
             if ($relation === null) {
                 $warnings[] = self::warning('about_predicate_missing', "找不到述詞「{$predicate}」，{$field} 沒有建立任何連結。");
+
+                continue;
+            }
+            // 沒辦法往下找的棄用述詞（沒有改用對象）：新的連結不能用棄用的述詞，比照找不到述詞
+            if ($relation->isDeprecated()) {
+                $warnings[] = self::warning('about_predicate_deprecated', "述詞「{$relation->name}」已棄用，而且沒有可用的改用對象，{$field} 沒有建立任何連結。");
 
                 continue;
             }
@@ -77,7 +85,7 @@ final class ArticleAboutLinker
                     $warnings[] = self::warning('about_ambiguous', "{$field} 的「{$name}」對上不只一筆{$noun}，沒有建立連結。");
                 } elseif (! $ancestry->matches($this->type($documentation), (int) $relation->subject_id)
                     || ! $ancestry->matches($this->type($matches[0]), (int) $relation->object_id)) {
-                    $warnings[] = self::warning('about_scope_mismatch', "{$field} 的「{$name}」所屬的分類不符合述詞「{$predicate}」，沒有建立連結。");
+                    $warnings[] = self::warning('about_scope_mismatch', "{$field} 的「{$name}」所屬的分類不符合述詞「{$relation->name}」，沒有建立連結。");
                 } elseif (! isset($linked[$matches[0]->getKey()])) {
                     $attach[$matches[0]->getKey()] = ['relation_id' => $relation->id];
                 }

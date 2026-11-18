@@ -55,10 +55,10 @@ class Scope extends Model
 
     /**
      * 刪除這個分類前要檢查的引用數量：連帶被軟刪除的那批述詞，還被多少東西引用。
-     * 軟刪除述詞不會處理引用它的邊與 reverse_id，所以任何一項大於 0 都不能刪。
-     * 計法見 Relation::referenceCountsForBatchDeletion()；同一批述詞之間互為反向不算。
+     * 軟刪除述詞不會處理引用它的邊、reverse_id 與 replaced_by_id，所以任何一項大於 0 都不能刪。
+     * 計法見 Relation::referenceCountsForBatchDeletion()；同一批述詞之間互為反向、互為改用對象都不算。
      *
-     * @return array{links: int, inverse_of: int}
+     * @return array{links: int, inverse_of: int, replacement_of: int}
      */
     public function predicateReferenceCountsForDeletion(): array
     {

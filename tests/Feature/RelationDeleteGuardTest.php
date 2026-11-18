@@ -82,9 +82,10 @@ class RelationDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/relations/{$relation->id}")
             ->assertStatus(422)
-            ->assertJsonPath('message', '述詞「usedByLinks」仍被引用，不能刪除：被 2 筆邊使用。請先移除這些引用。')
-            ->assertJsonPath('errors.relation.0', '述詞「usedByLinks」仍被引用，不能刪除：被 2 筆邊使用。請先移除這些引用。')
-            ->assertJsonPath('reference_counts', ['links' => 2, 'inverse_of' => 0]);
+            ->assertJsonPath('message', '述詞「usedByLinks」仍被引用，不能刪除：被 2 筆邊使用。已經有邊在用的述詞不能刪除，不想再用的話請改標為棄用，既有的邊會保留。')
+            ->assertJsonPath('errors.relation.0', '述詞「usedByLinks」仍被引用，不能刪除：被 2 筆邊使用。已經有邊在用的述詞不能刪除，不想再用的話請改標為棄用，既有的邊會保留。')
+            ->assertJsonPath('reference_counts', ['links' => 2, 'inverse_of' => 0, 'replacement_of' => 0])
+            ->assertJsonPath('suggested_action', 'deprecate');
 
         $this->assertNotSoftDeleted('relations', ['id' => $relation->id]);
     }
@@ -112,7 +113,8 @@ class RelationDeleteGuardTest extends TestCase
         $this->deleteJson("/api/relations/{$a->id}")
             ->assertStatus(422)
             ->assertJsonPath('message', "述詞「{$a->name}」仍被引用，不能刪除：被 1 條述詞設為反向關係。請先移除這些引用。")
-            ->assertJsonPath('reference_counts', ['links' => 0, 'inverse_of' => 1]);
+            ->assertJsonPath('reference_counts', ['links' => 0, 'inverse_of' => 1, 'replacement_of' => 0])
+            ->assertJsonPath('suggested_action', null);
 
         $this->assertNotSoftDeleted('relations', ['id' => $a->id]);
         $this->assertSame($a->id, $b->fresh()->reverse_id, '反向那條不能被動到。');
@@ -129,8 +131,8 @@ class RelationDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/relations/{$a->id}")
             ->assertStatus(422)
-            ->assertJsonPath('message', "述詞「{$a->name}」仍被引用，不能刪除：被 3 筆邊使用、被 1 條述詞設為反向關係。請先移除這些引用。")
-            ->assertJsonPath('reference_counts', ['links' => 3, 'inverse_of' => 1]);
+            ->assertJsonPath('message', "述詞「{$a->name}」仍被引用，不能刪除：被 3 筆邊使用、被 1 條述詞設為反向關係。已經有邊在用的述詞不能刪除，不想再用的話請改標為棄用，既有的邊會保留。")
+            ->assertJsonPath('reference_counts', ['links' => 3, 'inverse_of' => 1, 'replacement_of' => 0]);
     }
 
     #[TestDox('回應是 problem details，且不是 500')]
@@ -180,7 +182,7 @@ class RelationDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/relations/{$relation->id}")
             ->assertStatus(422)
-            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 0]);
+            ->assertJsonPath('reference_counts', ['links' => 1, 'inverse_of' => 0, 'replacement_of' => 0]);
     }
 
     #[TestDox('先把反向關係清空解除配對，就可以刪')]
@@ -223,5 +225,56 @@ class RelationDeleteGuardTest extends TestCase
         $relation->delete();
 
         $this->deleteJson("/api/relations/{$relation->id}")->assertNotFound();
+    }
+
+    #[TestDox('已棄用但沒被任何東西引用的述詞照樣可以刪')]
+    public function test_deprecated_but_unreferenced_relation_is_deleted()
+    {
+        $this->actingAsOwner();
+        $relation = Relation::factory()->create();
+        $relation->deprecate(null);
+
+        $this->deleteJson("/api/relations/{$relation->id}")->assertOk();
+
+        $this->assertSoftDeleted('relations', ['id' => $relation->id]);
+    }
+
+    #[TestDox('被已棄用的述詞設為改用對象時回 422 並說明條數')]
+    public function test_relation_used_as_replacement_is_refused()
+    {
+        $this->actingAsOwner();
+        $old = Relation::factory()->create(['name' => 'oldOne']);
+        $replacement = Relation::factory()->create(['name' => 'newOne', 'subject_id' => $old->subject_id, 'object_id' => $old->object_id]);
+        $old->deprecate($replacement);
+
+        $this->deleteJson("/api/relations/{$replacement->id}")
+            ->assertStatus(422)
+            ->assertJsonPath('message', '述詞「newOne」仍被引用，不能刪除：被 1 條已棄用的述詞設為改用對象。請先移除這些引用。')
+            ->assertJsonPath('reference_counts', ['links' => 0, 'inverse_of' => 0, 'replacement_of' => 1])
+            ->assertJsonPath('suggested_action', null);
+
+        $this->assertNotSoftDeleted('relations', ['id' => $replacement->id]);
+
+        // 已軟刪除的棄用述詞不算引用
+        $old->delete();
+        $this->deleteJson("/api/relations/{$replacement->id}")->assertOk();
+    }
+
+    #[TestDox('被邊用到的述詞刪不掉，改標棄用可以；邊照常保留')]
+    public function test_used_relation_is_deprecated_instead_of_deleted()
+    {
+        $this->actingAsOwner();
+        $relation = Relation::factory()->create();
+        $this->link($relation, 'technique_implementation');
+
+        $this->deleteJson("/api/relations/{$relation->id}")
+            ->assertStatus(422)
+            ->assertJsonPath('suggested_action', 'deprecate');
+        $this->patchJson("/api/relations/{$relation->id}/deprecation", ['deprecated' => true])
+            ->assertOk()
+            ->assertJsonPath('data.deprecated', true);
+
+        $this->assertNotSoftDeleted('relations', ['id' => $relation->id]);
+        $this->assertDatabaseHas('technique_implementation', ['relation_id' => $relation->id]);
     }
 }
