@@ -7,7 +7,7 @@ namespace App\Services;
  *
  * - 單位是每個 H2、H3 標題底下的內容，到下一個同級或更高一級的標題為止。H3 的 `parent_id`
  *   指向它所屬 H2 的 `unit_id`；H2、導言的 `parent_id` 是 null。H2 之前出現的 H3 沒有所屬 H2，
- *   `parent_id` 也是 null。H4 以下與非開頭的 H1 不切，算在所屬單位的內容裡。
+ *   `parent_id` 也是 null。H4 以下與任何位置的 H1 不切，算在所屬單位的內容裡（開頭的 H1 算進導言）。
  * - 第一個 H2／H3 之前的內容是導言，固定 `unit_id` 為 `lead`、`role` 為 `intro`；
  *   導言一定會出現在清單的第一筆，沒有內容時範圍是空的。
  * - 標題（去掉 `{#id}` 之後）是「來源」或「參考文獻」的 H2，`role` 為 `references`，
@@ -15,6 +15,9 @@ namespace App\Services;
  * - 標題行尾的 `{#id}` 是明確 ID：解析成 `unit_id` 並從 `heading` 剝掉。沒寫的 `unit_id` 是 null，
  *   由之後的補寫腳本補上。
  * - 程式碼區塊（``` 或 ~~~ 圍起來）裡的 `#` 不是標題；縮排四個空白以上的行也不是標題。
+ * - 只認 ATX 標題（`## 標題`）；setext 標題（底線式）與 HTML 區塊不處理。
+ * - 換行與前端（`headings.ts`）一致：只去掉每行最後一個 `\r`，標題與圍欄判斷只認空格與 tab，
+ *   不用 PHP 預設的 `trim()`（會連 `\v`、`\0` 一起吃掉）。
  *
  * `parent_index` 是父單位在回傳清單裡的位置（0 起算）：H2 的 `unit_id` 可能還是 null（尚未補寫），
  * 這時 `parent_id` 也是 null，靠 `parent_index` 才找得到父單位。
@@ -44,7 +47,7 @@ final class ArticleUnitSplitter
      */
     public function split(string $body): array
     {
-        $lines = explode("\n", str_replace("\r\n", "\n", $body));
+        $lines = array_map(self::stripCr(...), explode("\n", $body));
         $total = count($lines);
 
         $units = [];
@@ -54,7 +57,7 @@ final class ArticleUnitSplitter
         $h2Role = 'body';
 
         foreach ($this->scan($lines) as $number => $heading) {
-            if ($heading === null || ! in_array($heading['level'], [2, 3], true)) {
+            if (! in_array($heading['level'], [2, 3], true)) {
                 continue;
             }
 
@@ -96,24 +99,24 @@ final class ArticleUnitSplitter
     {
         $lines = explode("\n", $body);
 
-        foreach ((new self)->scan(array_map(fn (string $line) => rtrim($line, "\r"), $lines)) as $number => $heading) {
-            if ($heading === null || $heading['id'] === null) {
+        foreach ((new self)->scan(array_map(self::stripCr(...), $lines)) as $number => $heading) {
+            if ($heading['id'] === null) {
                 continue;
             }
 
             $index = $number - 1;
             $cr = str_ends_with($lines[$index], "\r") ? "\r" : '';
-            $lines[$index] = preg_replace(self::LINE_ID_PATTERN, '', rtrim($lines[$index], "\r"), 1).$cr;
+            $lines[$index] = preg_replace(self::LINE_ID_PATTERN, '', self::stripCr($lines[$index]), 1).$cr;
         }
 
         return implode("\n", $lines);
     }
 
     /**
-     * 逐行判斷是不是標題（跳過程式碼區塊），回傳「行號 => 標題資訊或 null」。
+     * 逐行判斷是不是標題（跳過程式碼區塊），回傳「行號 => 標題資訊」，不是標題的行不在結果裡。
      *
      * @param  list<string>  $lines
-     * @return array<int, array{level: int, text: string, id: string|null}|null>
+     * @return array<int, array{level: int, text: string, id: string|null}>
      */
     private function scan(array $lines): array
     {
@@ -142,17 +145,23 @@ final class ArticleUnitSplitter
                 continue;
             }
 
-            $text = trim($match[2]);
+            $text = trim($match[2], " \t");
             $id = null;
             if (preg_match(self::ID_PATTERN, $text, $idMatch) === 1) {
                 $id = $idMatch[1];
-                $text = trim(substr($text, 0, -strlen($idMatch[0])));
+                $text = trim(substr($text, 0, -strlen($idMatch[0])), " \t");
             }
 
             $result[$number] = ['level' => strlen($match[1]), 'text' => $text, 'id' => $id];
         }
 
         return $result;
+    }
+
+    /** 只去掉一個行尾 `\r`（CRLF 的 CR），跟前端一樣；不用 rtrim，免得連續的 `\r` 全被吃掉。 */
+    private static function stripCr(string $line): string
+    {
+        return str_ends_with($line, "\r") ? substr($line, 0, -1) : $line;
     }
 
     /**

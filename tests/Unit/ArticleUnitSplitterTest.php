@@ -186,4 +186,77 @@ class ArticleUnitSplitterTest extends TestCase
     {
         $this->assertSame("## A\r\n內容\r\n", ArticleUnitSplitter::stripHeadingIds("## A {#a}\r\n內容\r\n"));
     }
+
+    #[TestDox('H4、H1 之後的 H2、H3 照常切出單位')]
+    public function test_h4_and_h1_do_not_stop_later_units(): void
+    {
+        $this->assertSame(['lead', 'a', 'b', 'c'], $this->ids($this->split("## A {#a}\n#### x\n## B {#b}\n# y\n### C {#c}\n")));
+    }
+
+    #[TestDox('內文開頭就是標題時，導言的內容是空的')]
+    public function test_lead_is_empty_when_body_starts_with_heading(): void
+    {
+        $this->assertSame('', $this->split("## A {#a}\n內容")['units'][0]['content']);
+    }
+
+    #[TestDox('開頭的 H1 不切，算進導言')]
+    public function test_leading_h1_belongs_to_lead(): void
+    {
+        $lead = $this->split("# 文章標題\n前言\n## A {#a}\n")['units'][0];
+
+        $this->assertSame("# 文章標題\n前言", $lead['content']);
+    }
+
+    #[TestDox('CRLF 的圍欄也能關閉，後面的標題照切、照剝')]
+    public function test_crlf_fence_closes(): void
+    {
+        $this->assertSame(
+            "```\r\n## t {#t}\r\n```\r\n## u\r\n",
+            ArticleUnitSplitter::stripHeadingIds("```\r\n## t {#t}\r\n```\r\n## u {#u}\r\n"),
+        );
+        $this->assertSame(['lead', 'u'], $this->ids($this->split("```\r\n## t {#t}\r\n```\r\n## u {#u}\r\n")));
+    }
+
+    #[TestDox('只去掉一個行尾 \\r，行尾多出來的 \\r 不吞，與前端一致')]
+    public function test_only_one_trailing_cr_is_removed(): void
+    {
+        $result = $this->split("## A {#a}\r\r\n內容\n");
+
+        // 標題行尾還剩一個 \r，不是 ID 後面的空白，所以不當 ID
+        $this->assertSame(['lead', null], $this->ids($result));
+        $this->assertSame("## A {#a}\r\r\n內容\n", ArticleUnitSplitter::stripHeadingIds("## A {#a}\r\r\n內容\n"));
+    }
+
+    #[TestDox('前面有沒有 ID 的標題，後面的標題都照剝')]
+    public function test_strip_after_heading_without_id(): void
+    {
+        $this->assertSame("## 無\n## 有\n", ArticleUnitSplitter::stripHeadingIds("## 無\n## 有 {#y}\n"));
+    }
+
+    #[TestDox('行中間出現的 ``` 不算圍欄，反引號開頭的資訊字串不能再有反引號')]
+    public function test_inline_backticks_do_not_open_a_fence(): void
+    {
+        $this->assertSame(['lead', 'a', 'b'], $this->ids($this->split("``` `x` 是行內\n## A {#a}\n用 ```js 開頭\n## B {#b}\n")));
+    }
+
+    #[TestDox('波浪線圍欄的資訊字串可以有反引號，照常開啟')]
+    public function test_tilde_fence_with_backtick_info_opens(): void
+    {
+        $this->assertSame(['lead', 'b'], $this->ids($this->split("~~~ `x`\n## A {#a}\n~~~\n## B {#b}\n")));
+    }
+
+    #[TestDox('純數字的重複 ID 在 duplicate_ids 裡是字串')]
+    public function test_numeric_duplicate_id_is_string(): void
+    {
+        $this->assertSame(['1'], $this->split("## a {#1}\n## b {#1}")['duplicate_ids']);
+    }
+
+    #[TestDox('{#id} 後面接 \\v 或 \\0 不當 ID，與前端一致')]
+    public function test_control_char_after_id_is_not_an_id(): void
+    {
+        $result = $this->split("## x {#a}\v\n## y {#b}\x00\n");
+
+        $this->assertSame(['lead', null, null], $this->ids($result));
+        $this->assertSame("x {#a}\v", $result['units'][1]['heading']);
+    }
 }
