@@ -29,10 +29,12 @@ class RelationIsNotDeprecated implements DataAwareRule, ValidationRule
     /**
      * @param  Model|null  $own  更新時路由綁定的實體；新建時是 null
      * @param  string  $link  $own 上連到這個欄位實體的 belongsToMany 關聯名稱，例如 `techniques`
+     * @param  int|null  $linkedId  欄位連到的實體 id 在路由上、不在請求本文時由呼叫端給；不給就讀同一項的 `<欄位>.*.id`
      */
     public function __construct(
         private readonly ?Model $own,
         private readonly string $link,
+        private readonly ?int $linkedId = null,
     ) {}
 
     public function setData(array $data): static
@@ -52,7 +54,7 @@ class RelationIsNotDeprecated implements DataAwareRule, ValidationRule
         }
 
         $item = Str::beforeLast($attribute, '.relation_id');
-        if ($this->existingLinkUses($relation, self::asId(data_get($this->data, $item.'.id')))) {
+        if ($this->existingLinkUses($relation, $this->linkedId ?? self::asId(data_get($this->data, $item.'.id')))) {
             return;
         }
 

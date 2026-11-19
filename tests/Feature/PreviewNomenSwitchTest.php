@@ -87,7 +87,8 @@ class PreviewNomenSwitchTest extends TestCase
 
         $projects = collect($report['projects'])->keyBy('title');
         $this->assertSame(['PHP'], $projects['shop']['keep']);
-        $this->assertSame(['laravel'], $projects['shop']['stop']);
+        // shop 的 laravel 只有 topic 證據，同步寫的是 subjectOfProject，不是 usedBy 邊，不在報表裡
+        $this->assertSame([], $projects['shop']['stop']);
         $this->assertSame([], $projects['shop']['add']);
         // Linguist 的 Vue 只能對到 language 分類，對不上框架 Vue；vue3 topic 沒有佐證，Vue 3 的邊不再更新
         $this->assertSame(['TypeScript'], $projects['front']['keep']);

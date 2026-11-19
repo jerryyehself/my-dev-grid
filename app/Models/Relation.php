@@ -44,12 +44,14 @@ class Relation extends Model
     /**
      * 同步與文章匯入依名稱取用的述詞。
      *
+     * `isBasisFor` 不是同步寫的，是同步讀的：專案有這條連結（改作自外部 repo）就不寫技術邊。
+     *
      * 這幾條可以棄用；棄用後程式改用它的改用對象（見 resolveByName()），所以棄用時一定要指定
      * 改用對象（見 isUsedByProgram()）。新增依名稱取用的述詞時要加進這裡。
      *
      * @var list<string>
      */
-    public const SYSTEM_PREDICATES = ['usedBy', 'requires', 'specs', 'isVersionOf', 'about', 'aboutProject'];
+    public const SYSTEM_PREDICATES = ['usedBy', 'subjectOfProject', 'requires', 'specs', 'isVersionOf', 'about', 'aboutProject', 'isBasisFor'];
 
     /** resolveByName() 沿「改用」往下找的步數上限。正常資料不會有環（見 ReplacementIsCompatible），這是防直接改資料庫的情況。 */
     private const MAX_REPLACEMENT_HOPS = 10;

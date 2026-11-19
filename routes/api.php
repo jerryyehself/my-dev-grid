@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\TokenRefreshController;
 use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\GraphController;
 use App\Http\Controllers\ImplementationController;
+use App\Http\Controllers\ImplementationTechniqueController;
 use App\Http\Controllers\RelationController;
 use App\Http\Controllers\ScopeController;
 use App\Http\Controllers\TechniqueController;
@@ -90,6 +91,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // 述詞的棄用與取消棄用。多一段 /deprecation，不會跟下面 apiResources 的 /relations/{relation} 打架。
     Route::patch('relations/{relation}/deprecation', [RelationController::class, 'deprecate']);
+
+    // 站主指定一對專案與技術之間的述詞，或交還給 GitHub 同步。路徑比 apiResources 的 /implementations/{implementation} 長，不會打架。
+    Route::patch('implementations/{implementation}/techniques/{technique}', [ImplementationTechniqueController::class, 'update']);
+    Route::delete('implementations/{implementation}/techniques/{technique}/manual', [ImplementationTechniqueController::class, 'releaseToSync']);
 
     Route::apiResources([
         'scopes' => ScopeController::class,

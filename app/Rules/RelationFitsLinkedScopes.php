@@ -46,11 +46,14 @@ class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
      * @param  self::OWN_IS_SUBJECT|self::OWN_IS_OBJECT  $ownEnd  請求自己的實體站在哪一端
      * @param  class-string<Model>  $linkedModel  欄位連到的實體 model
      * @param  int|null  $currentOwnType  更新時，路由綁定之實體目前的 type；請求沒帶 `type` 時才用
+     * @param  int|null  $linkedId  欄位連到的實體 id 不在請求本文、而在路由上時（例如 `PATCH …/techniques/{technique}`）由呼叫端給；
+     *                              不給就讀同一項的 `<欄位>.*.id`
      */
     public function __construct(
         private readonly string $ownEnd,
         private readonly string $linkedModel,
         private readonly ?int $currentOwnType = null,
+        private readonly ?int $linkedId = null,
     ) {}
 
     public function setData(array $data): static
@@ -70,7 +73,7 @@ class RelationFitsLinkedScopes implements DataAwareRule, ValidationRule
         }
 
         $item = Str::beforeLast($attribute, '.relation_id');
-        $linkedId = self::asId(data_get($this->data, $item.'.id'));
+        $linkedId = $this->linkedId ?? self::asId(data_get($this->data, $item.'.id'));
         // `<欄位>.*.id` 是另一個欄位，它沒過驗證時這條規則照樣會跑；已軟刪除的實體由它自己的規則
         // 回 422，這裡找不到就不檢查。
         $linked = $linkedId === null ? null : $this->linkedModel::find($linkedId);
