@@ -16,6 +16,7 @@ namespace App\Services;
  *   由之後的補寫腳本補上。
  * - 程式碼區塊（``` 或 ~~~ 圍起來）裡的 `#` 不是標題；縮排四個空白以上的行也不是標題。
  * - 只認 ATX 標題（`## 標題`）；setext 標題（底線式）與 HTML 區塊不處理。
+ * - 單獨一行 `##`（沒有標題文字的空 H2）不是標題，不切。
  * - 換行與前端（`headings.ts`）一致：只去掉每行最後一個 `\r`，標題與圍欄判斷只認空格與 tab，
  *   不用 PHP 預設的 `trim()`（會連 `\v`、`\0` 一起吃掉）。
  *
@@ -126,7 +127,8 @@ final class ArticleUnitSplitter
         foreach ($lines as $index => $line) {
             $number = $index + 1;
 
-            if (preg_match('/^ {0,3}(`{3,}|~{3,})(.*)$/', $line, $match) === 1) {
+            // 資訊字串不吃 \r、U+2028、U+2029：PHP 的 `.` 會吃，JS 的 `.` 不吃，要與前端 headings.ts 判斷一致
+            if (preg_match('/^ {0,3}(`{3,}|~{3,})((?:(?!\r|\xE2\x80[\xA8\xA9]).)*)$/', $line, $match) === 1) {
                 $marker = $match[1];
                 if ($fence === null) {
                     // 反引號開頭的區塊，資訊字串裡不能再有反引號，否則只是行內程式碼

@@ -259,4 +259,66 @@ class ArticleUnitSplitterTest extends TestCase
         $this->assertSame(['lead', null, null], $this->ids($result));
         $this->assertSame("x {#a}\v", $result['units'][1]['heading']);
     }
+
+    #[TestDox('圍欄行尾多出來的 \\r 讓它不算圍欄（與前端一致），後面的 ``` 才開圍欄')]
+    public function test_fence_line_with_extra_cr_is_not_a_fence(): void
+    {
+        $body = "```\r\r\n## a {#a}\n```\n## b {#b}\n";
+
+        // 第一行是 "```\r"（去掉一個 CR 後還剩一個）：JS 的 `.` 不吃 \r，所以不是圍欄，a 照切照剝；
+        // 第三行的 ``` 才開圍欄，b 在圍欄裡不動
+        $this->assertSame(['lead', 'a'], $this->ids($this->split($body)));
+        $this->assertSame("```\r\r\n## a\n```\n## b {#b}\n", ArticleUnitSplitter::stripHeadingIds($body));
+    }
+
+    #[TestDox('圍欄行尾的 U+2028、U+2029 同樣讓它不算圍欄，其他 Unicode 字元不受影響')]
+    public function test_fence_line_with_line_separator_is_not_a_fence(): void
+    {
+        foreach (["\u{2028}", "\u{2029}"] as $separator) {
+            $this->assertSame(['lead', 'a'], $this->ids($this->split("```{$separator}\n## a {#a}\n```\n## b {#b}\n")));
+        }
+
+        // 資訊字串是一般中文時照常開圍欄，圍欄裡的 a 不切
+        $this->assertSame(['lead', 'b'], $this->ids($this->split("```文字\n## a {#a}\n```\n## b {#b}\n")));
+    }
+
+    #[TestDox('反引號圍欄不能被 ~~~ 關掉')]
+    public function test_backtick_fence_is_not_closed_by_tilde(): void
+    {
+        $this->assertSame(['lead', 'b'], $this->ids($this->split("```\n## a {#a}\n~~~\n## c {#c}\n```\n## b {#b}\n")));
+        $this->assertSame(['lead', 'b'], $this->ids($this->split("~~~\n## a {#a}\n```\n## c {#c}\n~~~\n## b {#b}\n")));
+    }
+
+    #[TestDox('縮排 4 格的 ``` 不開圍欄，縮排 3 格的才開')]
+    public function test_fence_indented_four_spaces_does_not_open(): void
+    {
+        $this->assertSame(['lead', 'a', 'b'], $this->ids($this->split("    ```\n## a {#a}\n## b {#b}\n")));
+        $this->assertSame(['lead'], $this->ids($this->split("   ```\n## a {#a}\n## b {#b}\n")));
+    }
+
+    #[TestDox('{#_x} 不算 ID，ID 首字元必須是英數')]
+    public function test_id_must_start_with_alphanumeric(): void
+    {
+        $result = $this->split("## a {#_x}\n## b {#-y}\n");
+
+        $this->assertSame(['lead', null, null], $this->ids($result));
+        $this->assertSame('a {#_x}', $result['units'][1]['heading']);
+        $this->assertSame("## a {#_x}\n## b {#-y}\n", ArticleUnitSplitter::stripHeadingIds("## a {#_x}\n## b {#-y}\n"));
+    }
+
+    #[TestDox('連寫兩個 {#id} 只剝最後一個')]
+    public function test_only_the_last_id_is_stripped(): void
+    {
+        $result = $this->split("## a {#x} {#y}\n");
+
+        $this->assertSame(['lead', 'y'], $this->ids($result));
+        $this->assertSame('a {#x}', $result['units'][1]['heading']);
+        $this->assertSame("## a {#x}\n", ArticleUnitSplitter::stripHeadingIds("## a {#x} {#y}\n"));
+    }
+
+    #[TestDox('單獨一行 ## 不是標題，不切')]
+    public function test_bare_hashes_line_is_not_a_heading(): void
+    {
+        $this->assertSame(['lead'], $this->ids($this->split("##\n內容\n")));
+    }
 }
