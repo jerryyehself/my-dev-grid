@@ -461,9 +461,9 @@ gcloud run services update-traffic my-dev-grid-api --region=asia-east1 --to-revi
 - [ ] 新索引用了 `->online()`，而且那支 migration 設了 `$withinTransaction = false`、只放這一個索引？唯一索引在 PostgreSQL 上照 §4.3 分兩步，掛約束那一句包在自己的 transaction 裡加 `SET LOCAL lock_timeout`？（§4.3）
 - [ ] `change()` 把要保留的 `default`、`comment`、`nullable` 都寫出來了？（§5.2）
 - [ ] 原生 SQL 有用 `pgsql` 判斷包起來，CI 的 SQLite 和 PostgreSQL 都綠？（§5.3）
-- [ ] 回填的值保留了原本的意思？（§3.4：null 代表草稿，不能填 1）PR 寫了執行前後的筆數？
+- [ ] 回填的值保留了原本的意思？（§3.4：null 代表草稿，不能填 1）內部上線紀錄寫了執行前後的筆數？
 - [ ] 會刪資料的話，先做了 on-demand 備份？（§6.3）
-- [ ] PR 說明寫了回滾指令（`CLAUDE.md` 高風險改動）？退版到修好之前，要不要先停用部署 workflow？（§6.1）
+- [ ] 內部上線紀錄寫了回滾指令、PR 說明寫了已依內部清單完成（`CLAUDE.md` 高風險改動）？退版到修好之前，要不要先停用部署 workflow？（§6.1）
 - [ ] 改到 `implementations`、`techniques` 或 pivot 表的話，避開 03:17 的同步？（§4.2）
 
 ---
