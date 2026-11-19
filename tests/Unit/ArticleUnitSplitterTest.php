@@ -131,7 +131,7 @@ class ArticleUnitSplitterTest extends TestCase
         $this->assertSame(['lead'], $this->ids($empty));
         $this->assertSame('', $empty['units'][0]['content']);
 
-        $headingOnly = $this->split("## 只有標題 {#t}");
+        $headingOnly = $this->split('## 只有標題 {#t}');
         $this->assertSame(['lead', 't'], $this->ids($headingOnly));
         $this->assertSame([1, 0], [$headingOnly['units'][0]['start_line'], $headingOnly['units'][0]['end_line']]);
         $this->assertSame('', $headingOnly['units'][1]['content']);
