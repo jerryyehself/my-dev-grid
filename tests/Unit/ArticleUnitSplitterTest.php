@@ -105,6 +105,15 @@ class ArticleUnitSplitterTest extends TestCase
         $this->assertStringContainsString('## 假的 {#fake}', $result['units'][1]['content']);
     }
 
+    #[TestDox('關閉圍欄後面接垂直定位字元（\\v）不算關閉，後面的 {#...} 仍在程式碼區塊內')]
+    public function test_fence_close_followed_by_vertical_tab_is_not_a_close(): void
+    {
+        $body = "```\n```\v\n## x {#a}\n```\n## y {#b}\n";
+
+        $this->assertSame(['lead', 'b'], $this->ids($this->split($body)));
+        $this->assertSame("```\n```\v\n## x {#a}\n```\n## y\n", ArticleUnitSplitter::stripHeadingIds($body));
+    }
+
     #[TestDox('H4 以下、縮排四格的井號行、井號後沒空白的行都不切')]
     public function test_non_unit_headings_do_not_split(): void
     {

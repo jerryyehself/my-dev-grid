@@ -130,7 +130,8 @@ final class ArticleUnitSplitter
                     if ($marker[0] !== '`' || ! str_contains($match[2], '`')) {
                         $fence = [$marker[0], strlen($marker)];
                     }
-                } elseif ($marker[0] === $fence[0] && strlen($marker) >= $fence[1] && trim($match[2]) === '') {
+                } elseif ($marker[0] === $fence[0] && strlen($marker) >= $fence[1] && preg_match('/^[ \t]*$/', $match[2]) === 1) {
+                    // 關閉圍欄後面只能接空格或 tab（CommonMark）；PHP 的 trim() 還會吃掉 \v、\0，會誤判成關閉
                     $fence = null;
                 }
 
