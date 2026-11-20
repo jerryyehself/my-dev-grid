@@ -55,7 +55,7 @@ force push、`git reset --hard`、跳過 hook（`--no-verify`）這類本來就�
 2. **驗證範圍**：CI 的 PHPUnit（sqlite 與 pgsql 兩種都要過），加上針對這次改動的手動確認步驟。動到部署管線（`Dockerfile`、`docker/`、workflow、環境變數）、日誌／middleware／`bootstrap/app.php`／`config/`，或 `composer.lock` 相依套件的 PR，請求合併前要先跑 `scripts/smoke-test.sh`（用 repo 的 Dockerfile 建映像檔，接暫存 PostgreSQL，以 production 設定跑起來再探測），把它印出的摘要表記進內部上線紀錄；PR 說明只寫 smoke test 已跑、是否全部通過。跑不起來就在 PR 裡寫明沒跑（原因記在內部上線紀錄），不要默默略過。這個 repo 是公開的，PR 裡不要帶內部討論或使用者的原話。
 3. **資料安全檢查**：會不會誤刪資料、影響範圍有沒有限制在該限制的地方。
 
-合併前一律先問使用者，就算 CI 全過也一樣（唯一的例外是合進 `develop`、做法有明文依據的 migration PR，見「分支策略」）。部署（合進 `main`）後看一次 Cloud Logging，確認沒有新錯誤。
+合併前一律先問使用者，就算 CI 全過也一樣（唯一的例外是合進 `develop`、做法有明文依據的 migration PR，見「分支策略」）。部署（合進 `main`）後由使用者看一次 Cloud Logging，確認沒有新錯誤：Claude 的雲端沙盒沒有 GCP 權限，部署後提醒使用者去看，不自己宣稱看過。
 
 ## 資料庫結構變更的順序
 
