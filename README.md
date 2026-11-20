@@ -63,7 +63,7 @@ php artisan test                        # 全套測試
 | `GET/POST/PUT/DELETE /api/relations` | 述詞。15 條全部成對可逆，`reverse_id` 互指；被任何邊引用後大部分欄位鎖定唯讀（僅 `note` 可改）。寫入需要登入 |
 | `GET /api/relations/{id}/edges` | 一條述詞底下的邊，分頁 |
 | `GET/POST/PUT/DELETE /api/documentations` | 文件／文章。`body` 欄位存 Markdown 原文。寫入需要登入 |
-| `GET/POST/PUT/DELETE /api/techniques` | 技術。寫入 API 已經有了（需要登入），但 `my-dev-grid-front` 還沒有管理畫面，實際資料靠 GitHub sync 自動 find-or-create，列為技術債 |
+| `GET/POST/PUT/DELETE /api/techniques` | 技術。寫入 API 已經有了（需要登入），但 `my-dev-grid-front` 還沒有管理畫面，實際資料靠 GitHub sync 自動 find-or-create，已知限制見 [`docs/tech-debt.md`](docs/tech-debt.md) |
 | `GET/POST/PUT/DELETE /api/implementations` | 實作／專案。同上 |
 
 ### 認證

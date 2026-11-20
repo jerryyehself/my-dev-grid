@@ -50,8 +50,12 @@ class ImportArticleSourcesRequest extends FormRequest
                 'min:1',
                 'distinct',
             ],
-            /** 狀態是 `conflict`（站上改過內文）時，要設成 true 才會用來源的內容覆蓋。 */
+            /** 狀態是 `conflict`（站上改過標題、日期或內文）時，要設成 true 才會用來源的內容覆蓋。 */
             'items.*.overwrite_site_edits' => ['sometimes', 'boolean'],
+            // 沒帶就不知道使用者同意覆蓋的是哪一版站上內容，屬於請求格式不對，回 422 而不是 409：
+            // 重新整理清單也補不出這個欄位，要改的是用戶端
+            /** 清單項目的 `site_version`。`overwrite_site_edits` 為 true 時必填；站上的標題、日期或內文在列出清單之後又改過時回 409。 */
+            'items.*.expected_site_version' => ['required_if_accepted:items.*.overwrite_site_edits', 'nullable', 'string', 'regex:/^[0-9a-f]{64}$/'],
         ];
     }
 }

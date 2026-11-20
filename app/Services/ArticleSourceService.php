@@ -6,11 +6,13 @@ use App\Exceptions\ArticleSourceException;
 use App\Logging\AdminAudit;
 use App\Models\Documentation;
 use App\Models\Scope;
+use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -31,13 +33,16 @@ use Illuminate\Validation\ValidationException;
  *
  * 狀態（清單上每一項的 `status`）：
  * - `new`：還沒有對應的文章。`possible_match`：沒有對應，但有一篇還沒連結的文章標題相同。
- * - `unchanged`：blob SHA 跟上次匯入時相同。`changed`：不同，站上的內文沒改過。
- * - `conflict`：不同，而且站上的內文在上次匯入之後改過（`body` 的 SHA-256 對不上 `source_body_hash`）。
+ * - `unchanged`：blob SHA 跟上次匯入時相同。`changed`：不同，站上的標題、日期與內文都沒改過。
+ * - `conflict`：不同，而且站上的標題、日期或內文在上次匯入之後改過（見 `importedContentHash()`）。
+ *   這一項另外附上 `site_version`（站上目前這三個欄位的雜湊）；要覆蓋時請求要原樣帶回，
+ *   列出清單之後站上又改過就對不上，不會蓋掉看清單時還沒看到的修改。
  * - `site_deleted`：對應的文章在站上已經軟刪除；不會再匯入，也不會讓它復活。
  * - `removed`：站上有連結，但這個版本的 repo 裡已經沒有選擇匯入、slug 相同的檔案。
  * - `invalid`：選擇了匯入但不能匯入（原因見 `ArticleSourceParser::INVALID_REASONS`）。
  *
  * 匯入一律寫成草稿；更新既有文章時不改它的發布狀態（已發布的文章會直接換成新內容）。
+ * 更新時，這次的 commit 不能比站上上次匯入的 commit 舊（見 `importedCommitRelations()`）。
  * 新增與更新時，另外依 front matter 的 `about_techniques`、`about_projects` 補上文章到技術與專案的連結
  * （規則見 `ArticleAboutLinker`）；連結（`link`）只寫來源欄位，不讀內容，也就不建這些連結。
  * 來源欄位（`source_*`）不在 `$fillable` 裡，只有這裡用 `forceFill()` 寫。
@@ -111,10 +116,10 @@ final class ArticleSourceService
     /**
      * 照清單上的選擇匯入。全部檢查過才寫入，任何一項不行就整批不寫。
      *
-     * @param  list<array{key: string, expected_blob_sha: string, action: string, documentation_id?: int|string|null, overwrite_site_edits?: bool|null}>  $requested
+     * @param  list<array{key: string, expected_blob_sha: string, action: string, documentation_id?: int|string|null, overwrite_site_edits?: bool|null, expected_site_version?: string|null}>  $requested
      * @return list<array<string, mixed>>
      *
-     * @throws ArticleSourceException 清單過期、狀態變了（409）或 GitHub 出錯（5xx）
+     * @throws ArticleSourceException 清單過期、狀態變了、站上已經匯入較新的版本（409）或 GitHub 出錯（5xx）
      * @throws ValidationException 要連結的文章不存在或已刪除
      */
     public function import(string $commitSha, array $requested): array
@@ -142,6 +147,7 @@ final class ArticleSourceService
         }
 
         // 網路請求都在 transaction 外面做完，不要拿著資料庫的鎖等 GitHub
+        $importedCommits = $this->importedCommitRelations($config, $commit['sha'], $requested);
         $articles = [];
         foreach ($requested as $i => $item) {
             if ($item['action'] === self::ACTION_LINK) {
@@ -157,7 +163,7 @@ final class ArticleSourceService
         }
 
         try {
-            $results = DB::transaction(fn () => $this->write($config, $commit['sha'], $files, $validFiles, $requested, $articles));
+            $results = DB::transaction(fn () => $this->write($config, $commit['sha'], $files, $validFiles, $requested, $articles, $importedCommits));
         } catch (UniqueConstraintViolationException) {
             // 同時有另一個請求匯入了同一個 slug
             throw ArticleSourceException::conflict(['items' => ['同一篇文章剛被匯入過。']]);
@@ -189,9 +195,10 @@ final class ArticleSourceService
      * @param  array<string, array<string, mixed>>  $validFiles
      * @param  list<array<string, mixed>>  $requested
      * @param  array<int, array<string, mixed>>  $articles
+     * @param  array<string, string>  $importedCommits  `importedCommitRelations()` 的結果
      * @return list<array<string, mixed>>
      */
-    private function write(array $config, string $commitSha, array $files, array $validFiles, array $requested, array $articles): array
+    private function write(array $config, string $commitSha, array $files, array $validFiles, array $requested, array $articles, array $importedCommits): array
     {
         // 鎖住這個 repo 的來源列再重新判斷狀態：清單是幾秒、幾分鐘前看的，這段時間站上可能被改過
         $rows = $this->sourceRows($config['repo'], lock: true);
@@ -218,10 +225,16 @@ final class ArticleSourceService
                     break;
 
                 case self::ACTION_UPDATE:
-                    if ($status === self::STATUS_CONFLICT && ($item['overwrite_site_edits'] ?? false) !== true) {
-                        $conflicts["items.{$i}.overwrite_site_edits"] = ['站上的內文在上次匯入之後改過，要覆蓋請明確設定 overwrite_site_edits。'];
-                    } elseif (! in_array($status, [self::STATUS_CHANGED, self::STATUS_CONFLICT], true)) {
+                    if (! in_array($status, [self::STATUS_CHANGED, self::STATUS_CONFLICT], true)) {
                         $conflicts[$field] = ["目前狀態是 {$status}，不能更新。"];
+                    } elseif (($older = self::olderThanImported($entry['row'], $commitSha, $importedCommits)) !== null) {
+                        // 放在 overwrite_site_edits 之前：覆蓋站上的修改也不能順便把文章倒回舊版
+                        $conflicts[$field] = [$older];
+                    } elseif ($status === self::STATUS_CONFLICT && ($item['overwrite_site_edits'] ?? false) !== true) {
+                        $conflicts["items.{$i}.overwrite_site_edits"] = ['站上的標題、日期或內文在上次匯入之後改過，要覆蓋請明確設定 overwrite_site_edits。'];
+                    } elseif ($status === self::STATUS_CONFLICT && ! self::sameSiteVersion($entry['row'], $item['expected_site_version'] ?? null)) {
+                        // 同意覆蓋的是看清單時的站上內容；之後站上又改過，就不能連那次修改一起蓋掉
+                        $conflicts["items.{$i}.expected_site_version"] = ['站上的標題、日期或內文在列出清單之後又改過，請重新整理清單，確認後再決定要不要覆蓋。'];
                     } else {
                         $targets[$i] = $entry['row'];
                     }
@@ -268,10 +281,10 @@ final class ArticleSourceService
             ];
 
             if ($item['action'] === self::ACTION_LINK) {
-                // 連結：只寫來源欄位，內文與標題維持站上的版本；以站上目前的內文當作「匯入時的內文」，
+                // 連結：只寫來源欄位，內文與標題維持站上的版本；以站上目前的標題、日期與內文當作「匯入時的內容」，
                 // 之後站上再改才算有修改
                 $documentation = $targets[$i];
-                $documentation->forceFill($source + ['source_body_hash' => self::bodyHash($documentation->body)])->save();
+                $documentation->forceFill($source + ['source_body_hash' => self::importedContentHash($documentation)])->save();
                 $warnings = [];
             } else {
                 $article = $articles[$i];
@@ -288,7 +301,8 @@ final class ArticleSourceService
                     $documentation = $targets[$i]->fill($fields);
                 }
 
-                $documentation->forceFill($source + ['source_body_hash' => self::bodyHash($article['body'])])->save();
+                // 來源沒有 creation_date 時日期維持站上的值，所以雜湊要用寫入後的這一列算，不能只用來源的內容
+                $documentation->forceFill($source + ['source_body_hash' => self::importedContentHash($documentation)])->save();
                 // 連結只新增、不刪除；警告跟內容掃描的警告放在一起回報
                 $warnings = [...$this->warnings($article), ...$this->aboutLinker->link($documentation, $article['about'])];
             }
@@ -486,6 +500,7 @@ final class ArticleSourceService
             'blob_sha' => $entry['sha'],
             'title' => $entry['title'],
             'status' => $entry['status'],
+            'site_version' => $entry['status'] === self::STATUS_CONFLICT ? self::importedContentHash($row) : null,
             'documentation_id' => $row?->id,
             'published' => $row === null || $row->trashed() ? null : $row->isPublished(),
             'reason' => $entry['invalid'],
@@ -509,16 +524,129 @@ final class ArticleSourceService
             ->get();
     }
 
-    /** 站上的內文跟上次匯入（或連結）時不同。沒有記錄就當作改過，要求明確覆蓋。 */
+    /**
+     * 要更新的文章，站上記的 commit（上次匯入或連結時的版本）跟這次的 commit 是什麼關係。
+     *
+     * 為了擋舊畫面的匯入：清單是某個 commit 的內容，在那之後站上可能已經用更新的 commit 匯入過。
+     * 這時 blob 也對不上，單看 blob 會判成 `changed`，照樣更新就會把文章倒回舊內容。
+     * 先後要問 GitHub（Compare API），所以在 transaction 外問完；`olderThanImported()` 在鎖內確認
+     * 站上的 commit 還是這裡比對過的那一個。
+     *
+     * @param  array{token: string, repo: string, ref: string}  $config
+     * @param  list<array<string, mixed>>  $requested
+     * @return array<string, string> 站上記的 commit => `ahead`（這次的較新）、`behind`（這次的較舊）、
+     *                               `diverged`（互不包含）、`unknown`（GitHub 查不到站上記的 commit）
+     */
+    private function importedCommitRelations(array $config, string $commitSha, array $requested): array
+    {
+        $updateKeys = [];
+        foreach ($requested as $item) {
+            if ($item['action'] === self::ACTION_UPDATE) {
+                $updateKeys[$item['key']] = true;
+            }
+        }
+        if ($updateKeys === []) {
+            return [];
+        }
+
+        $relations = [];
+        foreach ($this->sourceRows($config['repo']) as $row) {
+            $imported = $row->source_commit_sha;
+            if (! isset($updateKeys[$row->source_key]) || ! is_string($imported) || $imported === $commitSha || isset($relations[$imported])) {
+                continue;
+            }
+            // 這個值會組進 API 網址；正常只會是匯入時驗過的 SHA，其他值不送出，當成查不到
+            $relations[$imported] = preg_match(self::SHA_PATTERN, $imported) === 1
+                ? $this->compareCommits($config, $imported, $commitSha)
+                : 'unknown';
+        }
+
+        return $relations;
+    }
+
+    /**
+     * 這次的 commit 比站上記的舊，或站上記的 commit 已經不是比對過的那一個（比對完到上鎖之間又被匯入）時，
+     * 回傳不能更新的原因。
+     *
+     * 互不包含（`diverged`）與 GitHub 查不到站上記的 commit（`unknown`）不擋：來源 repo 改寫過歷史之後，
+     * 新的 commit 跟站上記的舊 commit 都會是這樣，擋下來就再也更新不了。
+     *
+     * @param  array<string, string>  $importedCommits  `importedCommitRelations()` 的結果
+     */
+    private static function olderThanImported(Documentation $row, string $commitSha, array $importedCommits): ?string
+    {
+        $imported = $row->source_commit_sha;
+        if (! is_string($imported) || $imported === $commitSha) {
+            return null;
+        }
+
+        return match ($importedCommits[$imported] ?? null) {
+            null => '站上這篇剛被匯入了其他版本，請重新整理清單。',
+            'behind' => '站上這篇已經用比這個版本新的 commit 匯入過，不能用較舊的版本覆蓋。要退回舊內容，請在來源 repo 另外 commit。',
+            default => null,
+        };
+    }
+
+    /**
+     * 站上的標題、日期或內文跟上次匯入（或連結）時不同。沒有記錄就當作改過，要求明確覆蓋。
+     *
+     * 只記了內文雜湊的舊紀錄（這個比對納入標題與日期之前匯入的）也對不上，會判成改過：
+     * 看不出那之後標題、日期有沒有被改，寧可多要求一次確認，也不要默默蓋掉。更新一次之後就是新的雜湊。
+     */
     private static function siteEdited(Documentation $row): bool
     {
         return ! is_string($row->source_body_hash)
-            || ! hash_equals($row->source_body_hash, self::bodyHash($row->body));
+            || ! hash_equals($row->source_body_hash, self::importedContentHash($row));
     }
 
-    private static function bodyHash(?string $body): string
+    /**
+     * 站上目前的標題、日期與內文，跟清單上 `site_version`（列清單時用 `importedContentHash()` 算的）是不是同一版。
+     *
+     * 用內容的雜湊，不用 `updated_at`：`updated_at` 只到秒，同一秒內的修改分不出來；改發布狀態這類
+     * 覆蓋不會動到的欄位也會讓它變，會多擋。雜湊只看覆蓋會蓋掉的三個欄位，跟判斷 `conflict` 的是同一個值。
+     * 沒帶（null）一律當成對不上。
+     */
+    private static function sameSiteVersion(Documentation $row, ?string $expected): bool
     {
-        return hash('sha256', $body ?? '');
+        return is_string($expected) && hash_equals(self::importedContentHash($row), $expected);
+    }
+
+    /**
+     * 匯入會寫的三個欄位（標題、日期、內文）的 SHA-256，存在 `source_body_hash`。
+     *
+     * 欄位名稱是只比對內文時取的；改成三個欄位一起算，是因為 update 也會用來源的標題與日期覆蓋站上的值，
+     * 只比內文的話，後台改過標題的文章會被判成 `changed`，不經確認就被蓋掉。
+     * 每個值前面加上長度（NULL 寫成 `-`），欄位內容裡有什麼字元都不會讓兩組不同的值算出同一個字串。
+     * public 是給測試準備「上次匯入時的狀態」用，正式程式只有這個類別呼叫。
+     */
+    public static function importedContentHash(Documentation $documentation): string
+    {
+        $fields = [$documentation->title, self::normalizedDate($documentation->creation_date), $documentation->body];
+
+        return hash('sha256', implode("\n", array_map(
+            fn (?string $value) => $value === null ? '-' : strlen($value).':'.$value,
+            $fields,
+        )));
+    }
+
+    /**
+     * `creation_date` 統一成 `Y-m-d H:i:s` 再算雜湊。
+     *
+     * 這欄沒有 cast，讀到的是資料庫給的字串：匯入時寫的是 `2026-09-22`，PostgreSQL（timestamp）讀回來是
+     * `2026-09-22 00:00:00`，SQLite 照原樣存。不統一的話，同一個日期寫入時跟讀回來時算出不同的雜湊。
+     * 解析不了的值（只可能是 SQLite 裡手動寫進去的）照原字串算。
+     */
+    private static function normalizedDate(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        try {
+            return Carbon::parse($value)->format('Y-m-d H:i:s');
+        } catch (InvalidFormatException) {
+            return (string) $value;
+        }
     }
 
     /**
@@ -566,6 +694,28 @@ final class ArticleSourceService
         }
 
         return $commit;
+    }
+
+    /**
+     * Compare API 的 `status`：`head` 相對於 `base` 是 `ahead`、`behind`、`identical` 還是 `diverged`。
+     * GitHub 查不到 `base`（404、422）時回 `unknown`；其他錯誤照樣丟出，整批不寫。
+     *
+     * `per_page=1`：只要 `status`，回應裡的 commit 清單取最少。
+     *
+     * @param  array{token: string, repo: string, ref: string}  $config
+     */
+    private function compareCommits(array $config, string $base, string $head): string
+    {
+        try {
+            [$compare] = $this->fetchCached($config, '/repos/'.$config['repo'].'/compare/'.$base.'...'.$head.'?per_page=1', $this->reduceCompare(...));
+        } catch (ArticleSourceException $e) {
+            if (in_array($e->upstreamStatus, [404, 422], true)) {
+                return 'unknown';
+            }
+            throw $e;
+        }
+
+        return $compare['status'];
     }
 
     /**
@@ -676,6 +826,20 @@ final class ArticleSourceService
         }
 
         return ['sha' => $sha, 'tree' => $tree];
+    }
+
+    /**
+     * @return array{status: string}
+     */
+    private function reduceCompare(mixed $json): array
+    {
+        $status = is_array($json) ? ($json['status'] ?? null) : null;
+
+        if (! in_array($status, ['ahead', 'behind', 'identical', 'diverged'], true)) {
+            throw ArticleSourceException::badResponse();
+        }
+
+        return ['status' => $status];
     }
 
     /**

@@ -135,6 +135,33 @@ class AdminAuditLoggingTest extends TestCase
         ]);
     }
 
+    #[TestDox('指定專案與技術之間的述詞、交還給同步，都記一筆 sync 稽核')]
+    public function test_setting_and_releasing_a_technique_predicate_is_logged()
+    {
+        $this->seed();
+        $user = $this->actingAsOwner();
+        $implementation = Implementation::factory()->create(['type' => Scope::where('name', 'project')->value('id')]);
+        $technique = Technique::factory()->create(['type' => Scope::where('name', 'language')->value('id')]);
+        $implementation->techniques()->attach($technique->id, ['relation_id' => Relation::where('name', 'usedBy')->value('id')]);
+        $url = "/api/implementations/{$implementation->id}/techniques/{$technique->id}";
+        $expected = [
+            'user_id' => $user->id,
+            'action' => 'sync',
+            'object' => 'implementation',
+            'object_id' => $implementation->id,
+            'relation' => 'techniques',
+            'updated' => [$technique->id],
+        ];
+
+        $this->captureLogs();
+        $this->patchJson($url, ['relation_id' => Relation::where('name', 'subjectOfProject')->value('id')])->assertOk();
+        $this->assertSecurityEvent('authz_admin', $expected);
+
+        $this->captureLogs();
+        $this->deleteJson("{$url}/manual")->assertOk();
+        $this->assertSecurityEvent('authz_admin', $expected);
+    }
+
     #[TestDox('沒有登入使用者的寫入不記稽核日誌')]
     public function test_writes_without_a_logged_in_user_are_not_audited()
     {

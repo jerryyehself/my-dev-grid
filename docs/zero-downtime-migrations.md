@@ -294,6 +294,61 @@ public function up(): void
 - 索引名稱照 Laravel 的預設（`<表>_<欄位>_unique`），`down()` 的 `dropUnique([...])` 才找得到。
 - **不要用整個連線的 `SET lock_timeout`**（不加 `LOCAL`）：它也會套到 CONCURRENTLY 那一句。CONCURRENTLY 要等表上進行中的 transaction 結束，等超過時限就失敗，留下 INVALID 索引〔實測：另一個連線開著讀過這張表的 transaction，`SET lock_timeout = '2s'` 之後建索引，2 秒報 lock timeout，`pg_index.indisvalid = f`〕。
 - 第二句逾時：transaction 回滾，索引留著（有效，但沒有掛成約束），這支沒有記進 `migrations` 表，重跑會撞 already exists〔實測〕。先 `DROP INDEX CONCURRENTLY IF EXISTS <索引名稱>;` 再重跑。索引已經掛成約束時，這句會報 `cannot drop index ... because constraint ... requires it`，不會刪掉〔實測〕，所以不會誤刪已經完成的約束。
+- 第二句已經 commit、Laravel 還沒寫 `migrations` 表就中斷（§5.1：commit 之後才寫）：約束已經掛好，但這支沒有紀錄，重跑一樣撞 already exists，上一點的 `DROP INDEX` 也刪不掉〔實測：在 `migrations` 加 trigger，讓寫入這支紀錄時失敗〕。這時 `up()` 其實已經做完，**補記這支、不要刪索引或約束**。刪約束會連索引一起刪，重建又要再掃一次整張表。
+
+重跑之前照下面三步做，SQL 以 `2026_11_12_000001_add_source_unique_index_to_documentations_table` 為例，用在別支時換掉 migration 名稱、索引名稱與欄位。
+
+1. 查狀態：
+
+   ```sql
+   SELECT i.indexrelid::regclass AS index_name,
+          i.indisvalid,
+          c.conname,
+          pg_get_constraintdef(c.oid) AS constraint_def,
+          EXISTS (
+              SELECT 1 FROM migrations
+              WHERE migration = '2026_11_12_000001_add_source_unique_index_to_documentations_table'
+          ) AS recorded
+   FROM pg_index i
+   LEFT JOIN pg_constraint c ON c.conindid = i.indexrelid AND c.contype = 'u'
+   WHERE i.indexrelid = to_regclass('documentations_source_repo_source_key_unique');
+   ```
+
+   | 結果 | 狀況 | 第 2 步 |
+   | --- | --- | --- |
+   | 沒有任何一列 | 索引沒建起來 | 不用做，直接重跑 |
+   | `indisvalid = f`，或 `conname` 是空的 | 索引 INVALID，或有效但沒掛成約束 | 2A |
+   | `conname` 有值、`constraint_def = UNIQUE (source_repo, source_key)`、`recorded = f` | 約束已掛好，只差紀錄 | 2B |
+   | `recorded = t` | 這支已經記錄了，重跑不會再執行它 | 不用做，直接重跑 |
+
+2. 依上表處理：
+   - **2A**：`DROP INDEX CONCURRENTLY IF EXISTS documentations_source_repo_source_key_unique;`
+   - **2B**：補記這支。只在約束定義跟 `up()` 建的一樣、索引有效、還沒有紀錄時才寫入：
+
+     ```sql
+     INSERT INTO migrations (migration, batch)
+     SELECT '2026_11_12_000001_add_source_unique_index_to_documentations_table',
+            (SELECT COALESCE(MAX(batch), 0) + 1 FROM migrations)
+     WHERE EXISTS (
+               SELECT 1
+               FROM pg_constraint c
+               JOIN pg_index i ON i.indexrelid = c.conindid
+               WHERE c.conrelid = 'documentations'::regclass
+                 AND c.conname = 'documentations_source_repo_source_key_unique'
+                 AND c.contype = 'u'
+                 AND i.indisvalid
+                 AND pg_get_constraintdef(c.oid) = 'UNIQUE (source_repo, source_key)'
+           )
+       AND NOT EXISTS (
+               SELECT 1 FROM migrations
+               WHERE migration = '2026_11_12_000001_add_source_unique_index_to_documentations_table'
+           );
+     ```
+
+     回 `INSERT 0 1` 才算補上；回 `INSERT 0 0` 代表狀態不是 2B（約束沒掛上、定義不同，或已經有紀錄），回第 1 步重查，不要改成直接寫入。`batch` 只影響 `migrate:rollback` 一次退哪幾支，正式環境不跑 rollback（§5.4），這裡自成一批。
+3. 重跑 migration（跟 §4.2 逾時之後一樣，從 Actions 重跑部署）。後面還沒跑的 migration 會接著跑。
+
+〔實測，PostgreSQL 16〕2B：注入失敗後，第 1 步查到約束已掛、`recorded = f`；重跑撞 already exists；2A 的 `DROP INDEX` 報錯、沒刪；2B 回 `INSERT 0 1`，再執行一次回 `INSERT 0 0`；重跑後接著執行下一支 migration，索引的 OID 前後相同（沒有刪掉重建），`migrate:status` 三支都是 Ran。2A：只建索引、不掛約束時，第 1 步查到 `conname` 是空的，2B 回 `INSERT 0 0`；`DROP INDEX` 之後重跑，約束建好並記錄。
 
 ### 4.4 加有預設值的欄位
 
@@ -406,9 +461,9 @@ gcloud run services update-traffic my-dev-grid-api --region=asia-east1 --to-revi
 - [ ] 新索引用了 `->online()`，而且那支 migration 設了 `$withinTransaction = false`、只放這一個索引？唯一索引在 PostgreSQL 上照 §4.3 分兩步，掛約束那一句包在自己的 transaction 裡加 `SET LOCAL lock_timeout`？（§4.3）
 - [ ] `change()` 把要保留的 `default`、`comment`、`nullable` 都寫出來了？（§5.2）
 - [ ] 原生 SQL 有用 `pgsql` 判斷包起來，CI 的 SQLite 和 PostgreSQL 都綠？（§5.3）
-- [ ] 回填的值保留了原本的意思？（§3.4：null 代表草稿，不能填 1）PR 寫了執行前後的筆數？
+- [ ] 回填的值保留了原本的意思？（§3.4：null 代表草稿，不能填 1）內部上線紀錄寫了執行前後的筆數？
 - [ ] 會刪資料的話，先做了 on-demand 備份？（§6.3）
-- [ ] PR 說明寫了回滾指令（`CLAUDE.md` 高風險改動）？退版到修好之前，要不要先停用部署 workflow？（§6.1）
+- [ ] 內部上線紀錄寫了回滾指令、PR 說明寫了已依內部清單完成（`CLAUDE.md` 高風險改動）？退版到修好之前，要不要先停用部署 workflow？（§6.1）
 - [ ] 改到 `implementations`、`techniques` 或 pivot 表的話，避開 03:17 的同步？（§4.2）
 
 ---

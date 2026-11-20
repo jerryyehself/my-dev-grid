@@ -320,7 +320,7 @@ class NomenResolverTest extends TestCase
     public static function packagesThatMustStayUnresolved(): iterable
     {
         yield '不在對照表裡的套件' => ['npm', 'eslint'];
-        yield '名稱相近但沒列（只列了 vue）' => ['npm', 'vue-router'];
+        yield '名稱相近但沒列（只列了 vue）' => ['npm', 'vuex'];
         yield '列在別的生態系' => ['npm', 'laravel/framework'];
         yield '不認得的生態系' => ['cargo', 'vue'];
         yield '沒有生態系' => [null, 'vue'];
@@ -335,7 +335,7 @@ class NomenResolverTest extends TestCase
         $this->technique('Vue', 'framework');
         $this->technique('laravel', 'packagetool');
         $this->technique('eslint', 'packagetool');
-        $this->technique('vue-router', 'packagetool');
+        $this->technique('vuex', 'packagetool');
         $nomen = $this->package($ecosystem, $name);
 
         $this->resolve();

@@ -13,7 +13,7 @@
 # 什麼時候要跑（見 CLAUDE.md「高風險改動與資料庫結構變更」→ 驗證範圍）：
 # 動到部署管線（Dockerfile、docker/、workflow、環境變數）、日誌／middleware／
 # bootstrap/app.php／config/、或 composer.lock 相依套件的 PR，合併前跑一次，
-# 把最後印出的 Markdown 摘要表貼到 PR。
+# 把最後印出的 Markdown 摘要表記進內部上線紀錄，PR 只寫是否全部通過。
 #
 # Usage:
 #   ./scripts/smoke-test.sh [git-ref]

@@ -45,4 +45,4 @@
 - 回填或刪除資料的 migration：PR 裡記錄執行前後的筆數，說明怎麼確認影響範圍正確；大量改寫資料時，先用查詢確認筆數再動手。
 - 會刪資料的 migration 第一次在正式環境跑之前，先確認資料庫有開自動備份：`docs/deployment-gcp.md` 建立 instance 的指令帶了 `--no-backup`。
 
-每種變更的分次步驟、PostgreSQL 的鎖與 `lock_timeout`、用 `->online()` 建索引、回滾、合併前的檢查清單，都在 [`docs/zero-downtime-migrations.md`](../zero-downtime-migrations.md)，不要在這裡重寫一份。PR 說明要寫的回滾方式與資料安全檢查，見 `CLAUDE.md`「高風險改動與資料庫結構變更」。
+每種變更的分次步驟、PostgreSQL 的鎖與 `lock_timeout`、用 `->online()` 建索引、回滾、合併前的檢查清單，都在 [`docs/zero-downtime-migrations.md`](../zero-downtime-migrations.md)，不要在這裡重寫一份。回滾方式與資料安全檢查寫進內部上線紀錄、PR 說明只寫已依內部清單完成，見 `CLAUDE.md`「高風險改動與資料庫結構變更」。

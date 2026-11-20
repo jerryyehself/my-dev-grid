@@ -54,6 +54,6 @@ class Technique extends Model
 
     public function implementations()
     {
-        return $this->belongsToMany(Implementation::class, 'technique_implementation')->withPivot('relation_id')->withTimestamps();
+        return $this->belongsToMany(Implementation::class, 'technique_implementation')->withPivot('relation_id', 'manually_set_at')->withTimestamps();
     }
 }

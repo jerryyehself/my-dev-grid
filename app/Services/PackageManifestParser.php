@@ -29,11 +29,16 @@ final class PackageManifestParser
         return self::MANIFEST_FILES[basename($path)] ?? null;
     }
 
+    /** UTF-8 的位元組順序記號（BOM）：Windows 的編輯器存檔常會在檔案開頭多加這三個位元組 */
+    private const UTF8_BOM = "\xEF\xBB\xBF";
+
     /**
      * @return list<string> 小寫、去重後的套件名稱
      */
     public static function parse(string $ecosystem, string $content): array
     {
+        $content = self::withoutBom($content);
+
         $names = match ($ecosystem) {
             'npm', 'composer' => self::parseJson($ecosystem, $content),
             'pip' => self::parseRequirements($content),
@@ -43,8 +48,51 @@ final class PackageManifestParser
         return array_values(array_unique($names));
     }
 
+    /**
+     * 套件名稱 → 清單檔寫的版本限制（例如 `vue` → `^3.5.0`），只有 package.json 與 composer.json
+     * 有這個欄位；requirements.txt 與不認得的生態系回空陣列。同一個套件同時在 dependencies 與
+     * devDependencies 時，以先出現的區塊（dependencies）為準。限制的內容原樣回傳，
+     * 怎麼取主版號不是這裡的事（見 PackageTechniqueMap::majorVersion）。
+     *
+     * @return array<string, string>
+     */
+    public static function parseVersionConstraints(string $ecosystem, string $content): array
+    {
+        if (! isset(self::JSON_SECTIONS[$ecosystem])) {
+            return [];
+        }
+
+        $constraints = [];
+
+        foreach (self::jsonDependencies($ecosystem, self::withoutBom($content)) as $name => $constraint) {
+            if (is_string($constraint)) {
+                $constraints[(string) $name] = $constraint;
+            }
+        }
+
+        return $constraints;
+    }
+
+    /** 去掉開頭的 BOM（只去一個）；不然 json_decode 會失敗，requirements.txt 的第一行也會對不上 */
+    private static function withoutBom(string $content): string
+    {
+        return str_starts_with($content, self::UTF8_BOM) ? substr($content, strlen(self::UTF8_BOM)) : $content;
+    }
+
     /** @return list<string> */
     private static function parseJson(string $ecosystem, string $content): array
+    {
+        // 純數字的套件名稱會被 PHP 轉成整數 key，轉回字串
+        return array_map('strval', array_keys(self::jsonDependencies($ecosystem, $content)));
+    }
+
+    /**
+     * 讀出 JSON 清單檔各區塊的「小寫套件名稱 → 原始值」，同名的以先出現的區塊為準。
+     * 內容壞掉回空陣列；composer 的平台需求（php、ext-json、lib-curl）沒有 vendor/ 前綴，不是套件。
+     *
+     * @return array<string, mixed>
+     */
+    private static function jsonDependencies(string $ecosystem, string $content): array
     {
         $manifest = json_decode($content, true);
 
@@ -52,26 +100,27 @@ final class PackageManifestParser
             return [];
         }
 
-        $names = [];
+        $dependencies = [];
 
         foreach (self::JSON_SECTIONS[$ecosystem] as $section) {
             if (! is_array($manifest[$section] ?? null)) {
                 continue;
             }
 
-            foreach (array_keys($manifest[$section]) as $name) {
+            foreach ($manifest[$section] as $name => $constraint) {
                 $name = mb_strtolower((string) $name);
 
-                // composer 的平台需求（php、ext-json、lib-curl）沒有 vendor/ 前綴，不是套件
                 if ($ecosystem === 'composer' && ! str_contains($name, '/')) {
                     continue;
                 }
 
-                $names[] = $name;
+                if (! array_key_exists($name, $dependencies)) {
+                    $dependencies[$name] = $constraint;
+                }
             }
         }
 
-        return $names;
+        return $dependencies;
     }
 
     /**

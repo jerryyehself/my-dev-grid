@@ -4,6 +4,27 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [1.4.0] - 2026-11-20
+
+### 新增
+
+- 述詞棄用：已被連結用到的述詞不能刪（回 422，附 `suggested_action: "deprecate"`），改用 `PATCH /api/relations/{relation}/deprecation` 標為棄用，可指定改用的述詞（`replaced_by_id`），反向述詞一起處理。新增或更新連結時不能再用已棄用的述詞，重送既有連結照常通過；`/api/relations`、`/api/graph`、`/api/graph/path` 只標記棄用、不濾掉。`relations` 新增 `deprecated_at`、`replaced_by_id` 兩個可為 NULL 的欄位，不回填。同步與文章匯入依名稱取用的系統述詞也能棄用，但一定要指定改用對象，程式沿改用鏈找到仍在使用的述詞；舊的連結照舊，新配對用改用對象。刪分類前的引用檢查一併計入「被設為改用對象」（#205）。
+- 新增 `isBasisFor`／`isBasedOn`（文件與實作之間的改作來源）、`isBasedOnProject`／`isBasisForProject`（建置產物與來源專案）、`subjectOfProject`／`projectAbout`（專案「關於」某個技術，而不是使用它）三組述詞（#203, #209）。
+- GitHub 同步依證據分技術與專案的連線：程式裡有證據（語言統計、套件清單）寫 `usedBy`，只出現在 topic 的寫 `subjectOfProject`，之後看到程式證據才升成 `usedBy`、不降級。專案是外部 repo 的改作（有 `isBasisFor` 文件連結），或在 `config/repo_sync.php` 的 `skip_technique_edges` 清單內時，不寫技術連線（#203, #209）。
+- 後台指定技術連線的述詞：`PATCH /api/implementations/{implementation}/techniques/{technique}` 改這一對的述詞並標成手動指定，`DELETE .../manual` 清掉標記、交還給同步；`PUT /api/implementations/{id}`、`PUT /api/techniques/{id}` 新增或改了述詞的技術連線也標成手動指定。手動指定過的連線，同步不改述詞、不另長一列。`technique_implementation` 新增可為 NULL 的 `manually_set_at` 欄位，回應只在登入時帶出（#209）。
+- 同步補齊技術連線：多讀 `apps/*`、`packages/*` 這一層的套件清單（最多 10 份，不讀 `node_modules`、`vendor`、tests、examples）；Vue、Nuxt、Bootstrap 依版本限制連到主版號節點，讀不出版本時連到基底節點；套件對照表補上 Alpine.js、Next.js、vue-router、GraphQL、php-parser；樹狀清單被截斷時記錄警告；清單開頭的 BOM 會去掉（#200）。
+- 新增 `App\Services\ArticleUnitSplitter`：把文章 Markdown 依 H2、H3 標題切成段落單位並解析標題行尾的 `{#id}`。這一版沒有任何呼叫端，也沒有資料表或 API 的變化（#210）。
+- 新增 `docs/tech-debt.md`，記錄刻意先不處理的已知限制（#204）。
+
+### 變更
+
+- 文章匯入的衝突判斷納入標題與日期：站上改過標題、日期或內文，來源再改版時列為 conflict，沒帶 `overwrite_site_edits` 回 409。這一版以前匯入過的文章，下次來源改版時會列為 conflict 一次（#201）。
+- 文章匯入覆蓋站上修改須帶 `expected_site_version`：`GET /api/article-sources` 的 conflict 項目新增 `site_version`（站上標題、日期、內文的 SHA-256）；`overwrite_site_edits: true` 的項目缺少或格式不對回 422，與站上現況對不上回 409，整批不寫。**舊版前端勾覆蓋送出會收到 422，前端須同日上線**。匯入交易中的稽核紀錄改為 commit 後才寫，回滾就不留紀錄（#202）。
+- 文章匯入拒絕用比已匯入版本更舊的 commit 更新，避免內容被倒回舊版（#199）。
+- 技術與專案之間的連線不再過期：移除 14 天未再看到即標過期的機制。`GET /api/graph` 的邊 `stale` 欄位暫時保留、一律為 `false`，`GET /api/graph/path` 不再略過任何邊（#207）。
+- 同步的 topic 名稱對照到套件產生的技術（`nextjs`、`alpinejs`、`reactjs`、`expressjs`、`tailwindcss`、`threejs`、`d3js`），不再各長一個節點；只寫上限的版本限制（`<4`、`<=3.2`）不再建版本節點（#208）。
+- 測試的限流資料集重置時間留足一小時，避免長時間測試中失效（#206）。
+
 ## [1.3.0] - 2026-11-15
 
 ### 新增
@@ -169,6 +190,7 @@ GitHub 同步
 - CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
+[1.4.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.4.0
 [1.3.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.3.0
 [1.2.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.2.0
 [1.1.3]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.1.3

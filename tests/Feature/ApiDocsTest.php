@@ -110,7 +110,7 @@ class ApiDocsTest extends TestCase
         $node = $schema['properties']['nodes']['items'];
         $this->assertSame(['id', 'type', 'label', 'created_at', 'added_at', 'updated_at', 'subtype', 'url', 'active'], array_keys($node['properties']));
         $this->assertSame(
-            ['source', 'target', 'predicate', 'label', 'relation_id', 'added_at', 'stale'],
+            ['source', 'target', 'predicate', 'label', 'relation_id', 'added_at', 'stale', 'predicate_deprecated', 'predicate_replaced_by'],
             array_keys($schema['properties']['edges']['items']['properties'])
         );
     }
@@ -123,7 +123,7 @@ class ApiDocsTest extends TestCase
         $listing = $paths['/article-sources']['get']['responses'];
         $item = $listing['200']['content']['application/json']['schema']['properties']['items']['items'];
         $this->assertSame(
-            ['key', 'path', 'blob_sha', 'title', 'status', 'documentation_id', 'published', 'reason', 'reason_message', 'warnings'],
+            ['key', 'path', 'blob_sha', 'title', 'status', 'site_version', 'documentation_id', 'published', 'reason', 'reason_message', 'warnings'],
             array_keys($item['properties'])
         );
         $this->assertArrayHasKey('502', $listing);

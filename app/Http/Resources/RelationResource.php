@@ -33,6 +33,9 @@ class RelationResource extends JsonResource
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
+        /** @var Relation $relation */
+        $relation = $this->resource;
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -52,6 +55,18 @@ class RelationResource extends JsonResource
             'reverse' => $this->whenLoaded('reverse', fn () => $this->reverse ? [
                 'id' => $this->reverse->id,
                 'name' => $this->reverse->name,
+            ] : null),
+            /** 是否已棄用。已棄用的述詞，既有的邊照常保留，新的邊不能再用它。 */
+            'deprecated' => $relation->isDeprecated(),
+            /** 棄用的時間（`Y-m-d H:i:s`）；仍在使用時為 null。 */
+            'deprecated_at' => $relation->deprecated_at?->format('Y-m-d H:i:s'),
+            /** 棄用後改用的述詞 id；沒有指定或仍在使用時為 null。 */
+            'replaced_by_id' => $relation->replaced_by_id,
+            // 跟 reverse 同一個理由，只給最小形狀，不巢狀整個 RelationResource。
+            /** 棄用後改用的述詞的 id 與名稱；沒有指定、仍在使用，或改用的述詞已被刪除時為 null。只有載入改用對象時才會附上。 */
+            'replaced_by' => $this->whenLoaded('replacedBy', fn () => $relation->replacedBy ? [
+                'id' => $relation->replacedBy->id,
+                'name' => $relation->replacedBy->name,
             ] : null),
             // 這一筆能不能改。前端要在送出之前就把鎖定欄位變成唯讀，不能等後端報錯
             // （修改被鎖住的欄位會得到 422，見 RelationLockedException）。

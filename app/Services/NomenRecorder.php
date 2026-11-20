@@ -81,6 +81,7 @@ final class NomenRecorder
 
             $this->write(Nomen::SOURCE_ABOUT_TECHNIQUES, 'site', Nomen::CONTEXT_DOCUMENTATION, $documentation->id, $this->relationId('about'), $entries($about['techniques'] ?? []), $seenAt);
             $this->write(Nomen::SOURCE_ABOUT_PROJECTS, 'site', Nomen::CONTEXT_DOCUMENTATION, $documentation->id, $this->relationId('aboutProject'), $entries($about['projects'] ?? []), $seenAt);
+            // 已知限制：每篇文章都重算整張 nomens，見 docs/tech-debt.md「文章匯入每篇都重算整張 nomens」
             $this->resolver->resolveAll();
         });
     }
@@ -135,9 +136,10 @@ final class NomenRecorder
         );
     }
 
+    /** 跟同步與文章匯入寫邊時一樣，述詞棄用後記它的改用對象（`Relation::resolveByName()`）。 */
     private function relationId(string $name): ?int
     {
-        $id = Relation::where('name', $name)->value('id');
+        $id = Relation::resolveByName($name)?->id;
 
         return $id === null ? null : (int) $id;
     }

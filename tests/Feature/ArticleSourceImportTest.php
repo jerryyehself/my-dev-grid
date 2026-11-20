@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Documentation;
 use App\Models\Scope;
+use App\Services\ArticleSourceService;
+use Closure;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Http;
@@ -65,7 +68,8 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame(self::blobSha($content), $documentation->source_blob_sha);
         $this->assertSame($commit, $documentation->source_commit_sha);
         $this->assertNotNull($documentation->source_imported_at);
-        $this->assertSame(hash('sha256', "## 小節\n\n內文。\n"), $documentation->source_body_hash);
+        // 讀回來的這一列算出的雜湊要跟寫入時記的一樣（PostgreSQL 讀回的日期多了時間），不然下次就會誤判成站上改過
+        $this->assertSame(ArticleSourceService::importedContentHash($documentation), $documentation->source_body_hash);
 
         $this->assertImportEvent('import', $user->id, $id, 'first-post', self::blobSha($content), $commit);
         $this->assertNotLogged('內文。');
@@ -102,7 +106,7 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("新版內文。\n", $documentation->body);
         $this->assertSame('新版標題', $documentation->title);
         $this->assertSame(self::blobSha($content), $documentation->source_blob_sha);
-        $this->assertSame(hash('sha256', "新版內文。\n"), $documentation->source_body_hash);
+        $this->assertSame(ArticleSourceService::importedContentHash($documentation), $documentation->source_body_hash);
     }
 
     #[TestDox('更新草稿：內容換成新版，維持草稿')]
@@ -117,22 +121,183 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("新版內文。\n", $documentation->body);
     }
 
-    #[TestDox('站上改過內文時，沒帶 overwrite_site_edits 回 409，帶了才覆蓋')]
+    #[TestDox('站上改過內文時，沒帶 overwrite_site_edits 回 409，帶了（加上清單上的 site_version）才覆蓋')]
     public function test_conflict_requires_overwrite_site_edits(): void
     {
         [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
         $documentation->forceFill(['body' => "站上改過。\n"])->save();
+        $this->actingAsOwner();
+        $version = $this->listedSiteVersion('the-post');
+
+        $this->import([$this->item('the-post', $content, 'update')], $commit)
+            ->assertConflict()
+            ->assertJsonPath('reason', 'conflict')
+            ->assertJsonStructure(['errors' => ['items.0.overwrite_site_edits']]);
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => false, 'expected_site_version' => $version])], $commit)
+            ->assertConflict()
+            ->assertJsonStructure(['errors' => ['items.0.overwrite_site_edits']]);
+        $this->assertSame("站上改過。\n", $documentation->refresh()->body);
+
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $version])], $commit)->assertOk();
+        $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+    }
+
+    #[TestDox('清單上只有 conflict 的項目附 site_version，值是站上目前標題、日期與內文的雜湊')]
+    public function test_listing_carries_site_version_only_for_conflicts(): void
+    {
+        $new = self::article('new-post', '新文章');
+        [$documentation] = $this->changedArticle(Documentation::STATUS_PUBLISHED, extraFiles: ['new.md' => $new]);
+        $this->actingAsOwner();
+
+        $items = collect($this->getJson('/api/article-sources')->assertOk()->json('items'))->keyBy('key');
+        $this->assertSame('changed', $items['the-post']['status']);
+        $this->assertNull($items['the-post']['site_version']);
+        $this->assertSame('new', $items['new-post']['status']);
+        $this->assertNull($items['new-post']['site_version']);
+
+        $documentation->forceFill(['body' => "站上改過。\n"])->save();
+        $item = collect($this->getJson('/api/article-sources')->assertOk()->json('items'))->firstWhere('key', 'the-post');
+        $this->assertSame('conflict', $item['status']);
+        $this->assertSame(ArticleSourceService::importedContentHash($documentation->refresh()), $item['site_version']);
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function siteFieldsEditedAgain(): iterable
+    {
+        yield '內文' => ['body', "列清單之後又改的內文。\n"];
+        yield '標題' => ['title', '列清單之後又改的標題'];
+        yield '日期' => ['creation_date', '2002-03-04'];
+    }
+
+    #[DataProvider('siteFieldsEditedAgain')]
+    #[TestDox('勾了覆蓋，但列清單之後站上又改過標題、日期或內文：回 409，什麼都不寫')]
+    public function test_site_edit_after_listing_blocks_overwrite(string $column, string $value): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $documentation->forceFill(['body' => "站上改過。\n"])->save();
+        $this->actingAsOwner();
+        $version = $this->listedSiteVersion('the-post');
+        // 看完清單、勾了覆蓋，送出之前站上又被改了一次
+        $documentation->forceFill([$column => $value])->save();
+        $before = $documentation->refresh()->only(['title', 'creation_date', 'body', 'status', 'source_blob_sha', 'source_commit_sha', 'source_imported_at', 'source_body_hash']);
+        $this->captureLogs();
+
+        $response = $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $version])], $commit)
+            ->assertConflict()
+            ->assertJsonPath('reason', 'conflict');
+        $this->assertSame(['items.0.expected_site_version'], array_keys($response->json('errors')));
+
+        $this->assertSame($before, $documentation->refresh()->only(array_keys($before)));
+        $this->assertNoSecurityEvent('authz_admin');
+
+        // 重新列清單拿到新的 site_version，就能覆蓋
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $this->listedSiteVersion('the-post')])], $commit)->assertOk();
+        $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+    }
+
+    #[TestDox('列清單之後站上只改了發布狀態（覆蓋不會動到的欄位）時，照樣能覆蓋')]
+    public function test_status_change_after_listing_does_not_block_overwrite(): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $documentation->forceFill(['body' => "站上改過。\n"])->save();
+        $this->actingAsOwner();
+        $version = $this->listedSiteVersion('the-post');
+        $this->travel(5)->seconds();
+        $documentation->forceFill(['status' => Documentation::STATUS_DRAFT])->save();
+
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $version])], $commit)->assertOk();
+        $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+        $this->assertSame(Documentation::STATUS_DRAFT, (int) $documentation->status);
+    }
+
+    #[TestDox('勾了覆蓋卻沒帶 expected_site_version：回 422，不打 GitHub，什麼都不寫')]
+    public function test_overwrite_without_site_version_is_rejected(): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $documentation->forceFill(['body' => "站上改過。\n"])->save();
+        $this->actingAsOwner();
+        $this->captureLogs();
+
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true])], $commit)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.expected_site_version']);
+
+        $this->assertSame("站上改過。\n", $documentation->refresh()->body);
+        $this->assertSame(str_repeat('1', 40), $documentation->source_blob_sha);
+        $this->assertNoSecurityEvent('authz_admin');
+        Http::assertNothingSent();
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function titleOrDateEdits(): iterable
+    {
+        yield '標題' => ['title', '站上改的標題'];
+        yield '日期' => ['creation_date', '2001-02-03'];
+    }
+
+    #[DataProvider('titleOrDateEdits')]
+    #[TestDox('站上只改過標題或日期時，也要帶 overwrite_site_edits 才覆蓋')]
+    public function test_title_or_date_edit_requires_overwrite_site_edits(string $column, string $siteValue): void
+    {
+        [$documentation] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $content = self::article('the-post', '新版標題', "新版內文。\n", ['creation_date' => '2026-10-01']);
+        $commit = $this->publishSourceFiles(['post.md' => $content]);
+        $documentation->forceFill([$column => $siteValue])->save();
         $this->actingAsOwner();
 
         $this->import([$this->item('the-post', $content, 'update')], $commit)
             ->assertConflict()
             ->assertJsonPath('reason', 'conflict')
             ->assertJsonStructure(['errors' => ['items.0.overwrite_site_edits']]);
-        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => false])], $commit)->assertConflict();
-        $this->assertSame("站上改過。\n", $documentation->refresh()->body);
+        $documentation->refresh();
+        $this->assertStringStartsWith($siteValue, (string) $documentation->{$column});
+        $this->assertSame("舊版內文。\n", $documentation->body);
 
-        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true])], $commit)->assertOk();
-        $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+        $this->import([$this->item('the-post', $content, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $this->listedSiteVersion('the-post')])], $commit)->assertOk();
+        $documentation->refresh();
+        $this->assertSame('新版標題', $documentation->title);
+        $this->assertStringStartsWith('2026-10-01', (string) $documentation->creation_date);
+        $this->assertSame("新版內文。\n", $documentation->body);
+    }
+
+    /**
+     * 匯入時記下的雜湊，要跟之後從資料庫讀回同一列算出的一樣，不然沒人改過的文章下次也會變成 conflict。
+     * 日期最容易出錯：寫入的是 `2026-09-22`，PostgreSQL 讀回來是 `2026-09-22 00:00:00`。
+     * 來源沒寫日期時，update 不改站上的日期，雜湊要用站上那個日期算。
+     *
+     * @return iterable<string, array{array<string, string>}>
+     */
+    public static function sourceDates(): iterable
+    {
+        yield '來源有日期' => [['creation_date' => '2026-09-22']];
+        yield '來源沒有日期' => [[]];
+    }
+
+    /**
+     * @param  array<string, string>  $date
+     */
+    #[DataProvider('sourceDates')]
+    #[TestDox('新增、更新、連結過的文章站上沒改時，來源再改版是 changed')]
+    public function test_untouched_article_is_changed_not_conflict_after_each_write(array $date): void
+    {
+        $this->actingAsOwner();
+        $v1 = self::article('the-post', '第一版', "第一版內文。\n", $date);
+        $c1 = $this->publishSourceFiles(['post.md' => $v1, 'legacy.md' => self::article('legacy', '既有文章')]);
+        $legacy = Documentation::factory()->create(['type' => $this->post->id, 'title' => '既有文章', 'body' => "站上的版本。\n", 'creation_date' => '2025-05-06']);
+        $this->import([
+            $this->item('the-post', $v1, 'create'),
+            $this->item('legacy', self::article('legacy', '既有文章'), 'link', ['documentation_id' => $legacy->id]),
+        ], $c1)->assertOk();
+
+        $v2 = self::article('the-post', '第二版', "第二版內文。\n", $date);
+        $c2 = $this->publishSourceFiles(['post.md' => $v2, 'legacy.md' => self::article('legacy', '既有文章', "來源改版。\n")]);
+        $this->assertSame(['legacy' => 'changed', 'the-post' => 'changed'], $this->statuses());
+
+        $this->import([$this->item('the-post', $v2, 'update')], $c2)->assertOk();
+        // 分支最新 commit 的快取 60 秒內不重打 GitHub
+        $this->travel(61)->seconds();
+        $this->publishSourceFiles(['post.md' => self::article('the-post', '第三版', "第三版內文。\n", $date), 'legacy.md' => self::article('legacy', '既有文章', "來源改版。\n")]);
+        $this->assertSame(['legacy' => 'changed', 'the-post' => 'changed'], $this->statuses());
     }
 
     #[TestDox('連結既有文章：只寫來源欄位，標題與內文都不動')]
@@ -157,7 +322,7 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame($before, $documentation->only(array_keys($before)));
         $this->assertSame('legacy', $documentation->source_key);
         $this->assertSame(self::blobSha($content), $documentation->source_blob_sha);
-        $this->assertSame(hash('sha256', "站上的版本。\n"), $documentation->source_body_hash);
+        $this->assertSame(ArticleSourceService::importedContentHash($documentation), $documentation->source_body_hash);
         // 連結不用下載內容
         $this->assertCount($contentRequests, $this->githubRequests('/contents/'));
         $this->assertImportEvent('link', $user->id, $documentation->id, 'legacy', self::blobSha($content), $commit);
@@ -172,7 +337,7 @@ class ArticleSourceImportTest extends TestCase
         $content = self::article('new-slug', '改過 slug 的文章');
         $commit = $this->publishSourceFiles(['post.md' => $content]);
         $documentation = Documentation::factory()->create(['type' => $this->post->id, 'title' => '改過 slug 的文章', 'body' => "內文第一段。\n"]);
-        $documentation->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'old-slug', 'source_path' => 'post.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => hash('sha256', "內文第一段。\n")])->save();
+        $documentation->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'old-slug', 'source_path' => 'post.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => ArticleSourceService::importedContentHash($documentation)])->save();
         $this->actingAsOwner();
 
         $statuses = collect($this->getJson('/api/article-sources')->json('items'))->pluck('status', 'key')->all();
@@ -189,7 +354,7 @@ class ArticleSourceImportTest extends TestCase
         $content = self::article('another', '另一篇');
         $commit = $this->publishSourceFiles(['taken.md' => $taken, 'another.md' => $content]);
         $documentation = Documentation::factory()->create(['type' => $this->post->id]);
-        $documentation->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'taken', 'source_path' => 'taken.md', 'source_blob_sha' => self::blobSha($taken), 'source_body_hash' => hash('sha256', '')])->save();
+        $documentation->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'taken', 'source_path' => 'taken.md', 'source_blob_sha' => self::blobSha($taken), 'source_body_hash' => ArticleSourceService::importedContentHash($documentation)])->save();
         $this->actingAsOwner();
 
         $this->import([$this->item('another', $content, 'link', ['documentation_id' => $documentation->id])], $commit)
@@ -222,7 +387,7 @@ class ArticleSourceImportTest extends TestCase
         $content = self::article('gone', '刪掉的文章', "新版。\n");
         $commit = $this->publishSourceFiles(['gone.md' => $content]);
         $deleted = Documentation::factory()->create(['type' => $this->post->id, 'body' => "舊版。\n"]);
-        $deleted->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'gone', 'source_path' => 'gone.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => hash('sha256', "舊版。\n")])->save();
+        $deleted->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'gone', 'source_path' => 'gone.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => ArticleSourceService::importedContentHash($deleted)])->save();
         $deleted->delete();
         $this->actingAsOwner();
         $this->getJson('/api/article-sources')->assertJsonPath('items.0.status', 'site_deleted');
@@ -270,6 +435,152 @@ class ArticleSourceImportTest extends TestCase
         $this->assertNotEmpty(array_filter($this->githubRequests('/contents/'), fn (Request $request) => str_contains($request->url(), 'ref='.$oldCommit)));
     }
 
+    #[TestDox('用比站上已匯入的版本還舊的 commit 更新時回 409，不把文章倒回舊內容')]
+    public function test_update_from_a_commit_older_than_the_imported_one_is_rejected(): void
+    {
+        [$documentation, $v2, $c2, $v3, $c3] = $this->importedFromNewerCommit();
+
+        $this->import([$this->item('the-post', $v2, 'update')], $c2)
+            ->assertConflict()
+            ->assertJsonPath('reason', 'conflict')
+            ->assertJsonStructure(['errors' => ['items.0.action']]);
+
+        $documentation->refresh();
+        $this->assertSame("第三版內文。\n", $documentation->body);
+        $this->assertSame('第三版', $documentation->title);
+        $this->assertSame(self::blobSha($v3), $documentation->source_blob_sha);
+        $this->assertSame($c3, $documentation->source_commit_sha);
+    }
+
+    #[TestDox('站上改過內文時，帶 overwrite_site_edits 也不能用較舊的 commit 覆蓋')]
+    public function test_older_commit_is_rejected_even_when_overwriting_site_edits(): void
+    {
+        [$documentation, $v2, $c2] = $this->importedFromNewerCommit();
+        $documentation->forceFill(['body' => "站上改過。\n"])->save();
+
+        $version = ArticleSourceService::importedContentHash($documentation->refresh());
+
+        $this->import([$this->item('the-post', $v2, 'update', ['overwrite_site_edits' => true, 'expected_site_version' => $version])], $c2)
+            ->assertConflict()
+            ->assertJsonStructure(['errors' => ['items.0.action']]);
+
+        $this->assertSame("站上改過。\n", $documentation->refresh()->body);
+    }
+
+    #[TestDox('比站上已匯入的版本新的 commit 照常更新；新增時不用比對版本')]
+    public function test_update_from_a_commit_newer_than_the_imported_one_succeeds(): void
+    {
+        [$documentation, , , , $c3] = $this->importedFromNewerCommit();
+        $v4 = self::article('the-post', '第四版', "第四版內文。\n");
+        $c4 = $this->publishSourceFiles(['post.md' => $v4]);
+
+        $this->import([$this->item('the-post', $v4, 'update')], $c4)->assertOk();
+
+        $this->assertSame("第四版內文。\n", $documentation->refresh()->body);
+        $this->assertSame($c4, $documentation->source_commit_sha);
+        $this->assertCount(1, $this->githubRequests("/compare/{$c3}...{$c4}"));
+        // 第一次新增（importedFromNewerCommit 裡）沒有站上的版本可比，不打 Compare API
+        $this->assertCount(2, $this->githubRequests('/compare/'));
+    }
+
+    #[TestDox('歷史被改寫（兩個 commit 互不包含）時不擋更新')]
+    public function test_diverged_history_does_not_block_update(): void
+    {
+        [$documentation, $v2, $c2] = $this->importedFromNewerCommit();
+        $this->overrideGitHub(fn (Request $request) => str_contains($request->url(), '/compare/')
+            ? Http::response(['status' => 'diverged', 'ahead_by' => 1, 'behind_by' => 1])
+            : null);
+
+        $this->import([$this->item('the-post', $v2, 'update')], $c2)->assertOk();
+
+        $this->assertSame("第二版內文。\n", $documentation->refresh()->body);
+    }
+
+    #[TestDox('站上記的 commit GitHub 已經查不到時不擋更新')]
+    public function test_imported_commit_unknown_to_github_does_not_block_update(): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $this->actingAsOwner();
+
+        $this->import([$this->item('the-post', $content, 'update')], $commit)->assertOk();
+
+        $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+        $this->assertCount(1, $this->githubRequests('/compare/'.str_repeat('2', 40).'...'.$commit));
+    }
+
+    #[TestDox('站上記的 commit 不是 SHA 格式時不組進 GitHub 網址，也不擋更新')]
+    public function test_malformed_imported_commit_is_not_sent_to_github(): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $documentation->forceFill(['source_commit_sha' => '../../main'])->save();
+        $this->actingAsOwner();
+
+        $this->import([$this->item('the-post', $content, 'update')], $commit)->assertOk();
+
+        $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+        $this->assertSame([], $this->githubRequests('/compare/'));
+    }
+
+    /** @return iterable<string, array{Closure(): mixed, int, string}> */
+    public static function compareFailures(): iterable
+    {
+        yield 'GitHub 回 500' => [fn () => Http::response(['message' => 'boom'], 500), 502, 'github_error'];
+        yield '連線逾時' => [fn () => throw new ConnectionException('timed out'), 502, 'github_unreachable'];
+        yield '回應沒有 status' => [fn () => Http::response(['ahead_by' => 1]), 502, 'github_bad_response'];
+        yield 'status 不是已知的值' => [fn () => Http::response(['status' => 'behindish']), 502, 'github_bad_response'];
+        yield '被限流' => [fn () => Http::response(['message' => 'rate limited'], 429, ['retry-after' => '30']), 503, 'github_rate_limited'];
+    }
+
+    /** @param  Closure(): mixed  $failure */
+    #[DataProvider('compareFailures')]
+    #[TestDox('比對版本時 GitHub 出錯：回錯誤，什麼都不寫')]
+    public function test_compare_failure_writes_nothing(Closure $failure, int $status, string $reason): void
+    {
+        [$documentation, $v2, $c2] = $this->importedFromNewerCommit();
+        $this->overrideGitHub(fn (Request $request) => str_contains($request->url(), '/compare/') ? $failure() : null);
+
+        $this->import([$this->item('the-post', $v2, 'update')], $c2)
+            ->assertStatus($status)
+            ->assertJsonPath('reason', $reason);
+
+        $this->assertSame("第三版內文。\n", $documentation->refresh()->body);
+    }
+
+    #[TestDox('比對完、寫入前，那一篇被另一個請求匯入了別的版本：回 409，不寫入')]
+    public function test_import_landing_after_the_compare_is_a_conflict(): void
+    {
+        [$documentation, , , , $c3] = $this->importedFromNewerCommit();
+        $v4 = self::article('the-post', '第四版', "第四版內文。\n");
+        $c4 = $this->publishSourceFiles(['post.md' => $v4]);
+        $v5 = self::article('the-post', '第五版', "第五版內文。\n");
+        $c5 = $this->publishSourceFiles(['post.md' => $v5]);
+        // 用 c4 的清單匯入；比對 c3...c4 之後、下載要寫入的內容時，另一個請求先把 c5 寫進去了。
+        // c4 的檔案會下載兩次：第一次是列出檔案時的解析摘要（在比對之前），第二次才是比對之後下載要寫入的內容
+        $downloads = 0;
+        $this->overrideGitHub(function (Request $request) use ($documentation, $c4, $c5, $v5, &$downloads) {
+            if (str_contains($request->url(), '/contents/') && str_contains($request->url(), 'ref='.$c4) && ++$downloads === 2) {
+                $fifth = ['title' => '第五版', 'body' => "第五版內文。\n"];
+                Documentation::whereKey($documentation->id)->update($fifth + [
+                    'source_blob_sha' => self::blobSha($v5), 'source_commit_sha' => $c5,
+                    'source_body_hash' => ArticleSourceService::importedContentHash((clone $documentation)->forceFill($fifth)),
+                ]);
+            }
+
+            return null;
+        });
+
+        $this->import([$this->item('the-post', $v4, 'update')], $c4)
+            ->assertConflict()
+            ->assertJsonStructure(['errors' => ['items.0.action']]);
+
+        $this->assertSame(2, $downloads);
+        $this->assertCount(1, $this->githubRequests("/compare/{$c3}...{$c4}"));
+        // 擋下來的是「比對過的版本已經不是站上的版本」，不是另外拿 c5 去比
+        $this->assertCount(0, $this->githubRequests("/compare/{$c5}"));
+        $this->assertSame("第五版內文。\n", $documentation->refresh()->body);
+        $this->assertSame($c5, $documentation->source_commit_sha);
+    }
+
     #[TestDox('GitHub 找不到 commit_sha 時回 409')]
     public function test_unknown_commit_returns_409(): void
     {
@@ -305,7 +616,7 @@ class ArticleSourceImportTest extends TestCase
             $documentation->forceFill([
                 'source_repo' => $this->sourceRepo, 'source_key' => 'the-post', 'source_path' => 'post.md',
                 'source_blob_sha' => $status === 'unchanged' ? self::blobSha($content) : str_repeat('1', 40),
-                'source_body_hash' => hash('sha256', "內文第一段。\n"),
+                'source_body_hash' => ArticleSourceService::importedContentHash($documentation),
             ])->save();
         }
         $this->actingAsOwner();
@@ -341,7 +652,7 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("站上改過。\n", $documentation->refresh()->body);
     }
 
-    #[TestDox('寫到一半失敗（第二項找不到 post 分類）時，第一項已寫的更新會整批回滾')]
+    #[TestDox('寫到一半失敗（第二項找不到 post 分類）時，第一項已寫的更新會整批回滾，也不留稽核紀錄')]
     public function test_failure_on_a_later_write_rolls_back_the_earlier_write(): void
     {
         $newPost = self::article('new-post', '新文章');
@@ -351,6 +662,7 @@ class ArticleSourceImportTest extends TestCase
         $this->post->delete();
         $before = $documentation->refresh()->only(['title', 'body', 'status', 'source_key', 'source_path', 'source_blob_sha', 'source_commit_sha', 'source_imported_at', 'source_body_hash']);
         $this->actingAsOwner();
+        $this->captureLogs();
 
         $this->import([
             $this->item('the-post', $changed, 'update'),
@@ -363,6 +675,8 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame("舊版內文。\n", $documentation->body);
         $this->assertSame(str_repeat('1', 40), $documentation->source_blob_sha);
         $this->assertSame(1, Documentation::withTrashed()->count());
+        // 第一項 update 在 transaction 裡觸發的稽核紀錄，跟著回滾，不會寫出去
+        $this->assertNoSecurityEvent('authz_admin');
     }
 
     #[TestDox('同一批兩項連到同一篇文章時，請求格式就擋下回 422，什麼都不寫')]
@@ -389,7 +703,7 @@ class ArticleSourceImportTest extends TestCase
         $other = self::article('other', '還在的文章');
         $this->publishSourceFiles(['other.md' => $other]);
         $deleted = Documentation::factory()->create(['type' => $this->post->id]);
-        $deleted->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'gone', 'source_path' => 'gone.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => hash('sha256', '')])->save();
+        $deleted->forceFill(['source_repo' => $this->sourceRepo, 'source_key' => 'gone', 'source_path' => 'gone.md', 'source_blob_sha' => str_repeat('1', 40), 'source_body_hash' => ArticleSourceService::importedContentHash($deleted)])->save();
         $deleted->delete();
         $this->actingAsOwner();
 
@@ -461,6 +775,24 @@ class ArticleSourceImportTest extends TestCase
         yield 'documentation_id 不是整數' => [['commit_sha' => $sha, 'items' => [['action' => 'link', 'documentation_id' => 'abc'] + $item]], 'items.0.documentation_id'];
         yield 'documentation_id 超出 bigint' => [['commit_sha' => $sha, 'items' => [['action' => 'link', 'documentation_id' => '99999999999999999999'] + $item]], 'items.0.documentation_id'];
         yield 'overwrite_site_edits 不是布林' => [['commit_sha' => $sha, 'items' => [['overwrite_site_edits' => 'yes'] + $item]], 'items.0.overwrite_site_edits'];
+        $version = str_repeat('c', 64);
+        foreach (['true' => true, '1' => 1, "'1'" => '1'] as $label => $overwrite) {
+            yield "overwrite_site_edits={$label} 沒帶 expected_site_version" => [['commit_sha' => $sha, 'items' => [['overwrite_site_edits' => $overwrite] + $item]], 'items.0.expected_site_version'];
+        }
+        $badVersions = [
+            'null' => null,
+            '空字串' => '',
+            '63 位' => substr($version, 1),
+            '65 位' => $version.'c',
+            '大寫' => strtoupper($version),
+            '不是 hex' => str_repeat('g', 64),
+            '40 位的 blob SHA' => $sha,
+            '整數' => 1,
+            '陣列' => [$version],
+        ];
+        foreach ($badVersions as $label => $bad) {
+            yield "expected_site_version {$label}" => [['commit_sha' => $sha, 'items' => [['overwrite_site_edits' => true, 'expected_site_version' => $bad] + $item]], 'items.0.expected_site_version'];
+        }
     }
 
     /** @param  array<string, mixed>  $payload */
@@ -536,10 +868,51 @@ class ArticleSourceImportTest extends TestCase
         $documentation->forceFill([
             'source_repo' => $this->sourceRepo, 'source_key' => 'the-post', 'source_path' => 'post.md',
             'source_blob_sha' => str_repeat('1', 40), 'source_commit_sha' => str_repeat('2', 40),
-            'source_body_hash' => hash('sha256', "舊版內文。\n"),
+            'source_body_hash' => ArticleSourceService::importedContentHash($documentation),
         ])->save();
 
         return [$documentation, $content, $commit];
+    }
+
+    /**
+     * 第一版用 c1 新增；之後依序推了第二版（c2）、第三版（c3），站上已經用 c3 更新。
+     * 用 c2 的清單（看的時候第二版還是最新）送出更新，就是「舊畫面的匯入」。
+     *
+     * @return array{0: Documentation, 1: string, 2: string, 3: string, 4: string}
+     */
+    private function importedFromNewerCommit(): array
+    {
+        $v1 = self::article('the-post', '第一版', "第一版內文。\n");
+        $c1 = $this->publishSourceFiles(['post.md' => $v1]);
+        $this->actingAsOwner();
+        $id = $this->import([$this->item('the-post', $v1, 'create')], $c1)->assertOk()->json('data.0.documentation_id');
+
+        $v2 = self::article('the-post', '第二版', "第二版內文。\n");
+        $c2 = $this->publishSourceFiles(['post.md' => $v2]);
+        $v3 = self::article('the-post', '第三版', "第三版內文。\n");
+        $c3 = $this->publishSourceFiles(['post.md' => $v3]);
+        $this->import([$this->item('the-post', $v3, 'update')], $c3)->assertOk();
+
+        $documentation = Documentation::findOrFail($id);
+        $this->assertSame($c3, $documentation->source_commit_sha);
+
+        return [$documentation, $v2, $c2, $v3, $c3];
+    }
+
+    /** 清單上這一項的 `site_version`（只有 conflict 的項目有）。 */
+    private function listedSiteVersion(string $key): string
+    {
+        $item = collect($this->getJson('/api/article-sources')->assertOk()->json('items'))->firstWhere('key', $key);
+        $this->assertSame('conflict', $item['status']);
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $item['site_version']);
+
+        return $item['site_version'];
+    }
+
+    /** @return array<string, string> 清單上每一項的 key => status */
+    private function statuses(): array
+    {
+        return collect($this->getJson('/api/article-sources')->assertOk()->json('items'))->pluck('status', 'key')->sortKeys()->all();
     }
 
     /**

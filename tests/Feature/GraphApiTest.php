@@ -932,7 +932,7 @@ class GraphApiTest extends TestCase
         $edge = $this->findEdge($this->getJson('/api/graph')->assertOk(), "documentation-{$documentation->id}", "technique-{$technique->id}");
 
         $this->assertSame(
-            ['added_at', 'label', 'predicate', 'relation_id', 'source', 'stale', 'target'],
+            ['added_at', 'label', 'predicate', 'predicate_deprecated', 'predicate_replaced_by', 'relation_id', 'source', 'stale', 'target'],
             collect($edge)->keys()->sort()->values()->all(),
         );
         $this->assertSame('documents', $edge['predicate']);

@@ -184,7 +184,8 @@ class TechniqueAuthorityTest extends TestCase
     #[TestDox('同步不會改寫同一對實體上的其他述詞')]
     public function test_sync_does_not_rewrite_other_predicates_on_the_same_pair(): void
     {
-        // 手動建的「Claude assists 這個專案」，同步再看到 topic claude 時不能被改成 usedBy
+        // 手動建的「Claude assists 這個專案」，同步再看到 topic claude 時不能被改成同步的述詞。
+        // claude 只出現在 topic，同步在旁邊另寫一列 subjectOfProject（assists 不是同步管理的述詞）
         $this->sync([]);
         $project = Implementation::where('git_repo_id', 111)->firstOrFail();
         $claude = Technique::create(['type' => Scope::where('name', 'packagetool')->value('id'), 'title' => 'claude']);
@@ -202,7 +203,8 @@ class TechniqueAuthorityTest extends TestCase
         $relations = DB::table('technique_implementation')
             ->where(['implementation_id' => $project->id, 'technique_id' => $claude->id])
             ->pluck('relation_id')->sort()->values()->all();
-        $this->assertSame(collect([$assists, $this->usedBy()])->sort()->values()->all(), $relations);
+        $subjectOfProject = Relation::where('name', 'subjectOfProject')->value('id');
+        $this->assertSame(collect([$assists, $subjectOfProject])->sort()->values()->all(), $relations);
     }
 
     #[TestDox('Linguist 誤判的 Hack 語言不建技術，也不連邊')]
@@ -215,7 +217,7 @@ class TechniqueAuthorityTest extends TestCase
         $this->assertEqualsCanonicalizing(['laravel', 'php'], array_map('strtolower', $this->projectTechniques()));
     }
 
-    #[TestDox('略過的語言不更新舊邊的 last_seen_at，讓它自己變成過期')]
+    #[TestDox('略過的語言不更新舊邊的 last_seen_at，舊邊也不刪')]
     public function test_an_ignored_language_does_not_refresh_an_existing_edge(): void
     {
         $hack = Technique::create(['type' => Scope::where('name', 'language')->value('id'), 'title' => 'Hack']);
@@ -232,7 +234,7 @@ class TechniqueAuthorityTest extends TestCase
 
         $seen = DB::table('technique_implementation')->where('technique_id', $hack->id)->value('last_seen_at');
         $this->assertStringStartsWith('2026-09-01', (string) $seen);
-        // 別的技術照常更新，所以 Hack 的邊相對於最新一次同步已經超過 14 天
+        // 別的技術照常更新，Hack 的邊停在原本的時間，但邊還在
         $this->assertSame('2026-11-01', substr((string) DB::table('technique_implementation')->max('last_seen_at'), 0, 10));
     }
 

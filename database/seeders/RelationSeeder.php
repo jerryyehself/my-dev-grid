@@ -330,6 +330,76 @@ class RelationSeeder extends Seeder
         $this->pairReverse($seeded['targets'], $seeded['targetedBy']);
         $this->pairReverse($seeded['influences'], $seeded['influencedBy']);
 
+        // 改作與建置產物：這個實作是從另一份來源改出來的，或是由另一個專案建置出來的成品。
+        // 借 schema.org 的 isBasedOn／isBasisFor：
+        // https://schema.org/isBasedOn 、https://schema.org/isBasisFor 。
+        //
+        // 述詞的受詞只能指到一個頂層分類（RelationFitsLinkedScopes），名稱又不能重複，所以來源是
+        // 文件（例如外部 repo 的 Documentation）和來源是另一個實作各一對，後者加上 Project 字樣，
+        // 做法跟 about／aboutProject 一樣。兩對都對應同一組 schema.org 詞條。
+        // - 文件 isBasisFor 實作：外部 repo 是這個實作的基礎（改作）。類號 02／20，
+        //   子類號接在該類號已用過的 00、10、20 後面，所以用 30。
+        // - 實作 isBasedOnProject 實作：建置產物指向它的來源專案。類號 22，已用過 00 到 40，所以用 50、60。
+        //   跟 descendantOf 不同：descendantOf 是同一個譜系的前後代（含 fork），這一對是產物與來源。
+        // 放在最後面，原有述詞的 id 不變。
+        $derivationPredicates = [
+            // [類號, 子類號, 名稱, 說明, 詞條]
+            ['02', '30', 'isBasisFor', 'this Documentation (an external repository) is the basis the Implementation was adapted from.', 'isBasisFor'],
+            ['20', '30', 'isBasedOn', 'reverse of isBasisFor: the Implementation is adapted from this Documentation (an external repository).', 'isBasedOn'],
+            ['22', '50', 'isBasedOnProject', 'the Implementation is a build output of, or adapted from, another Implementation (the source project). Differs from descendantOf, which links two repos of the same lineage.', 'isBasedOn'],
+            ['22', '60', 'isBasisForProject', 'reverse of isBasedOnProject: this Implementation is the source of another Implementation\'s build output.', 'isBasisFor'],
+        ];
+
+        foreach ($derivationPredicates as [$classNumber, $callNumber, $name, $note, $sourceTerm]) {
+            // 主詞、受詞的頂層分類由類號的兩碼決定，做法跟上面外部參考的述詞一樣
+            $subject = $leadScopes->firstWhere('class_number', "{$classNumber[0]}0");
+            $object = $leadScopes->firstWhere('class_number', "{$classNumber[1]}0");
+
+            $seeded[$name] = $this->relation([
+                'subject_id' => $subject->id,
+                'object_id' => $object->id,
+                'class_number' => $classNumber,
+                'call_number' => $callNumber,
+                'name' => $name,
+                'note' => "schema.org {$sourceTerm} (https://schema.org/{$sourceTerm}) — {$note}",
+                'source_vocabulary' => 'schema',
+                'source_term' => $sourceTerm,
+            ]);
+        }
+
+        $this->pairReverse($seeded['isBasisFor'], $seeded['isBasedOn']);
+        $this->pairReverse($seeded['isBasedOnProject'], $seeded['isBasisForProject']);
+
+        // 專案「關於」某個技術：GitHub 同步只在 topic 看到、程式裡（語言統計、套件清單）沒有證據的技術，
+        // 寫這一對，不寫 usedBy（見 SaveReposDataService）。借 schema.org 的 about／subjectOf。
+        //
+        // technique_implementation 一律以技術當主詞，同步寫的是 subjectOfProject（技術 → 專案），
+        // projectAbout 是反向，給圖上反著讀用。about／subjectOf 已經給「文件 ↔ 技術」用了、
+        // aboutProject／projectSubjectOf 已經給「文件 ↔ 專案」用了，名稱不能重複，所以在專案那一端加 Project 字樣。
+        // 跟 usedBy／uses、assists／assisted-by 平輩（類號 12／21 相同、子類號不同）：說一個專案在講某個技術，
+        // 不蘊含它用了那個技術。12 已用 00（usedBy）、10（assists），21 已用 00（uses）、10（assisted-by），所以用 20。
+        // 放在最後面，原有述詞的 id 不變。
+        $projectAboutPredicates = [
+            // [類號, 名稱, 主詞端, 受詞端, 詞條, 說明]
+            ['12', 'subjectOfProject', $technique, $implementation, 'subjectOf', 'the Technique is a subject of the Implementation (project): the project is about it, but its code shows no evidence of using it (it appears only in the repository topics).'],
+            ['21', 'projectAbout', $implementation, $technique, 'about', 'reverse of subjectOfProject: the Implementation (project) is about the Technique without using it in its code.'],
+        ];
+
+        foreach ($projectAboutPredicates as [$classNumber, $name, $subject, $object, $sourceTerm, $note]) {
+            $seeded[$name] = $this->relation([
+                'subject_id' => $subject->id,
+                'object_id' => $object->id,
+                'class_number' => $classNumber,
+                'call_number' => '20',
+                'name' => $name,
+                'note' => "schema.org {$sourceTerm} (https://schema.org/{$sourceTerm}) — {$note}",
+                'source_vocabulary' => 'schema',
+                'source_term' => $sourceTerm,
+            ]);
+        }
+
+        $this->pairReverse($seeded['subjectOfProject'], $seeded['projectAbout']);
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 
@@ -356,6 +426,8 @@ class RelationSeeder extends Seeder
      *   取消的配對（反向關係清成 null），重跑不能把它配回去。
      * - 兩邊都沒被刪除：不把新建的述詞配給後台刪掉的那一筆。
      * - 兩邊都還沒配對：不搶走別筆的反向關係。
+     * - 兩邊都沒有棄用：成對的兩邊棄用狀態要一致（見 Relation::deprecate()），新建的述詞不能配給
+     *   一條已棄用的。這種情況要在後台處理（取消棄用、或另指定反向）。
      */
     private function pairReverse(Relation $relation, Relation $reverse): void
     {
@@ -364,6 +436,10 @@ class RelationSeeder extends Seeder
         }
 
         if ($relation->trashed() || $reverse->trashed()) {
+            return;
+        }
+
+        if ($relation->isDeprecated() || $reverse->isDeprecated()) {
             return;
         }
 

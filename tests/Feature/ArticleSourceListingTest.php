@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Documentation;
 use App\Models\Scope;
+use App\Services\ArticleSourceService;
+use Closure;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
@@ -104,6 +106,66 @@ class ArticleSourceListingTest extends TestCase
         $this->assertNotEmpty($items['posts/no-slug.md']['reason_message']);
         $this->assertNull($items['posts/removed.md']['blob_sha']);
         $this->assertNull($items['posts/new.md']['reason']);
+    }
+
+    /**
+     * update 會用來源的標題與日期覆蓋站上的值，所以後台只改了標題或日期，也要算成站上改過，不能默默蓋掉。
+     *
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function siteEditsAfterImport(): iterable
+    {
+        yield '沒有改' => [[], 'changed'];
+        yield '同一個日期換個寫法存回去' => [['creation_date' => '2026-01-02 00:00:00'], 'changed'];
+        yield '改了標題' => [['title' => '站上改過的標題'], 'conflict'];
+        yield '標題改成空字串' => [['title' => ''], 'conflict'];
+        yield '改了日期' => [['creation_date' => '2026-01-03'], 'conflict'];
+        yield '只改日期的時間' => [['creation_date' => '2026-01-02 08:00:00'], 'conflict'];
+        yield '日期清成 NULL' => [['creation_date' => null], 'conflict'];
+        yield '改了內文' => [['body' => "站上改過的內文。\n"], 'conflict'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $edits
+     */
+    #[DataProvider('siteEditsAfterImport')]
+    #[TestDox('來源有新版時，站上改過標題、日期或內文的列為 conflict')]
+    public function test_site_edits_to_title_date_or_body_are_conflicts(array $edits, string $expected): void
+    {
+        $this->publishSourceFiles(['post.md' => self::article('the-post', '來源的新標題', "來源的新版。\n")]);
+        $documentation = $this->linked('the-post', 'post.md', str_repeat('1', 40), "匯入時的內文。\n", ['creation_date' => '2026-01-02']);
+        $documentation->forceFill($edits)->save();
+        $this->actingAsOwner();
+
+        $this->getJson('/api/article-sources')->assertOk()
+            ->assertJsonPath('items.0.status', $expected)
+            ->assertJsonPath('items.0.documentation_id', $documentation->id);
+    }
+
+    /**
+     * 標題與日期納入比對之前匯入的文章只記了內文的雜湊，看不出之後標題、日期有沒有被改，一律要求確認。
+     *
+     * @return iterable<string, array{Closure(string): ?string}>
+     */
+    public static function hashesThatDoNotCoverTitleAndDate(): iterable
+    {
+        yield '只有內文的雜湊（舊紀錄）' => [fn (string $body) => hash('sha256', $body)];
+        yield '沒有記錄' => [fn (string $body) => null];
+    }
+
+    /**
+     * @param  Closure(string): ?string  $hash
+     */
+    #[DataProvider('hashesThatDoNotCoverTitleAndDate')]
+    #[TestDox('匯入紀錄沒有涵蓋標題與日期的文章，來源有新版時列為 conflict')]
+    public function test_record_without_title_and_date_is_a_conflict(Closure $hash): void
+    {
+        $this->publishSourceFiles(['post.md' => self::article('the-post', '來源的新標題', "來源的新版。\n")]);
+        $documentation = $this->linked('the-post', 'post.md', str_repeat('1', 40), "匯入時的內文。\n");
+        $documentation->forceFill(['source_body_hash' => $hash("匯入時的內文。\n")])->save();
+        $this->actingAsOwner();
+
+        $this->getJson('/api/article-sources')->assertOk()->assertJsonPath('items.0.status', 'conflict');
     }
 
     #[TestDox('路徑與 blob 都沒變的已連結檔案不會下載內容')]
@@ -282,7 +344,8 @@ class ArticleSourceListingTest extends TestCase
         yield '403 沒有權限' => [403, ['x-ratelimit-remaining' => '4999'], 502, 'github_forbidden'];
         yield '404 找不到 repo' => [404, [], 502, 'github_not_found'];
         yield '500 GitHub 出錯' => [500, [], 502, 'github_error'];
-        yield '403 主要限流' => [403, ['x-ratelimit-remaining' => '0', 'x-ratelimit-reset' => (string) (time() + 120)], 503, 'github_rate_limited'];
+        // data provider 在整批測試開始前就算好；Infection 跑到這裡可能已過兩分鐘，重置時間要留足一小時
+        yield '403 主要限流' => [403, ['x-ratelimit-remaining' => '0', 'x-ratelimit-reset' => (string) (time() + 3600)], 503, 'github_rate_limited'];
         yield '403 次要限流' => [403, ['retry-after' => '30'], 503, 'github_rate_limited'];
         yield '429 限流' => [429, ['retry-after' => '45'], 503, 'github_rate_limited'];
     }
@@ -461,7 +524,7 @@ class ArticleSourceListingTest extends TestCase
             'source_blob_sha' => $blobSha,
             'source_commit_sha' => str_repeat('9', 40),
             'source_imported_at' => '2026-01-01 00:00:00',
-            'source_body_hash' => hash('sha256', $body),
+            'source_body_hash' => ArticleSourceService::importedContentHash($documentation),
         ])->save();
 
         return $documentation;
