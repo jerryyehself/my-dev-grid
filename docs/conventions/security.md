@@ -62,4 +62,4 @@
 
 ## 目前已知不符的地方
 
-- `SaveReposDataService::save_repos_content()` 把 GitHub 的 `html_url` 原樣寫進 `implementations.url`，沒有檢查協定（還沒有對應的測試）。其他來源都符合：四個 FormRequest 的 `url`、文件的 `uri` 都是 `nullable|url:http,https`；seeder 沒有寫入網址，`link_official_docs()` 寫入的是程式裡寫死的 `https` 網址。
+- `SaveReposDataService::save_repos_content()` 把 GitHub 的 `html_url` 原樣寫進 `implementations.url`，沒有檢查協定（還沒有對應的測試）。其他來源都符合：四個 FormRequest 的 `url`、文件的 `uri` 都是 `nullable|url:http,https`。`GitHubReposSnapshotSeeder` 的 fixture 也經過同一個函式寫入，一樣沒檢查。`link_official_docs()` 寫入的是程式裡寫死的 `https` 網址。
