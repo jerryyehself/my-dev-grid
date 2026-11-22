@@ -116,7 +116,7 @@ jsonPayload.context.event="authn_login_fail"
 | `invalid_refresh_token` | 帶了 refresh cookie 但無效或過期 |
 | `callback_token_already_used` | 同一支 OAuth 回呼 token 被同時拿來換兩次，後到的那個 |
 
-OAuth 的三種例外（`invalid_state`、`provider_denied`、`provider_error`）記完照原樣丟出，回應跟改動前一樣是 500，也照樣有一筆 `ERROR` 日誌。
+OAuth 的三種例外記完之後：`invalid_state` 是使用者重試就會好的情況，改成導回帶 `?auth_error=state_expired`（token 模式導回前端，session 模式導回首頁），不再回 500，也沒有 `ERROR` 日誌；`provider_denied`、`provider_error` 照原樣丟出，回應是 500，也照樣有一筆 `ERROR` 日誌。
 
 刻意不記：寬限秒數內的併發換發（409，正常情況）、沒帶 cookie 的 refresh（前端每次開機都會打，沒登入過的訪客每一頁都是）、401、驗證失敗（422）。
 
