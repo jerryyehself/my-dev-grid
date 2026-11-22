@@ -21,6 +21,7 @@
   - 全新的資料庫要能直接跑過：資料不存在時就跳過（`if (! DB::table('techniques')->exists()) return;`）。
   - 有 `down()`。會刪資料或改寫資料的，先把原值備份到暫存表，`down()` 照備份還原（`merge_duplicate_techniques` 的 `technique_merge_backups`）。
   - 補一個測試，跑 `up()`、`down()` 驗證資料：`FixUsesRelationDirectionMigrationTest`、`MergeDuplicateTechniquesMigrationTest`。
+- 新增、改名或刪除 README 兩張 ER 圖（`docs/readme/er_model_*.svg`）畫到的資料表、欄位或述詞時（migration 或 `RelationSeeder`），同一個 PR 一起改圖；當下改不了，就開 issue 寫明圖上哪裡要改。
 
 ## 寫 seeder
 
