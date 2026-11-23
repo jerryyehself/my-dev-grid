@@ -346,7 +346,7 @@ class ArticleUnitSplitterTest extends TestCase
         $result = $this->split("## A {#a}\n甲說了一句話[^1]。\n## 來源 {#refs}\n- 連結\n\n[^1]: 甲的出處。\n");
 
         $a = $this->unit($result, 'a');
-        $this->assertSame([['label' => '1', 'content' => '[^1]: 甲的出處。', 'defined_in' => 2, 'start_line' => 6, 'end_line' => 6]], $a['footnotes']);
+        $this->assertSame([['label' => '1', 'content' => '[^1]: 甲的出處。', 'start_line' => 6, 'end_line' => 6]], $a['footnotes']);
         $this->assertSame('甲說了一句話[^1]。', $a['content']);
 
         $refs = $this->unit($result, 'refs');
@@ -498,7 +498,7 @@ class ArticleUnitSplitterTest extends TestCase
         $lead = $this->split("前言[^1]\n\n[^1]: 導言的腳註\n## A {#a}\n")['units'][0];
 
         $this->assertSame('[^1]: 導言的腳註', $lead['footnotes'][0]['content']);
-        $this->assertSame(0, $lead['footnotes'][0]['defined_in']);
+        $this->assertSame([3, 3], [$lead['footnotes'][0]['start_line'], $lead['footnotes'][0]['end_line']]);
         $this->assertSame("前言[^1]\n", $lead['content']);
     }
 

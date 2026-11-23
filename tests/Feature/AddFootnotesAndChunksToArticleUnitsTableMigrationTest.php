@@ -23,7 +23,7 @@ class AddFootnotesAndChunksToArticleUnitsTableMigrationTest extends TestCase
     private const NEW_COLUMNS = ['is_container', 'footnotes', 'chunks'];
 
     /** down() 不能動到的既有欄位。 */
-    private const ORIGINAL_COLUMNS = ['id', 'article_id', 'unit_id', 'parent_id', 'role', 'level', 'heading', 'content', 'content_hash', 'position', 'removed_at', 'created_at', 'updated_at'];
+    private const ORIGINAL_COLUMNS = ['id', 'article_id', 'unit_id', 'parent_id', 'role', 'level', 'heading', 'content', 'content_hash', 'removed_at', 'created_at', 'updated_at'];
 
     #[TestDox('不帶新欄位寫入（舊版程式的寫法）：容器標記是 false，腳註與子片段是 NULL')]
     public function test_rows_without_the_new_columns_get_defaults(): void
@@ -44,11 +44,11 @@ class AddFootnotesAndChunksToArticleUnitsTableMigrationTest extends TestCase
     #[TestDox('JSON 欄位原樣存回：key 順序與中文都不變')]
     public function test_json_round_trip_keeps_key_order(): void
     {
-        $json = '{"label":"1","content":"[^1]: 中文","defined_in":3}';
+        $json = '{"label":"1","content":"[^1]: 中文","start_line":3}';
         $this->insertUnit(Documentation::factory()->create()->id, ['footnotes' => $json]);
 
         $this->assertSame(json_decode($json, true), json_decode((string) DB::table('article_units')->value('footnotes'), true));
-        $this->assertSame(['label', 'content', 'defined_in'], array_keys(json_decode((string) DB::table('article_units')->value('footnotes'), true)));
+        $this->assertSame(['label', 'content', 'start_line'], array_keys(json_decode((string) DB::table('article_units')->value('footnotes'), true)));
     }
 
     #[TestDox('down() 只拿掉三個新欄位，單位與其他欄位不變；再跑 up() 欄位回來、不回填')]
@@ -87,7 +87,6 @@ class AddFootnotesAndChunksToArticleUnitsTableMigrationTest extends TestCase
             'heading' => '標題',
             'content' => '內容',
             'content_hash' => str_repeat('0', 64),
-            'position' => 1,
             'created_at' => '2026-11-23 00:00:00',
             'updated_at' => '2026-11-23 00:00:00',
         ]);

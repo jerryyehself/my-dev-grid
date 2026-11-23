@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * 身分是 `(article_id, unit_id)`；`unit_id` 一旦有值就不改，原稿裡不見了也只填 `removed_at`，不刪列。
  * 目前沒有 API 讀這張表，也沒有後台可以改。
+ * 不存單位在文章裡的順序（順序的唯一來源是原稿）；列的 id 只代表建立的先後。
  *
  * 取用（檢索）時：`is_container` 的單位跳過；其餘的單位內容後面接上 `footnotes` 的各個 `content`；
  * 有 `chunks` 時改用各片，每片後面接上它 `footnotes` 列的標籤對應的腳註。各欄位的意思見 `ArticleUnitSplitter`。
@@ -39,7 +40,6 @@ class ArticleUnit extends Model
         'is_container',
         'footnotes',
         'chunks',
-        'position',
         'removed_at',
     ];
 
@@ -49,7 +49,6 @@ class ArticleUnit extends Model
             'article_id' => 'integer',
             'parent_id' => 'integer',
             'level' => 'integer',
-            'position' => 'integer',
             'is_container' => 'boolean',
             'footnotes' => 'array',
             'chunks' => 'array',

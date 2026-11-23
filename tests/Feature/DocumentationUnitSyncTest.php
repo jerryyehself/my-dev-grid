@@ -39,7 +39,7 @@ class DocumentationUnitSyncTest extends TestCase
             ->assertCreated()->json('data.id');
 
         $expected = (new ArticleUnitSplitter)->split($body)['units'];
-        $rows = ArticleUnit::with('parent')->where('article_id', $id)->orderBy('position')->get();
+        $rows = ArticleUnit::with('parent')->where('article_id', $id)->orderBy('id')->get();
         $this->assertGreaterThan(10, $rows->count());
         $this->assertSame(array_column($expected, 'unit_id'), $rows->pluck('unit_id')->all());
         $this->assertSame(array_column($expected, 'parent_id'), $rows->map(fn (ArticleUnit $row) => $row->parent?->unit_id)->all());
@@ -156,7 +156,7 @@ class DocumentationUnitSyncTest extends TestCase
         $this->assertSame(0, ArticleUnit::count());
 
         $this->putJson("/api/documentations/{$id}", ['type' => $this->post->id, 'title' => '文件', 'body' => $body])->assertOk();
-        $this->assertSame(['lead', 'a'], ArticleUnit::where('article_id', $id)->orderBy('position')->pluck('unit_id')->all());
+        $this->assertSame(['lead', 'a'], ArticleUnit::where('article_id', $id)->orderBy('id')->pluck('unit_id')->all());
 
         $this->putJson("/api/documentations/{$id}", ['type' => $this->post->id, 'title' => '文件', 'body' => null])->assertOk();
         $this->assertSame(['lead'], ArticleUnit::where('article_id', $id)->whereNull('removed_at')->pluck('unit_id')->all());
@@ -178,7 +178,7 @@ class DocumentationUnitSyncTest extends TestCase
      */
     private static function snapshot(int $articleId): array
     {
-        return ArticleUnit::with('parent')->where('article_id', $articleId)->orderBy('position')->get()
+        return ArticleUnit::with('parent')->where('article_id', $articleId)->orderBy('id')->get()
             ->map(fn (ArticleUnit $row) => [
                 'unit_id' => $row->unit_id,
                 'parent' => $row->parent?->unit_id,
