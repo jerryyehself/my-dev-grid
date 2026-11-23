@@ -58,7 +58,7 @@ class ArticleUnitSyncTest extends TestCase
             $this->assertSame($unit['level'], $row->level);
             $this->assertSame($unit['heading'], $row->heading);
             $this->assertSame($unit['content'], $row->content);
-            $this->assertSame(ArticleUnitSync::contentHash($unit['heading'], $unit['source']), $row->content_hash);
+            $this->assertSame(ArticleUnitSync::contentHash($unit['heading'], $unit['content'], array_column($unit['footnotes'], 'content')), $row->content_hash);
             $this->assertSame($unit['is_container'], $row->is_container);
             $this->assertNull($row->footnotes);
             $this->assertSame($unit['chunks'], $row->chunks);
@@ -437,8 +437,8 @@ class ArticleUnitSyncTest extends TestCase
         $this->assertEquals($before, ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'content_hash', 'position', 'updated_at'])->all());
     }
 
-    #[TestDox('加腳註歸屬之前寫入的列：原稿沒改時重新匯入，對上同一列、ID 與 content_hash 都不變，定義改存到引用它的列')]
-    public function test_rows_written_before_footnote_handling_keep_ids_and_hashes(): void
+    #[TestDox('加腳註歸屬之前寫入的列：原稿沒改時重新匯入，對上同一列、ID 不變；雜湊只有引用腳註的列與定義原本所在的列會變')]
+    public function test_rows_written_before_footnote_handling_keep_ids(): void
     {
         $body = self::withIds(self::withFootnotes(self::fixture('cloudflare-workers-spa-deployment-guide.md')));
         $article = Documentation::factory()->create(['body' => $body]);
@@ -457,12 +457,18 @@ class ArticleUnitSyncTest extends TestCase
                 'position' => $index,
             ]);
         }
-        $before = ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id', 'content_hash', 'position'])->all();
+        $before = ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id', 'position'])->all();
+        $hashes = ArticleUnit::pluck('content_hash', 'heading');
         $this->assertStringContainsString('[^1]: 腳註一', ArticleUnit::where('heading', '官方文件')->value('content'));
 
         $this->sync($article);
 
-        $this->assertSame($before, ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id', 'content_hash', 'position'])->all());
+        $this->assertSame($before, ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id', 'position'])->all());
+        $changed = array_keys(array_diff_assoc(ArticleUnit::pluck('content_hash', 'heading')->all(), $hashes->all()));
+        sort($changed);
+        $expected = ['一、為什麼選 Cloudflare（而不是 Vercel）', '三、第一次部署失敗：`_redirects` 觸發無限迴圈', '二、Cloudflare Pages 現在其實是 Workers + Static Assets', '官方文件'];
+        sort($expected);
+        $this->assertSame($expected, $changed);
         $this->assertSame(0, ArticleUnit::whereNotNull('removed_at')->count());
         $this->assertStringNotContainsString('[^1]: 腳註一', ArticleUnit::where('heading', '官方文件')->value('content'));
         $this->assertSame(['1'], array_column(ArticleUnit::where('heading', '一、為什麼選 Cloudflare（而不是 Vercel）')->first()->footnotes, 'label'));
@@ -487,8 +493,8 @@ class ArticleUnitSyncTest extends TestCase
         $this->assertEquals($before, ArticleUnit::orderBy('id')->get()->map->only($columns)->all());
     }
 
-    #[TestDox('改了腳註定義的文字：引用它的列換成新的定義，雜湊變的是定義原本所在的那一列')]
-    public function test_editing_a_footnote_changes_the_defining_units_hash(): void
+    #[TestDox('改了腳註定義的文字：雜湊變的是引用它的列，定義原本所在的「來源」節不變')]
+    public function test_editing_a_footnote_changes_the_citing_units_hash(): void
     {
         $body = self::withIds(self::withFootnotes(self::fixture('cloudflare-workers-spa-deployment-guide.md')));
         $article = Documentation::factory()->create(['body' => $body]);
@@ -500,8 +506,30 @@ class ArticleUnitSyncTest extends TestCase
 
         $after = ArticleUnit::pluck('content_hash', 'heading');
         $changed = array_keys(array_diff_assoc($after->all(), $before->all()));
-        $this->assertSame(['官方文件'], $changed);
+        $this->assertSame(['一、為什麼選 Cloudflare（而不是 Vercel）'], $changed);
+        $this->assertSame($before['來源'], $after['來源']);
+        $this->assertSame($before['官方文件'], $after['官方文件']);
         $this->assertSame('[^1]: 腳註一：改寫過的比較。', ArticleUnit::where('heading', '一、為什麼選 Cloudflare（而不是 Vercel）')->first()->footnotes[0]['content']);
+
+        // 被兩節引用的腳註改了，兩節的雜湊都變
+        $article->forceFill(['body' => str_replace('腳註二：Workers 與 Pages 的關係。', '腳註二：改寫。', (string) $article->body)])->save();
+        $this->sync($article);
+        $changed = array_keys(array_diff_assoc(ArticleUnit::pluck('content_hash', 'heading')->all(), $after->all()));
+        sort($changed);
+        $expected = ['二、Cloudflare Pages 現在其實是 Workers + Static Assets', '三、第一次部署失敗：`_redirects` 觸發無限迴圈'];
+        sort($expected);
+        $this->assertSame($expected, $changed);
+    }
+
+    #[TestDox('雜湊：沒有腳註時等於只算標題與內容；腳註的內容、順序、跟內文的分界都會影響結果')]
+    public function test_content_hash_with_footnotes(): void
+    {
+        $plain = ArticleUnitSync::contentHash('A', '內容');
+        $this->assertSame($plain, ArticleUnitSync::contentHash('A', '內容', []));
+        $this->assertNotSame($plain, ArticleUnitSync::contentHash('A', '內容', ['[^1]: x']));
+        $this->assertNotSame(ArticleUnitSync::contentHash('A', '內容', ['[^1]: x', '[^2]: y']), ArticleUnitSync::contentHash('A', '內容', ['[^2]: y', '[^1]: x']));
+        // 腳註併進內文不會跟分開算出同一個雜湊
+        $this->assertNotSame(ArticleUnitSync::contentHash('A', "內容\n2:xy"), ArticleUnitSync::contentHash('A', '內容', ['xy']));
     }
 
     #[TestDox('不同文章的單位互不影響，同一個 ID 可以各用一次')]

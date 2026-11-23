@@ -28,12 +28,9 @@ use LogicException;
  *
  * 這次沒出現的舊單位不刪，填 `removed_at`（已經填過的不再改時間）。
  *
- * `content_hash` 是標題與單位在原稿裡原文（`source`：腳註定義還沒搬走之前）的雜湊，標題或原文變了才會變；
- * ID 寫法（`{#id}`）不算在內。不用搬過腳註之後的 `content` 算，理由：
- * - 原稿沒改時，雜湊跟還沒有腳註搬移之前寫入的列一樣，重新匯入不會把每個引用腳註的單位都判成改過。
- * - 之後調整腳註歸屬或子片段的規則，雜湊也不會跟著全部變。
- * 代價是改了某個腳註定義的文字時，變的是定義原本所在單位（通常是文末的「來源」節）的雜湊，
- * 不是引用它的單位。
+ * `content_hash` 是標題、腳註搬走之後的內容、附給這個單位的腳註定義三者的雜湊（`contentHash()`），
+ * ID 寫法（`{#id}`）不算在內。腳註跟著歸屬算：改了某個腳註的文字，變的是引用它的單位，
+ * 定義原本所在的單位（通常是文末的「來源」節）不變。沒有附腳註的單位跟只算標題與內容的結果相同。
  *
  * 腳註（`footnotes`）、子片段（`chunks`）沒有時存 null，不存空陣列：跟加欄位之前寫入的列一樣，
  * 沒有腳註的單位重新匯入時不會因為這兩欄被當成有變動。
@@ -96,7 +93,7 @@ final class ArticleUnitSync
                 'level' => $unit['level'],
                 'heading' => $unit['heading'],
                 'content' => $unit['content'],
-                'content_hash' => self::contentHash($unit['heading'], $unit['source']),
+                'content_hash' => self::contentHash($unit['heading'], $unit['content'], array_column($unit['footnotes'], 'content')),
                 'is_container' => $unit['is_container'],
                 'footnotes' => $unit['footnotes'] === [] ? null : $unit['footnotes'],
                 'chunks' => $unit['chunks'],
@@ -123,12 +120,19 @@ final class ArticleUnitSync
     }
 
     /**
-     * 標題與內容的 SHA-256。每個值前面加上長度（標題是 null 時寫成 `-`），
-     * 標題與內容的分界不會因為內容裡的字元而跟另一組值算出同一個字串。
+     * 標題、內容與附屬腳註的 SHA-256。每個值前面加上長度（標題是 null 時寫成 `-`），
+     * 各值的分界不會因為內容裡的字元而跟另一組值算出同一個字串。沒有腳註時只算標題與內容。
+     *
+     * @param  list<string>  $footnotes  附給這個單位的腳註定義原文，照 `ArticleUnitSplitter` 給的順序
      */
-    public static function contentHash(?string $heading, string $content): string
+    public static function contentHash(?string $heading, string $content, array $footnotes = []): string
     {
-        return hash('sha256', ($heading === null ? '-' : strlen($heading).':'.$heading)."\n".strlen($content).':'.$content);
+        $text = ($heading === null ? '-' : strlen($heading).':'.$heading)."\n".strlen($content).':'.$content;
+        foreach ($footnotes as $footnote) {
+            $text .= "\n".strlen($footnote).':'.$footnote;
+        }
+
+        return hash('sha256', $text);
     }
 
     /**
