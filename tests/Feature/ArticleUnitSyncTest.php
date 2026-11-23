@@ -62,7 +62,6 @@ class ArticleUnitSyncTest extends TestCase
             $this->assertSame($unit['is_container'], $row->is_container);
             $this->assertNull($row->footnotes);
             $this->assertSame($unit['chunks'], $row->chunks);
-            $this->assertSame($index, $row->position);
             $this->assertNull($row->removed_at);
         }
         // 標題裡的 {#id} 不會留在 heading
@@ -103,7 +102,7 @@ class ArticleUnitSyncTest extends TestCase
         $this->assertNull($official->footnotes);
     }
 
-    #[TestDox('真實文章的腳註：每個定義存在引用它的那一列，記下原本所在的單位與行號；沒有腳註的列是空值')]
+    #[TestDox('真實文章的腳註：每個定義存在引用它的那一列，記下原本的行號、不記原本所在的單位；沒有腳註的列是空值')]
     public function test_footnotes_of_a_real_article_are_stored_on_the_citing_rows(): void
     {
         $body = self::withIds(self::withFootnotes(self::fixture('cloudflare-workers-spa-deployment-guide.md')));
@@ -118,7 +117,7 @@ class ArticleUnitSyncTest extends TestCase
         foreach ($rows as $row) {
             foreach ($row->footnotes ?? [] as $footnote) {
                 $citing[$footnote['label']][] = $row->heading;
-                $this->assertSame($official->position, $footnote['defined_in']);
+                $this->assertSame(['label', 'content', 'start_line', 'end_line'], array_keys($footnote));
                 $this->assertSame($footnote['content'], implode("\n", array_slice($lines, $footnote['start_line'] - 1, $footnote['end_line'] - $footnote['start_line'] + 1)));
             }
         }
@@ -183,10 +182,6 @@ class ArticleUnitSyncTest extends TestCase
         $gone = ArticleUnit::whereNotNull('removed_at')->orderBy('id')->pluck('unit_id')->all();
         $this->assertSame([$section->unit_id, ...$children], $gone);
         $this->assertSame(now()->format('Y-m-d H:i:s'), ArticleUnit::where('unit_id', $section->unit_id)->value('removed_at')?->format('Y-m-d H:i:s'));
-        // 剩下的單位照新原稿重新排序
-        $active = $this->activeUnits($article);
-        $this->assertSame(range(0, $active->count() - 1), $active->pluck('position')->all());
-        $this->assertSame('5. 相關文獻', $active->firstWhere('position', 4)->heading);
 
         // 再寫入一次，移除時間不會被改
         $this->travel(5)->minutes();
@@ -210,7 +205,7 @@ class ArticleUnitSyncTest extends TestCase
 
         $restored = ArticleUnit::find($b);
         $this->assertNull($restored->removed_at);
-        $this->assertSame([1, 'B 改名'], [$restored->position, $restored->heading]);
+        $this->assertSame('B 改名', $restored->heading);
         $this->assertSame(3, ArticleUnit::count());
     }
 
@@ -252,9 +247,10 @@ class ArticleUnitSyncTest extends TestCase
         $article->forceFill(['body' => "## B\n### 範例\n乙改\n## A\n### 範例\n甲改\n"])->save();
         $this->sync($article);
 
-        $rows = $this->activeUnits($article);
-        $this->assertSame(['B', '範例', 'A', '範例'], $rows->slice(1)->pluck('heading')->values()->all());
-        $this->assertSame([$bExample, $aExample], [$rows[2]->id, $rows[4]->id]);
+        // 列不存順序，各自看內容與父單位
+        $this->assertSame(['乙改', 'B'], [ArticleUnit::find($bExample)->content, ArticleUnit::find($bExample)->parent->heading]);
+        $this->assertSame(["甲改\n", 'A'], [ArticleUnit::find($aExample)->content, ArticleUnit::find($aExample)->parent->heading]);
+        $this->assertSame(0, ArticleUnit::whereNotNull('removed_at')->count());
     }
 
     #[TestDox('原稿第一次補寫 {#id}：沿用原本的列，補上 ID')]
@@ -383,9 +379,7 @@ class ArticleUnitSyncTest extends TestCase
         $article->forceFill(['body' => "## 改寫\n{$rewrite}\n## 原文\n{$a}\n"])->save();
         $this->sync($article);
 
-        $rows = $this->activeUnits($article);
-        $this->assertSame(['改寫', '原文'], [$rows[1]->heading, $rows[2]->heading]);
-        $this->assertSame([$rowB, $rowA], [$rows[1]->id, $rows[2]->id]);
+        $this->assertSame(['改寫', '原文'], [ArticleUnit::find($rowB)->heading, ArticleUnit::find($rowA)->heading]);
         $this->assertSame(0, ArticleUnit::whereNotNull('removed_at')->count());
     }
 
@@ -393,18 +387,18 @@ class ArticleUnitSyncTest extends TestCase
     public function test_live_rows_are_preferred_over_removed_ones(): void
     {
         $article = Documentation::factory()->create(['body' => "## A\n新內容\n"]);
-        $unit = fn (int $position, ?string $removedAt) => ArticleUnit::create([
+        $unit = fn (?string $removedAt) => ArticleUnit::create([
             'article_id' => $article->id, 'unit_id' => null, 'role' => ArticleUnit::ROLE_BODY, 'level' => 2,
             'heading' => 'A', 'content' => "舊內容\n", 'content_hash' => ArticleUnitSync::contentHash('A', "舊內容\n"),
-            'position' => $position, 'removed_at' => $removedAt,
+            'removed_at' => $removedAt,
         ]);
-        // 已移除的排在前面（位置 1），還在的在位置 3
-        $removed = $unit(1, '2026-11-01 00:00:00');
-        $live = $unit(3, null);
+        // 已移除的先建（id 較小），只看建立先後的話會先對上它
+        $removed = $unit('2026-11-01 00:00:00');
+        $live = $unit(null);
 
         $this->sync($article);
 
-        $this->assertSame($live->id, $this->activeUnits($article)[1]->id);
+        $this->assertSame([$live->id], ArticleUnit::where('heading', 'A')->whereNull('removed_at')->pluck('id')->all());
         $this->assertSame('2026-11-01 00:00:00', $removed->refresh()->removed_at->format('Y-m-d H:i:s'));
     }
 
@@ -429,12 +423,12 @@ class ArticleUnitSyncTest extends TestCase
     {
         $article = Documentation::factory()->create(['body' => self::withIds(self::fixture('token-saving-mechanisms-inventory.md'))]);
         $this->sync($article);
-        $before = ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'content_hash', 'position', 'updated_at'])->all();
+        $before = ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'content_hash', 'updated_at'])->all();
 
         $this->travel(1)->hours();
         $this->sync($article);
 
-        $this->assertEquals($before, ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'content_hash', 'position', 'updated_at'])->all());
+        $this->assertEquals($before, ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'content_hash', 'updated_at'])->all());
     }
 
     #[TestDox('加腳註歸屬之前寫入的列：原稿沒改時重新匯入，對上同一列、ID 不變；雜湊只有引用腳註的列與定義原本所在的列會變')]
@@ -454,16 +448,15 @@ class ArticleUnitSyncTest extends TestCase
                 'heading' => $unit['heading'],
                 'content' => $unit['source'],
                 'content_hash' => ArticleUnitSync::contentHash($unit['heading'], $unit['source']),
-                'position' => $index,
             ]);
         }
-        $before = ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id', 'position'])->all();
+        $before = ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id'])->all();
         $hashes = ArticleUnit::pluck('content_hash', 'heading');
         $this->assertStringContainsString('[^1]: 腳註一', ArticleUnit::where('heading', '官方文件')->value('content'));
 
         $this->sync($article);
 
-        $this->assertSame($before, ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id', 'position'])->all());
+        $this->assertSame($before, ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id'])->all());
         $changed = array_keys(array_diff_assoc(ArticleUnit::pluck('content_hash', 'heading')->all(), $hashes->all()));
         sort($changed);
         $expected = ['一、為什麼選 Cloudflare（而不是 Vercel）', '三、第一次部署失敗：`_redirects` 觸發無限迴圈', '二、Cloudflare Pages 現在其實是 Workers + Static Assets', '官方文件'];
@@ -532,6 +525,22 @@ class ArticleUnitSyncTest extends TestCase
         $this->assertNotSame(ArticleUnitSync::contentHash('A', "內容\n2:xy"), ArticleUnitSync::contentHash('A', '內容', ['xy']));
     }
 
+    #[TestDox('Documentation::units()：這篇文章的所有單位，含已標成移除的，不含別篇的')]
+    public function test_documentation_units_relation(): void
+    {
+        $article = Documentation::factory()->create(['body' => "## A {#a}\n甲\n## B {#b}\n乙\n"]);
+        $other = Documentation::factory()->create(['body' => "## A {#a}\n丙\n"]);
+        $this->sync($article);
+        $this->sync($other);
+        $article->forceFill(['body' => "## A {#a}\n甲\n"])->save();
+        $this->sync($article);
+
+        $units = $article->refresh()->units()->orderBy('id')->get();
+        $this->assertSame(['lead', 'a', 'b'], $units->pluck('unit_id')->all());
+        $this->assertSame([false, false, true], $units->map->isRemoved()->all());
+        $this->assertSame([$article->id], $units->pluck('article_id')->unique()->values()->all());
+    }
+
     #[TestDox('不同文章的單位互不影響，同一個 ID 可以各用一次')]
     public function test_articles_do_not_share_units(): void
     {
@@ -585,10 +594,15 @@ class ArticleUnitSyncTest extends TestCase
         (new ArticleUnitSync)->sync($article->refresh());
     }
 
-    /** @return Collection<int, ArticleUnit> 依位置排好、還在的單位 */
+    /**
+     * 還在的單位，依建立的先後（列的 id）。列不存文章裡的順序：第一次寫入時建立的先後就是原稿的順序，
+     * 之後改寫原稿的測試不要靠索引找列，改用 id 或 unit_id。
+     *
+     * @return Collection<int, ArticleUnit>
+     */
     private function activeUnits(Documentation $article)
     {
-        return ArticleUnit::with('parent')->where('article_id', $article->id)->whereNull('removed_at')->orderBy('position')->get();
+        return ArticleUnit::with('parent')->where('article_id', $article->id)->whereNull('removed_at')->orderBy('id')->get();
     }
 
     private static function fixture(string $file): string

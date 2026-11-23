@@ -46,7 +46,7 @@ class ArticleSourceUnitsTest extends TestCase
         $id = $this->import([$this->item('build-tooling', $content, 'create')], $commit)->assertOk()->json('data.0.documentation_id');
 
         $expected = (new ArticleUnitSplitter)->split(Documentation::findOrFail($id)->body)['units'];
-        $rows = ArticleUnit::with('parent')->where('article_id', $id)->orderBy('position')->get();
+        $rows = ArticleUnit::with('parent')->where('article_id', $id)->orderBy('id')->get();
         $this->assertSame(array_column($expected, 'unit_id'), $rows->pluck('unit_id')->all());
         $this->assertSame(array_column($expected, 'parent_id'), $rows->map(fn (ArticleUnit $row) => $row->parent?->unit_id)->all());
         $this->assertSame(array_column($expected, 'heading'), $rows->pluck('heading')->all());
@@ -195,7 +195,7 @@ class ArticleSourceUnitsTest extends TestCase
         $this->actingAsOwner();
         // 模擬比對出錯：要寫入的那一列之前，同一篇文章已經有同一個 unit_id
         ArticleUnit::creating(function (ArticleUnit $unit) {
-            DB::table('article_units')->insert(['article_id' => $unit->article_id, 'unit_id' => $unit->unit_id, 'role' => 'body', 'content' => '', 'content_hash' => str_repeat('0', 64), 'position' => 99]);
+            DB::table('article_units')->insert(['article_id' => $unit->article_id, 'unit_id' => $unit->unit_id, 'role' => 'body', 'content' => '', 'content_hash' => str_repeat('0', 64)]);
         });
 
         $response = $this->import([$this->item('post', $content, 'create')], $commit);

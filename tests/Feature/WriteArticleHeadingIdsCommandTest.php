@@ -3,13 +3,17 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
  * `articles:write-heading-ids`：替文章原稿的 H2、H3 補上 `{#id}`（一次性補寫，之後凍結）。
  * 補寫規則本身（哪些行、怎麼不撞號、位元組不變）在 `ArticleHeadingIdWriterTest`；這裡驗指令的外殼：
- * 讀檔、寫檔、`--dry-run`、目錄、全有或全無、結束碼。
+ * 讀檔、寫檔、`--dry-run`、目錄、全有或全無、結束碼，以及從 git 歷史收集以前發出去的 ID。
+ * 原稿放在每個測試自己建的臨時 git repo 裡（指令要求檔案在 git repo 裡）。
  */
 class WriteArticleHeadingIdsCommandTest extends TestCase
 {
@@ -22,6 +26,29 @@ class WriteArticleHeadingIdsCommandTest extends TestCase
         parent::setUp();
         $this->dir = sys_get_temp_dir().'/heading-ids-'.bin2hex(random_bytes(6));
         mkdir($this->dir);
+        $this->git('init', '-q');
+        $this->git('commit', '-q', '--allow-empty', '-m', 'init');
+    }
+
+    /** 在臨時 repo 裡跑 git，失敗就讓測試失敗。`$date` 給了就當成 commit 的作者與提交時間（控制 git log 走訪的順序）。 */
+    private function gitAt(?string $date, string ...$args): string
+    {
+        $env = $date === null ? [] : ['GIT_AUTHOR_DATE' => $date, 'GIT_COMMITTER_DATE' => $date];
+        $result = Process::path($this->dir)->env($env)->run(['git', '-c', 'user.name=test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...$args]);
+        $this->assertTrue($result->successful(), 'git '.implode(' ', $args).'：'.$result->errorOutput());
+
+        return $result->output();
+    }
+
+    private function git(string ...$args): string
+    {
+        return $this->gitAt(null, ...$args);
+    }
+
+    private function commitAll(string $message, ?string $date = null): void
+    {
+        $this->git('add', '-A');
+        $this->gitAt($date, 'commit', '-q', '-m', $message);
     }
 
     protected function tearDown(): void
@@ -188,5 +215,182 @@ class WriteArticleHeadingIdsCommandTest extends TestCase
         $this->artisan('articles:write-heading-ids', ['path' => $this->dir, '--dry-run' => true])
             ->expectsOutputToContain('共 1 個檔案、補 0 個 ID')
             ->assertExitCode(0);
+    }
+
+    #[TestDox('刪掉的段落的 ID 不會再發給新標題：git 歷史裡出現過的 ID 都跳過')]
+    public function test_ids_of_removed_sections_are_not_reused(): void
+    {
+        // 加兩節、補 ID、commit
+        $path = $this->makeFile('a.md', self::FRONT_MATTER."## 甲\n甲的內容\n\n## 乙\n乙的內容\n");
+        $this->artisan('articles:write-heading-ids', ['path' => $path])->assertExitCode(0);
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n甲的內容\n\n## 乙 {#s2}\n乙的內容\n", file_get_contents($path));
+        $this->commitAll('補 ID');
+
+        // 刪掉「乙」、commit；之後加一節新的再跑
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n甲的內容\n");
+        $this->commitAll('刪掉乙');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n甲的內容\n\n## 丙\n丙的內容\n");
+
+        $this->artisan('articles:write-heading-ids', ['path' => $path])
+            ->expectsOutputToContain('第 9 行 H2「丙」→ {#s3}')
+            ->assertExitCode(0);
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n甲的內容\n\n## 丙 {#s3}\n丙的內容\n", file_get_contents($path));
+    }
+
+    #[TestDox('檔案改名、換目錄之後，改名前的歷史裡用過的 ID 也跳過')]
+    public function test_ids_before_a_rename_stay_reserved(): void
+    {
+        $path = $this->makeFile('old-name.md', self::FRONT_MATTER."## 甲 {#s1}\n內容\n\n## 乙 {#s2}\n內容\n");
+        $this->commitAll('原稿');
+        mkdir($this->dir.'/articles');
+        $this->git('mv', 'old-name.md', 'articles/new-name.md');
+        $this->commitAll('改名');
+        $renamed = $this->dir.'/articles/new-name.md';
+        file_put_contents($renamed, self::FRONT_MATTER."## 甲 {#s1}\n內容\n");
+        $this->commitAll('刪掉乙');
+        file_put_contents($renamed, self::FRONT_MATTER."## 甲 {#s1}\n內容\n\n## 丙\n");
+
+        $this->artisan('articles:write-heading-ids', ['path' => $renamed])->assertExitCode(0);
+
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n內容\n\n## 丙 {#s3}\n", file_get_contents($renamed));
+    }
+
+    #[TestDox('主線單獨 commit 改名、加了又刪掉一個 ID，之後合併用舊檔名改內文的側枝：主線那些版本照樣讀到')]
+    public function test_ids_on_the_mainline_after_a_rename_survive_a_side_branch_merge(): void
+    {
+        $this->makeFile('a.md', self::FRONT_MATTER."## 甲 {#s1}\n原本的內容\n");
+        $this->commitAll('原稿', '2026-01-01T00:00:00');
+        $main = trim($this->git('rev-parse', '--abbrev-ref', 'HEAD'));
+
+        // 側枝用舊檔名改內文，時間最晚（git log 會先走到它）
+        $this->git('checkout', '-q', '-b', 'side');
+        file_put_contents($this->dir.'/a.md', self::FRONT_MATTER."## 甲 {#s1}\n側枝改的內容\n");
+        $this->commitAll('側枝改內文', '2026-01-05T00:00:00');
+
+        // 主線：單獨 commit 改名，再加 s2、刪 s2
+        $this->git('checkout', '-q', $main);
+        $this->git('mv', 'a.md', 'b.md');
+        $this->commitAll('改名', '2026-01-02T00:00:00');
+        $path = $this->dir.'/b.md';
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n原本的內容\n\n## 乙 {#s2}\n");
+        $this->commitAll('加乙', '2026-01-03T00:00:00');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n原本的內容\n");
+        $this->commitAll('刪掉乙', '2026-01-04T00:00:00');
+
+        $this->gitAt('2026-01-06T00:00:00', 'merge', '-q', '--no-edit', 'side');
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n側枝改的內容\n", file_get_contents($path));
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n側枝改的內容\n\n## 丙\n");
+
+        $this->artisan('articles:write-heading-ids', ['path' => $path])->assertExitCode(0);
+
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n側枝改的內容\n\n## 丙 {#s3}\n", file_get_contents($path));
+    }
+
+    /** @return array<string, array{string}> */
+    public static function pathspecLookingNames(): array
+    {
+        return [
+            '冒號開頭（pathspec 的 magic）' => [':colon.md'],
+            '含 * （glob）' => ['star*.md'],
+        ];
+    }
+
+    #[DataProvider('pathspecLookingNames')]
+    #[TestDox('檔名照字面比對，不當成 pathspec：冒號開頭、含 * 的檔名也查得到自己的歷史，不會讀到別的檔案')]
+    public function test_file_names_are_literal_pathspecs(string $name): void
+    {
+        // 同一個 commit 裡另有一個排在前面、* 也比對得到的檔案，只有它的歷史沒有 s2
+        $path = $this->makeFile($name, self::FRONT_MATTER."## 甲 {#s1}\n\n## 乙 {#s2}\n");
+        $other = $this->makeFile('star!other.md', self::FRONT_MATTER."## 別篇 {#s1}\n");
+        $this->commitAll('原稿');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n");
+        file_put_contents($other, self::FRONT_MATTER."## 別篇 {#s1}\n改過\n");
+        $this->commitAll('刪掉乙');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n\n## 丙\n");
+
+        $this->artisan('articles:write-heading-ids', ['path' => $path])->assertExitCode(0);
+
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n\n## 丙 {#s3}\n", file_get_contents($path));
+    }
+
+    #[TestDox('別的檔案的歷史不算：同一個 repo 裡另一篇用過的 ID 不影響這篇')]
+    public function test_history_of_other_files_does_not_count(): void
+    {
+        $this->makeFile('other.md', self::FRONT_MATTER."## 別篇 {#s1}\n");
+        $this->commitAll('別篇');
+        $path = $this->makeFile('a.md', self::FRONT_MATTER."## 甲\n");
+
+        $this->artisan('articles:write-heading-ids', ['path' => $path])->assertExitCode(0);
+
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n", file_get_contents($path));
+    }
+
+    #[TestDox('檔案不在 git repo 裡：當成失敗，一個檔案都不寫，不當成沒有用過的 ID')]
+    public function test_file_outside_a_git_repo_blocks_every_write(): void
+    {
+        $outside = sys_get_temp_dir().'/heading-ids-nogit-'.bin2hex(random_bytes(6));
+        mkdir($outside);
+        $raw = self::FRONT_MATTER."## 甲\n";
+        file_put_contents($outside.'/a.md', $raw);
+
+        try {
+            $this->artisan('articles:write-heading-ids', ['path' => $outside])
+                ->expectsOutputToContain('a.md：查不到 git 歷史裡用過的 ID（不在 git repo 裡')
+                ->expectsOutputToContain('一個檔案都沒有寫')
+                ->assertExitCode(1);
+
+            $this->assertSame($raw, file_get_contents($outside.'/a.md'));
+        } finally {
+            File::deleteDirectory($outside);
+        }
+    }
+
+    #[TestDox('git log 失敗（結束碼不是 0）：整批失敗、不寫')]
+    public function test_git_log_failure_blocks_every_write(): void
+    {
+        $raw = self::FRONT_MATTER."## 甲\n";
+        $path = $this->makeFile('a.md', $raw);
+        Process::fake([
+            '*rev-parse*' => Process::result("true\n"),
+            '*log*' => Process::result('', 'fatal: 模擬的錯誤', 128),
+        ]);
+
+        $this->artisan('articles:write-heading-ids', ['path' => $path])
+            ->expectsOutputToContain('git log 失敗：fatal: 模擬的錯誤')
+            ->assertExitCode(1);
+
+        $this->assertSame($raw, file_get_contents($path));
+    }
+
+    #[TestDox('讀不到某個版本的內容：整批失敗、不寫')]
+    public function test_unreadable_revision_blocks_every_write(): void
+    {
+        $raw = self::FRONT_MATTER."## 甲\n";
+        $path = $this->makeFile('a.md', $raw);
+        Process::fake([
+            '*rev-parse*' => Process::result("true\n"),
+            '*log*' => Process::result('commit:'.str_repeat('a', 40)."\0\na.md\0"),
+            '*cat-file*' => Process::result('', 'fatal: bad object', 128),
+        ]);
+
+        $this->artisan('articles:write-heading-ids', ['path' => $path])
+            ->expectsOutputToContain('讀不到 '.str_repeat('a', 40).':a.md')
+            ->assertExitCode(1);
+
+        $this->assertSame($raw, file_get_contents($path));
+    }
+
+    #[TestDox('git 跑不起來或逾時（丟例外）：整批失敗、不寫')]
+    public function test_git_exception_blocks_every_write(): void
+    {
+        $raw = self::FRONT_MATTER."## 甲\n";
+        $path = $this->makeFile('a.md', $raw);
+        Process::fake(['*' => fn () => throw new RuntimeException('模擬 git 逾時')]);
+
+        $this->artisan('articles:write-heading-ids', ['path' => $path])
+            ->expectsOutputToContain('查不到 git 歷史裡用過的 ID（模擬 git 逾時）')
+            ->assertExitCode(1);
+
+        $this->assertSame($raw, file_get_contents($path));
     }
 }

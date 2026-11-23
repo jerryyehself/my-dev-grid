@@ -18,9 +18,10 @@ class ArticleHeadingIdWriterTest extends TestCase
 {
     private const FRONT_MATTER = "---\nslug: sample\ntitle: 範例\nimport: true\n---\n";
 
-    private function write(string $raw): array
+    /** @param  list<string>  $reserved */
+    private function write(string $raw, array $reserved = []): array
     {
-        return (new ArticleHeadingIdWriter)->write($raw);
+        return (new ArticleHeadingIdWriter)->write($raw, $reserved);
     }
 
     private function doc(string $body): string
@@ -112,6 +113,49 @@ class ArticleHeadingIdWriterTest extends TestCase
 
         $this->assertSame($expectedIds, $this->addedIds($result));
         $this->assertSame([], (new ArticleUnitSplitter)->split($this->bodyOf($result['content']))['duplicate_ids']);
+    }
+
+    /** @return array<string, array{string, list<string>, list<string>}> */
+    public static function reservedIds(): array
+    {
+        return [
+            '刪掉的 s2 不再發出去' => ["## 甲 {#s1}\n\n## 丙\n", ['lead', 's1', 's2'], ['s3']],
+            '原稿已經沒有任何 ID，保留的照樣跳過' => ["## 甲\n\n## 乙\n", ['s1', 's3'], ['s2', 's4']],
+            '保留的大小寫不同也算（S1）' => ["## 甲\n", ['S1'], ['s2']],
+            '不是 sN 的保留 ID 不影響編號' => ["## 甲\n", ['intro', 's10'], ['s1']],
+            '沒有保留的 ID 時照舊從 s1 起' => ["## 甲\n", [], ['s1']],
+        ];
+    }
+
+    /**
+     * @param  list<string>  $reserved
+     * @param  list<string>  $expectedIds
+     */
+    #[DataProvider('reservedIds')]
+    #[TestDox('新 ID 也跳過呼叫端保留的 ID（原稿 git 歷史裡用過、已經刪掉的）')]
+    public function test_new_ids_skip_reserved_ones(string $body, array $reserved, array $expectedIds): void
+    {
+        $this->assertSame($expectedIds, $this->addedIds($this->write($this->doc($body), $reserved)));
+    }
+
+    /** @return array<string, array{string, list<string>}> */
+    public static function headingIdSources(): array
+    {
+        return [
+            '各層級標題上的 ID 都算，照文件順序' => [self::FRONT_MATTER."# 大標 {#top}\n## 甲 {#s1}\n#### 細項 {#s9}\n### 乙 {#S2}\n## 沒有 ID\n", ['top', 's1', 's9', 'S2']],
+            '程式碼區塊與縮排行裡的不算' => [self::FRONT_MATTER."```\n## 範例 {#s5}\n```\n    ## 縮排 {#s6}\n## 甲 {#s1}\n", ['s1']],
+            'front matter 裡長得像標題的不算' => ["---\nnote: |\n  ## 假的 {#s7}\n---\n## 甲 {#s1}\n", ['s1']],
+            '沒有 front matter 時整份都算（舊版本可能還沒加）' => ["## 甲 {#s1}\n\n## 乙 {#s2}\n", ['s1', 's2']],
+            'CRLF' => [str_replace("\n", "\r\n", self::FRONT_MATTER."## 甲 {#s1}\n"), ['s1']],
+        ];
+    }
+
+    /** @param  list<string>  $expected */
+    #[DataProvider('headingIdSources')]
+    #[TestDox('headingIds()：原稿標題上寫的所有 {#id}，標題怎麼認跟補寫時相同')]
+    public function test_heading_ids_lists_every_written_id(string $raw, array $expected): void
+    {
+        $this->assertSame($expected, (new ArticleHeadingIdWriter)->headingIds($raw));
     }
 
     private function bodyOf(string $content): string
