@@ -10,10 +10,12 @@
 
 - 文章匯入時把段落單位存進新資料表 `article_units`（只新增表，不改既有的表）：鍵是 `(article_id, unit_id)`，重新匯入時依明確 ID、標題、內容相似度對上原本的單位，原稿裡不見的單位只填 `removed_at`、不刪列。原稿標題的 `{#id}` 重複或超過 255 字元時，`GET /api/article-sources` 列成 invalid，匯入回 409（#225）。
 - `article_units` 新增 `is_container`、`footnotes`、`chunks` 三欄（只新增、不回填）：腳註附給引用它的單位，只有子節、自己幾乎沒有內文的 H2 標成容器，正文超過 1500 字的單位切出檢索用的子片段（#226）。
+- 後台新增或修改文章（`POST /api/documentations`、`PUT /api/documentations/{id}`）時，在同一個 transaction 裡同步段落單位；只改標題等欄位時單位不動，原稿標題的 `{#id}` 重複或太長時回 422（`errors.body`），文件的變更一併回滾（#228）。
 
 ### 變更
 
 - 同步不再讀 `config/repo_sync.php` 的 `skip_technique_edges` 清單（整份檔案刪除），改成只看資料庫裡的改作連結：專案有一條沒刪除的文件連結、述詞沿改用解析後是 `isBasisFor`，就不寫技術連線，已經連上的舊連線不碰。建置產物（`isBasedOnProject`）照常同步技術連線（#221）。
+- 分類說明（`comment`）的長度上限從 100 字放寬到 255 字，新增與修改分類都適用，資料表不用改（#224）。
 
 ### 修正
 
