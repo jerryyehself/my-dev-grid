@@ -332,6 +332,52 @@ class ArticleUnitSyncTest extends TestCase
         $this->assertNotNull(ArticleUnit::find($second)->removed_at);
     }
 
+    #[TestDox('兩段相似的節同時換標題：依分數高低配對，原文不變的那節保留自己的列')]
+    public function test_similarity_matches_by_highest_score_not_document_order(): void
+    {
+        // 41 個不同的字（40 組二元組）。B 換掉 A 的後 5 個字、改寫版換掉 A 的後 2 個字
+        $chars = array_map(fn (int $i) => mb_chr(0x4E00 + $i), range(0, 40));
+        $a = implode('', $chars);
+        $b = implode('', array_slice($chars, 0, 36)).'甲乙丙丁戊';
+        $rewrite = implode('', array_slice($chars, 0, 39)).'子丑';
+        $this->assertSame(0.875, ArticleUnitSync::similarity($a, $b));
+        $this->assertSame(0.95, ArticleUnitSync::similarity($rewrite, $a));
+        $this->assertSame(0.875, ArticleUnitSync::similarity($rewrite, $b));
+
+        $article = Documentation::factory()->create(['body' => "## 甲節\n{$a}\n## 乙節\n{$b}\n"]);
+        $this->sync($article);
+        $rows = $this->activeUnits($article);
+        [$rowA, $rowB] = [$rows[1]->id, $rows[2]->id];
+
+        // 兩節都換標題；排在前面的改寫版對 A 比對 B 像，照文件順序挑的話會搶走 A 的列
+        $article->forceFill(['body' => "## 改寫\n{$rewrite}\n## 原文\n{$a}\n"])->save();
+        $this->sync($article);
+
+        $rows = $this->activeUnits($article);
+        $this->assertSame(['改寫', '原文'], [$rows[1]->heading, $rows[2]->heading]);
+        $this->assertSame([$rowB, $rowA], [$rows[1]->id, $rows[2]->id]);
+        $this->assertSame(0, ArticleUnit::whereNotNull('removed_at')->count());
+    }
+
+    #[TestDox('沒有 ID、同標題的舊列有一個已移除、一個還在：優先對上還在的那列')]
+    public function test_live_rows_are_preferred_over_removed_ones(): void
+    {
+        $article = Documentation::factory()->create(['body' => "## A\n新內容\n"]);
+        $unit = fn (int $position, ?string $removedAt) => ArticleUnit::create([
+            'article_id' => $article->id, 'unit_id' => null, 'role' => ArticleUnit::ROLE_BODY, 'level' => 2,
+            'heading' => 'A', 'content' => "舊內容\n", 'content_hash' => ArticleUnitSync::contentHash('A', "舊內容\n"),
+            'position' => $position, 'removed_at' => $removedAt,
+        ]);
+        // 已移除的排在前面（位置 1），還在的在位置 3
+        $removed = $unit(1, '2026-11-01 00:00:00');
+        $live = $unit(3, null);
+
+        $this->sync($article);
+
+        $this->assertSame($live->id, $this->activeUnits($article)[1]->id);
+        $this->assertSame('2026-11-01 00:00:00', $removed->refresh()->removed_at->format('Y-m-d H:i:s'));
+    }
+
     #[TestDox('有 ID 的單位拿掉 {#id} 時不會被當成同一列：舊的標成移除，ID 不會被清掉')]
     public function test_dropping_an_id_does_not_rematch_by_heading(): void
     {

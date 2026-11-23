@@ -50,6 +50,7 @@ return new class extends Migration
 
     public function down(): void
     {
+        // 連同移除紀錄（removed_at）與已補上的 ID 一起刪掉，回不來；正式環境退版不跑 down()（docs/zero-downtime-migrations.md §5.4）
         Schema::dropIfExists('article_units');
     }
 };

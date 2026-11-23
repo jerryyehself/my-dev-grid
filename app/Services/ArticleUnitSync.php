@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\ArticleUnit;
 use App\Models\Documentation;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
+use LogicException;
 
 /**
  * 把一篇文章目前的內文切成段落單位（`ArticleUnitSplitter`），跟 `article_units` 裡上次存的單位對上，
@@ -15,7 +17,7 @@ use InvalidArgumentException;
  * 1. 明確 ID（標題行尾的 `{#id}`，導言固定是 `lead`）相同。已移除的單位也算，ID 回到原稿就復原。
  * 2. 還沒對上的，跟「還沒有 ID」的舊單位比：父單位是同一列、正規化後的標題相同。
  * 3. 再對不上的，跟剩下還沒有 ID 的舊單位比內容的文字相似度（`similarity()`），
- *    不低於 `SIMILARITY_THRESHOLD` 才算同一個。
+ *    不低於 `SIMILARITY_THRESHOLD` 才算同一個；全部配對依分數由高到低配，不照文件順序搶。
  * 4. 都對不上就是新單位。
  *
  * 第 2、3 步只拿還沒有 ID 的舊單位當候選：`unit_id` 一旦有值就不改、也不清掉，所以有 ID 的舊單位只能
@@ -44,6 +46,7 @@ final class ArticleUnitSync
 
     /**
      * @throws InvalidArgumentException 內文的 `{#id}` 重複或太長（匯入時 `ArticleSourceParser` 已經先擋下）
+     * @throws LogicException 寫入時撞到 `(article_id, unit_id)` 唯一鍵，代表比對有 bug
      */
     public function sync(Documentation $article): void
     {
@@ -56,6 +59,21 @@ final class ArticleUnitSync
 
         $matches = $this->match($units, $existing);
 
+        try {
+            $this->write($article, $units, $existing, $matches);
+        } catch (UniqueConstraintViolationException $e) {
+            // 不讓它以原本的型別往外丟：匯入把這個型別當成「同一篇文章剛被匯入過」，訊息會誤導人
+            throw new LogicException('段落單位寫入時撞到 (article_id, unit_id) 唯一鍵，比對結果有誤。', previous: $e);
+        }
+    }
+
+    /**
+     * @param  list<array{unit_id: string|null, parent_index: int|null, heading: string|null, role: string, level: int|null, content: string}>  $units
+     * @param  Collection<int, ArticleUnit>  $existing
+     * @param  array<int, ArticleUnit>  $matches
+     */
+    private function write(Documentation $article, array $units, Collection $existing, array $matches): void
+    {
         $now = now();
         $rows = [];
         foreach ($units as $index => $unit) {
@@ -211,7 +229,11 @@ final class ArticleUnitSync
     }
 
     /**
-     * 第 3 步：跟剩下的候選比內容相似度，取最高的一個（同分取排在前面的），要不低於門檻。
+     * 第 3 步：跟剩下的候選比內容相似度，不低於門檻的配對全部列出來，分數由高到低配，
+     * 每個新單位、每個候選最多用一次。同分時先配排在前面的新單位，再取排在前面的候選
+     * （還在的優先，再依上次的位置）。
+     *
+     * 不照文件順序一個一個挑：兩段彼此相似的節同時換標題時，排在前面的那節會先搶走另一節的列。
      *
      * @param  list<array{content: string, level: int|null}>  $units
      * @param  array<int, ArticleUnit>  $candidates  對上的會被拿掉
@@ -219,29 +241,32 @@ final class ArticleUnitSync
      */
     private function matchBySimilarity(array $units, array &$candidates, array &$matches): void
     {
+        $pairs = [];
         foreach ($units as $index => $unit) {
             // 導言一定有 ID（lead），只走第 1 步
             if (isset($matches[$index]) || $unit['level'] === null || ! self::longEnough($unit['content'])) {
                 continue;
             }
 
-            $best = null;
-            $bestScore = self::SIMILARITY_THRESHOLD;
             foreach ($candidates as $key => $row) {
                 if (! self::longEnough($row->content)) {
                     continue;
                 }
                 $score = self::similarity($unit['content'], $row->content);
-                if ($score >= $bestScore && ($best === null || $score > $bestScore)) {
-                    $best = $key;
-                    $bestScore = $score;
+                if ($score >= self::SIMILARITY_THRESHOLD) {
+                    $pairs[] = [$score, $index, $key];
                 }
             }
+        }
 
-            if ($best !== null) {
-                $matches[$index] = $candidates[$best];
-                unset($candidates[$best]);
+        usort($pairs, fn (array $a, array $b) => [$b[0], $a[1], $a[2]] <=> [$a[0], $b[1], $b[2]]);
+
+        foreach ($pairs as [, $index, $key]) {
+            if (isset($matches[$index]) || ! isset($candidates[$key])) {
+                continue;
             }
+            $matches[$index] = $candidates[$key];
+            unset($candidates[$key]);
         }
     }
 

@@ -7,7 +7,9 @@ use App\Models\Documentation;
 use App\Models\Scope;
 use App\Services\ArticleUnitSplitter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
+use LogicException;
 use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 use Tests\Concerns\FakesArticleSourceRepo;
@@ -183,6 +185,30 @@ class ArticleSourceUnitsTest extends TestCase
 
         $this->assertSame(0, Documentation::count());
         $this->assertSame(0, ArticleUnit::count());
+    }
+
+    #[TestDox('寫單位時撞到唯一鍵：不回「同一篇文章剛被匯入過」的 409，當成程式錯誤，文章也不寫入')]
+    public function test_unit_unique_violation_is_not_reported_as_a_concurrent_import(): void
+    {
+        $content = self::article('post', '文章', "## A {#a}\n甲\n");
+        $commit = $this->publishSourceFiles(['post.md' => $content]);
+        $this->actingAsOwner();
+        // 模擬比對出錯：要寫入的那一列之前，同一篇文章已經有同一個 unit_id
+        ArticleUnit::creating(function (ArticleUnit $unit) {
+            DB::table('article_units')->insert(['article_id' => $unit->article_id, 'unit_id' => $unit->unit_id, 'role' => 'body', 'content' => '', 'content_hash' => str_repeat('0', 64), 'position' => 99]);
+        });
+
+        $response = $this->import([$this->item('post', $content, 'create')], $commit);
+
+        $response->assertStatus(500);
+        $this->assertNotSame('conflict', $response->json('reason'));
+        $this->assertStringNotContainsString('同一篇文章剛被匯入過', $response->getContent());
+        $this->assertSame(0, Documentation::count());
+        $this->assertSame(0, ArticleUnit::count());
+
+        $this->withoutExceptionHandling();
+        $this->expectException(LogicException::class);
+        $this->import([$this->item('post', $content, 'create')], $commit);
     }
 
     /**
