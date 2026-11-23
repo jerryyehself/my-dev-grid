@@ -58,7 +58,10 @@ class ArticleUnitSyncTest extends TestCase
             $this->assertSame($unit['level'], $row->level);
             $this->assertSame($unit['heading'], $row->heading);
             $this->assertSame($unit['content'], $row->content);
-            $this->assertSame(ArticleUnitSync::contentHash($unit['heading'], $unit['content']), $row->content_hash);
+            $this->assertSame(ArticleUnitSync::contentHash($unit['heading'], $unit['content'], array_column($unit['footnotes'], 'content')), $row->content_hash);
+            $this->assertSame($unit['is_container'], $row->is_container);
+            $this->assertNull($row->footnotes);
+            $this->assertSame($unit['chunks'], $row->chunks);
             $this->assertSame($index, $row->position);
             $this->assertNull($row->removed_at);
         }
@@ -81,14 +84,10 @@ class ArticleUnitSyncTest extends TestCase
         $this->assertSame(2, $h3->parent->level);
     }
 
-    #[TestDox('「來源」節與底下的 H3 角色是 references，腳註定義目前留在所在的單位')]
+    #[TestDox('「來源」節與底下的 H3 角色是 references；文末的腳註定義存到引用它的單位')]
     public function test_references_section_of_a_real_article(): void
     {
-        $body = self::fixture('cloudflare-workers-spa-deployment-guide.md');
-        // 在真實文章的一節加一個腳註引用，文末接上「來源」節與腳註定義
-        $body = preg_replace('/^(## 一、為什麼選 Cloudflare（而不是 Vercel）\n)/mu', "$1\n選型的比較來源見文末[^1]。\n", $body, 1);
-        $body .= "\n## 來源\n\n- Cloudflare Workers 文件\n\n### 官方文件\n\n- Static Assets\n\n[^1]: 見「來源」節。\n";
-        $article = Documentation::factory()->create(['body' => self::withIds($body)]);
+        $article = Documentation::factory()->create(['body' => self::withIds(self::withFootnotes(self::fixture('cloudflare-workers-spa-deployment-guide.md')))]);
 
         $this->sync($article);
 
@@ -99,8 +98,38 @@ class ArticleUnitSyncTest extends TestCase
         $this->assertSame(ArticleUnit::ROLE_REFERENCES, $official->role);
         $this->assertSame($sources->id, $official->parent_id);
         $this->assertSame(ArticleUnit::ROLE_BODY, $rows->firstWhere('heading', '一、為什麼選 Cloudflare（而不是 Vercel）')->role);
-        // 腳註歸給引用它的單位還沒做：定義跟著原稿位置，落在最後一個單位
-        $this->assertStringContainsString('[^1]: 見「來源」節。', $official->content);
+        // 定義從最後一個單位搬走，那一列不再有定義
+        $this->assertStringNotContainsString('[^', $official->content);
+        $this->assertNull($official->footnotes);
+    }
+
+    #[TestDox('真實文章的腳註：每個定義存在引用它的那一列，記下原本所在的單位與行號；沒有腳註的列是空值')]
+    public function test_footnotes_of_a_real_article_are_stored_on_the_citing_rows(): void
+    {
+        $body = self::withIds(self::withFootnotes(self::fixture('cloudflare-workers-spa-deployment-guide.md')));
+        $article = Documentation::factory()->create(['body' => $body]);
+
+        $this->sync($article);
+
+        $rows = $this->activeUnits($article);
+        $official = $rows->firstWhere('heading', '官方文件');
+        $lines = explode("\n", $body);
+        $citing = [];
+        foreach ($rows as $row) {
+            foreach ($row->footnotes ?? [] as $footnote) {
+                $citing[$footnote['label']][] = $row->heading;
+                $this->assertSame($official->position, $footnote['defined_in']);
+                $this->assertSame($footnote['content'], implode("\n", array_slice($lines, $footnote['start_line'] - 1, $footnote['end_line'] - $footnote['start_line'] + 1)));
+            }
+        }
+        ksort($citing);
+        $this->assertSame([
+            1 => ['一、為什麼選 Cloudflare（而不是 Vercel）'],
+            2 => ['二、Cloudflare Pages 現在其實是 Workers + Static Assets', '三、第一次部署失敗：`_redirects` 觸發無限迴圈'],
+            3 => ['三、第一次部署失敗：`_redirects` 觸發無限迴圈'],
+        ], $citing);
+        $this->assertSame(3, $rows->whereNotNull('footnotes')->count());
+        $this->assertSame(0, ArticleUnit::where('content', 'like', '%]: 腳註%')->count());
     }
 
     #[TestDox('改一個單位的副標或內容再寫入：ID 與列不變，只有那一個單位的雜湊更新')]
@@ -139,7 +168,8 @@ class ArticleUnitSyncTest extends TestCase
         $this->sync($article);
         $count = ArticleUnit::count();
         $section = $this->activeUnits($article)->firstWhere('heading', '4. 討論過程的關鍵轉折（依時間順序）');
-        $children = ArticleUnit::where('parent_id', $section->id)->pluck('unit_id')->all();
+        // 要跟下面的 $gone 一樣依 id 排：PostgreSQL 沒有 ORDER BY 時照實體位置回傳，列被更新過順序就會變
+        $children = ArticleUnit::where('parent_id', $section->id)->orderBy('id')->pluck('unit_id')->all();
         $this->assertCount(10, $children);
 
         // 拿掉整個第 4 節（到第 5 節之前）
@@ -407,6 +437,101 @@ class ArticleUnitSyncTest extends TestCase
         $this->assertEquals($before, ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'content_hash', 'position', 'updated_at'])->all());
     }
 
+    #[TestDox('加腳註歸屬之前寫入的列：原稿沒改時重新匯入，對上同一列、ID 不變；雜湊只有引用腳註的列與定義原本所在的列會變')]
+    public function test_rows_written_before_footnote_handling_keep_ids(): void
+    {
+        $body = self::withIds(self::withFootnotes(self::fixture('cloudflare-workers-spa-deployment-guide.md')));
+        $article = Documentation::factory()->create(['body' => $body]);
+        // 照之前的寫法存：content 是原稿原文（定義還在最後一個單位），雜湊用它算，三個新欄位是預設值
+        $parents = [];
+        foreach ((new ArticleUnitSplitter)->split($body)['units'] as $index => $unit) {
+            $parents[$index] = ArticleUnit::create([
+                'article_id' => $article->id,
+                'unit_id' => $unit['unit_id'],
+                'parent_id' => $unit['parent_index'] === null ? null : $parents[$unit['parent_index']]->id,
+                'role' => $unit['role'],
+                'level' => $unit['level'],
+                'heading' => $unit['heading'],
+                'content' => $unit['source'],
+                'content_hash' => ArticleUnitSync::contentHash($unit['heading'], $unit['source']),
+                'position' => $index,
+            ]);
+        }
+        $before = ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id', 'position'])->all();
+        $hashes = ArticleUnit::pluck('content_hash', 'heading');
+        $this->assertStringContainsString('[^1]: 腳註一', ArticleUnit::where('heading', '官方文件')->value('content'));
+
+        $this->sync($article);
+
+        $this->assertSame($before, ArticleUnit::orderBy('id')->get()->map->only(['id', 'unit_id', 'parent_id', 'position'])->all());
+        $changed = array_keys(array_diff_assoc(ArticleUnit::pluck('content_hash', 'heading')->all(), $hashes->all()));
+        sort($changed);
+        $expected = ['一、為什麼選 Cloudflare（而不是 Vercel）', '三、第一次部署失敗：`_redirects` 觸發無限迴圈', '二、Cloudflare Pages 現在其實是 Workers + Static Assets', '官方文件'];
+        sort($expected);
+        $this->assertSame($expected, $changed);
+        $this->assertSame(0, ArticleUnit::whereNotNull('removed_at')->count());
+        $this->assertStringNotContainsString('[^1]: 腳註一', ArticleUnit::where('heading', '官方文件')->value('content'));
+        $this->assertSame(['1'], array_column(ArticleUnit::where('heading', '一、為什麼選 Cloudflare（而不是 Vercel）')->first()->footnotes, 'label'));
+    }
+
+    #[TestDox('有腳註、容器、子片段的文章，內容沒變時重新寫入不改任何列（JSON 欄位不會被當成有變）')]
+    public function test_unchanged_body_with_footnotes_touches_nothing(): void
+    {
+        $long = str_repeat('長段落的文字。', 150)."[^1]\n\n".str_repeat('第二段的文字。', 150);
+        $body = self::withIds(self::withFootnotes(self::fixture('cloudflare-workers-spa-deployment-guide.md')))
+            ."\n## 容器 {#box}\n\n### 長節 {#long}\n{$long}\n";
+        $article = Documentation::factory()->create(['body' => $body]);
+        $this->sync($article);
+        $this->assertTrue(ArticleUnit::where('unit_id', 'box')->value('is_container'));
+        $this->assertSame(['long~1', 'long~2'], array_column(ArticleUnit::where('unit_id', 'long')->first()->chunks, 'id'));
+        $columns = ['id', 'unit_id', 'content_hash', 'footnotes', 'chunks', 'is_container', 'updated_at'];
+        $before = ArticleUnit::orderBy('id')->get()->map->only($columns)->all();
+
+        $this->travel(1)->hours();
+        $this->sync($article);
+
+        $this->assertEquals($before, ArticleUnit::orderBy('id')->get()->map->only($columns)->all());
+    }
+
+    #[TestDox('改了腳註定義的文字：雜湊變的是引用它的列，定義原本所在的「來源」節不變')]
+    public function test_editing_a_footnote_changes_the_citing_units_hash(): void
+    {
+        $body = self::withIds(self::withFootnotes(self::fixture('cloudflare-workers-spa-deployment-guide.md')));
+        $article = Documentation::factory()->create(['body' => $body]);
+        $this->sync($article);
+        $before = ArticleUnit::pluck('content_hash', 'heading');
+
+        $article->forceFill(['body' => str_replace('腳註一：Vercel 與 Cloudflare 的比較。', '腳註一：改寫過的比較。', $body)])->save();
+        $this->sync($article);
+
+        $after = ArticleUnit::pluck('content_hash', 'heading');
+        $changed = array_keys(array_diff_assoc($after->all(), $before->all()));
+        $this->assertSame(['一、為什麼選 Cloudflare（而不是 Vercel）'], $changed);
+        $this->assertSame($before['來源'], $after['來源']);
+        $this->assertSame($before['官方文件'], $after['官方文件']);
+        $this->assertSame('[^1]: 腳註一：改寫過的比較。', ArticleUnit::where('heading', '一、為什麼選 Cloudflare（而不是 Vercel）')->first()->footnotes[0]['content']);
+
+        // 被兩節引用的腳註改了，兩節的雜湊都變
+        $article->forceFill(['body' => str_replace('腳註二：Workers 與 Pages 的關係。', '腳註二：改寫。', (string) $article->body)])->save();
+        $this->sync($article);
+        $changed = array_keys(array_diff_assoc(ArticleUnit::pluck('content_hash', 'heading')->all(), $after->all()));
+        sort($changed);
+        $expected = ['二、Cloudflare Pages 現在其實是 Workers + Static Assets', '三、第一次部署失敗：`_redirects` 觸發無限迴圈'];
+        sort($expected);
+        $this->assertSame($expected, $changed);
+    }
+
+    #[TestDox('雜湊：沒有腳註時等於只算標題與內容；腳註的內容、順序、跟內文的分界都會影響結果')]
+    public function test_content_hash_with_footnotes(): void
+    {
+        $plain = ArticleUnitSync::contentHash('A', '內容');
+        $this->assertSame($plain, ArticleUnitSync::contentHash('A', '內容', []));
+        $this->assertNotSame($plain, ArticleUnitSync::contentHash('A', '內容', ['[^1]: x']));
+        $this->assertNotSame(ArticleUnitSync::contentHash('A', '內容', ['[^1]: x', '[^2]: y']), ArticleUnitSync::contentHash('A', '內容', ['[^2]: y', '[^1]: x']));
+        // 腳註併進內文不會跟分開算出同一個雜湊
+        $this->assertNotSame(ArticleUnitSync::contentHash('A', "內容\n2:xy"), ArticleUnitSync::contentHash('A', '內容', ['xy']));
+    }
+
     #[TestDox('不同文章的單位互不影響，同一個 ID 可以各用一次')]
     public function test_articles_do_not_share_units(): void
     {
@@ -469,6 +594,28 @@ class ArticleUnitSyncTest extends TestCase
     private static function fixture(string $file): string
     {
         return (string) file_get_contents(database_path('seeders/fixtures/articles/'.$file));
+    }
+
+    /**
+     * 照目前文章的寫法加上腳註：引用寫在前三節的句子裡，定義全放在文末「來源」節的最後；
+     * 標籤 2 被兩節引用，標籤 2 的定義有縮排的續行。
+     */
+    private static function withFootnotes(string $body): string
+    {
+        $sections = [
+            '一、為什麼選 Cloudflare（而不是 Vercel）' => "選型的比較來源見文末[^1]。\n",
+            '二、Cloudflare Pages 現在其實是 Workers + Static Assets' => "官方的說法見[^2]。\n",
+            '三、第一次部署失敗：`_redirects` 觸發無限迴圈' => "同樣的規則[^2]也適用，錯誤訊息見[^3]。\n",
+        ];
+        foreach ($sections as $heading => $sentence) {
+            $body = preg_replace('/^(## '.preg_quote($heading, '/').'\n)/mu', "$1\n".$sentence, $body, 1, $count);
+            if ($count !== 1) {
+                throw new \RuntimeException("找不到 {$heading}");
+            }
+        }
+
+        return $body."\n## 來源\n\n- Cloudflare Workers 文件\n\n### 官方文件\n\n- Static Assets\n\n"
+            ."[^1]: 腳註一：Vercel 與 Cloudflare 的比較。\n[^2]: 腳註二：Workers 與 Pages 的關係。\n    續行：2025 年起合併。\n[^3]: 腳註三：錯誤訊息原文。\n";
     }
 
     /** 每個 H2、H3 標題行尾補上 `{#s1}`、`{#s2}`…（照補寫腳本會做的樣子；程式碼區塊裡的不動）。 */

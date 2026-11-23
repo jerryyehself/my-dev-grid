@@ -26,8 +26,16 @@ use LogicException;
  *
  * 父單位要先對上，子單位的第 2 步才比得了；父單位可能要到第 3 步才對上，所以第 2、3 步輪流跑到沒有新的配對為止。
  *
- * 這次沒出現的舊單位不刪，填 `removed_at`（已經填過的不再改時間）。`content_hash` 是標題與內容的雜湊，
- * 標題或內容變了才會變；ID 寫法（`{#id}`）不算在內。
+ * 這次沒出現的舊單位不刪，填 `removed_at`（已經填過的不再改時間）。
+ *
+ * `content_hash` 是標題、腳註搬走之後的內容、附給這個單位的腳註定義三者的雜湊（`contentHash()`），
+ * ID 寫法（`{#id}`）不算在內。腳註跟著歸屬算：改了某個腳註的文字，變的是引用它的單位，
+ * 定義原本所在的單位（通常是文末的「來源」節）不變。沒有附腳註的單位跟只算標題與內容的結果相同。
+ *
+ * 腳註（`footnotes`）、子片段（`chunks`）沒有時存 null，不存空陣列：跟加欄位之前寫入的列一樣，
+ * 沒有腳註的單位重新匯入時不會因為這兩欄被當成有變動。
+ *
+ * @phpstan-import-type Unit from ArticleUnitSplitter
  */
 final class ArticleUnitSync
 {
@@ -68,7 +76,7 @@ final class ArticleUnitSync
     }
 
     /**
-     * @param  list<array{unit_id: string|null, parent_index: int|null, heading: string|null, role: string, level: int|null, content: string}>  $units
+     * @param  list<Unit>  $units
      * @param  Collection<int, ArticleUnit>  $existing
      * @param  array<int, ArticleUnit>  $matches
      */
@@ -85,7 +93,10 @@ final class ArticleUnitSync
                 'level' => $unit['level'],
                 'heading' => $unit['heading'],
                 'content' => $unit['content'],
-                'content_hash' => self::contentHash($unit['heading'], $unit['content']),
+                'content_hash' => self::contentHash($unit['heading'], $unit['content'], array_column($unit['footnotes'], 'content')),
+                'is_container' => $unit['is_container'],
+                'footnotes' => $unit['footnotes'] === [] ? null : $unit['footnotes'],
+                'chunks' => $unit['chunks'],
                 'position' => $index,
                 'removed_at' => null,
             ]);
@@ -109,12 +120,19 @@ final class ArticleUnitSync
     }
 
     /**
-     * 標題與內容的 SHA-256。每個值前面加上長度（標題是 null 時寫成 `-`），
-     * 標題與內容的分界不會因為內容裡的字元而跟另一組值算出同一個字串。
+     * 標題、內容與附屬腳註的 SHA-256。每個值前面加上長度（標題是 null 時寫成 `-`），
+     * 各值的分界不會因為內容裡的字元而跟另一組值算出同一個字串。沒有腳註時只算標題與內容。
+     *
+     * @param  list<string>  $footnotes  附給這個單位的腳註定義原文，照 `ArticleUnitSplitter` 給的順序
      */
-    public static function contentHash(?string $heading, string $content): string
+    public static function contentHash(?string $heading, string $content, array $footnotes = []): string
     {
-        return hash('sha256', ($heading === null ? '-' : strlen($heading).':'.$heading)."\n".strlen($content).':'.$content);
+        $text = ($heading === null ? '-' : strlen($heading).':'.$heading)."\n".strlen($content).':'.$content;
+        foreach ($footnotes as $footnote) {
+            $text .= "\n".strlen($footnote).':'.$footnote;
+        }
+
+        return hash('sha256', $text);
     }
 
     /**
