@@ -5,7 +5,7 @@
 ## 程式碼風格
 
 - 以 **Laravel Pint 的 Laravel preset** 為準（repo 沒有 `pint.json`，就是用預設的 preset，以 PSR-12 為基礎）。送 PR 前跑 `./vendor/bin/pint` 自動修正，或用 `./vendor/bin/pint --test` 只檢查。
-- 目前整個 repo 都通過 `pint --test`。CI 還沒有跑這項檢查；要不要加進 CI，另外決定。
+- 目前整個 repo 都通過 `pint --test`。CI 的 `tests.yml` 也會跑它（SQLite 那一輪，每次執行跑一次），不符合就讓 CI 失敗，所以送 PR 前先跑過。
 - 縮排、換行、檔尾空行照 `.editorconfig`：4 個空白、LF、檔尾留一行空行。
 - Pint 不會改名稱。下面的命名規則（PSR-1 的部分）要靠審查。
 

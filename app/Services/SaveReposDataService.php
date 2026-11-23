@@ -43,10 +43,9 @@ use RuntimeException;
  * 站主在後台指定過述詞的邊（`technique_implementation.manually_set_at` 有值）不改述詞，
  * 這一對專案與技術也不另長一列，見 link_project_to_techniques()。同步不刪任何邊。
  *
- * 不寫技術邊的專案：專案有一條沒刪除的文件連結、述詞沿改用解析後是 `isBasisFor`（改作自外部 repo），
- * 或列在 `config/repo_sync.php` 的 `skip_technique_edges`（用 `owner/name` 指定，別人名下的同名 repo 不受影響）。
- * 這些專案照常同步成專案、nomen 照記，只是不寫任何技術邊。`isBasedOnProject`（建置產物）不算：
- * 建置產物照常同步技術邊。
+ * 不寫技術邊的專案：專案有一條沒刪除的文件連結、述詞沿改用解析後是 `isBasisFor`（改作自外部 repo）。
+ * 由站主在後台標，不看 repo 名稱。這些專案照常同步成專案、nomen 照記，只是不寫任何技術邊，已經連上的舊邊也不碰。
+ * `isBasedOnProject`（建置產物）不算：建置產物照常同步技術邊。
  *
  * 另外有兩組手動維護的關係，在已知時補上：
  * - framework／library 類的 topic（例如 `vue`）會透過 `requires`（同類型，
@@ -202,9 +201,9 @@ class SaveReposDataService
         $this->gitService->each(function ($repo) use ($usesRelationId, $aboutRelationId, $requiresRelationId, $specsRelationId, $isVersionOfRelationId, $derivedProjectIds, $seenAt) {
             $project = $this->save_repos_content($repo);
 
-            // 改作自外部 repo 的專案（資料庫有 isBasisFor 連結），以及清單裡的 repo（config/repo_sync.php），不寫技術邊：
-            // 連出來的技術不代表作者自己的技術。不建技術、不連邊、不更新 last_seen_at，舊的邊照常留著；nomen 照記。
-            if (isset($derivedProjectIds[$project->id]) || $this->skips_technique_edges($repo)) {
+            // 改作自外部 repo 的專案（資料庫有 isBasisFor 連結）不寫技術邊：連出來的技術不代表作者自己的技術。
+            // 不建技術、不連邊、不更新 last_seen_at，舊的邊照常留著；nomen 照記。
+            if (isset($derivedProjectIds[$project->id])) {
                 $this->nomens->recordRepo($project, $repo, $seenAt);
 
                 return;
@@ -353,7 +352,7 @@ class SaveReposDataService
         $isBasisFor = Relation::resolveByName('isBasisFor');
 
         if ($isBasisFor === null) {
-            Log::warning('找不到述詞「isBasisFor」，改作專案的略過條件失效（只剩 config/repo_sync.php 的清單）。');
+            Log::warning('找不到述詞「isBasisFor」，改作專案的略過條件失效，改作專案會照常寫技術邊。');
 
             return [];
         }
@@ -367,30 +366,6 @@ class SaveReposDataService
             ->pluck('documentation_implementation.implementation_id')
             ->mapWithKeys(fn ($id) => [(int) $id => true])
             ->all();
-    }
-
-    /**
-     * 擁有者與 repo 名稱都完全相符（`owner/name`，不分大小寫）才算。
-     *
-     * 只比名稱會誤傷別人名下的同名 repo（同步來源含協作者、組織成員看得到的 repo），
-     * `my-profile-2` 這種只共用前綴的也不算。讀不到擁有者時無法確認身分，不略過；
-     * 清單項目沒有 `/`（只寫名稱）時不會等於任何 `owner/name`，同樣不略過。
-     */
-    private function skips_technique_edges(array $repo): bool
-    {
-        $title = $repo['title'] ?? null;
-        $owner = $repo['owner'] ?? null;
-
-        if (! is_string($title) || $title === '' || ! is_string($owner) || $owner === '') {
-            return false;
-        }
-
-        $skipped = array_map(
-            fn ($fullName) => mb_strtolower(trim((string) $fullName)),
-            (array) config('repo_sync.skip_technique_edges', []),
-        );
-
-        return in_array(mb_strtolower("{$owner}/{$title}"), $skipped, true);
     }
 
     private function is_ignored_language(string $name): bool

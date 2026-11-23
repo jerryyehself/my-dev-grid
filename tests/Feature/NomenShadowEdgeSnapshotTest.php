@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Implementation;
 use App\Models\Nomen;
+use App\Models\Scope;
 use App\Services\SaveReposDataService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -17,9 +19,11 @@ use Tests\TestCase;
  *
  * `snapshots/nomen-shadow-edges.json` 是在加上 nomens 之前的程式上跑同一段流程產生的，
  * 之後不要為了讓測試變綠而重新產生：這個檔案對不上，就表示影子寫入改到了既有的邊。
- * 例外是有意的行為變更，快照只動被變更影響的那幾列：`config/repo_sync.php` 的 `skip_technique_edges`
- * 讓 my-profile（929886110）不再寫技術邊，快照因此少了它的 4 條 usedBy（TypeScript、JavaScript、
- * Dockerfile、CSS），其餘一列不動。
+ * 例外是有意的行為變更，快照只動被變更影響的那幾列：my-profile（929886110）改作自外部 repo，不再寫技術邊，
+ * 快照因此少了它的 4 條 usedBy（TypeScript、JavaScript、Dockerfile、CSS），其餘一列不動。當初用
+ * `config/repo_sync.php` 的清單略過，清單拿掉後改成跟正式資料庫一樣：同步前先跑
+ * `2026_11_23_000000_link_my_profile_to_origin_and_downgrade_topic_only_edges`，建原作的 Documentation 與
+ * isBasisFor 連結，快照因此多了那一筆 Documentation 與那一條連結，其餘不動。
  * 另一次是同步改成依證據決定述詞：只在 topic 出現、程式裡（語言統計、套件清單）沒有證據的技術寫 `subjectOfProject`
  * 而不是 `usedBy`。快照只有 36 列的述詞名稱從 usedBy 換成 subjectOfProject，節點、其他欄位與列數都沒動。
  * 這份 fixture 沒有套件資料，所以只有 topic 證據的列比正式資料多。
@@ -43,6 +47,7 @@ class NomenShadowEdgeSnapshotTest extends TestCase
     public function test_sync_and_article_import_write_the_same_nodes_and_edges_as_before(): void
     {
         $this->seed();
+        $this->linkMyProfileToItsOrigin();
 
         Carbon::setTestNow('2026-11-01 03:17:00');
         (new SaveReposDataService($this->repos()))->save_repos_data();
@@ -71,6 +76,25 @@ class NomenShadowEdgeSnapshotTest extends TestCase
             [Nomen::SOURCE_GITHUB_LANGUAGE, Nomen::SOURCE_GITHUB_TOPIC, Nomen::SOURCE_ABOUT_TECHNIQUES, Nomen::SOURCE_ABOUT_PROJECTS],
             Nomen::distinct()->pluck('source')->all(),
         );
+    }
+
+    /**
+     * 正式資料庫的 my-profile 有原作的 isBasisFor 連結，由資料修正 migration 建立。這裡照樣跑一次那支 migration：
+     * 專案要先存在，migration 才找得到它（同步之後會用 git_repo_id 更新同一筆）。
+     */
+    private function linkMyProfileToItsOrigin(): void
+    {
+        Implementation::factory()->create([
+            'git_repo_id' => '929886110',
+            'title' => 'my-profile',
+            'url' => 'https://github.com/jerryyehself/my-profile',
+            'type' => Scope::where('name', 'project')->value('id'),
+        ]);
+
+        $migration = require database_path('migrations/2026_11_23_000000_link_my_profile_to_origin_and_downgrade_topic_only_edges.php');
+        // RefreshDatabase 已經對空資料庫跑過一次 up()（只建了備份表），先退掉再跑
+        $migration->down();
+        $migration->up();
     }
 
     /**

@@ -47,7 +47,8 @@ class StoreScopeRequest extends FormRequest
             // 唯一性不算已軟刪除的分類,跟 UpdateScopeRequest 一致。
             /** 分類名稱，最多 50 字；不能跟其他還在的分類重複，已刪除的分類用過的名稱可以再用。 */
             'name' => ['required', 'string', 'max:50', Rule::unique('scopes')->withoutTrashed()],
-            'comment' => 'required|string|max:100',
+            /** 範圍說明，最多 255 字。 */
+            'comment' => 'required|string|max:255',
             'note' => 'nullable|string|max:255',
         ];
     }

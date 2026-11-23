@@ -191,13 +191,14 @@ class SecurityEventLoggingTest extends TestCase
         $this->assertNotLogged('guess');
     }
 
-    #[TestDox('OAuth state 不符時記錄登入失敗並維持原本的錯誤')]
-    public function test_oauth_invalid_state_logs_login_fail_and_still_errors_like_before()
+    #[TestDox('OAuth state 不符時記錄登入失敗並導回登入逾時')]
+    public function test_oauth_invalid_state_logs_login_fail_and_redirects_with_state_expired()
     {
         $this->socialiteThrows('google', new InvalidStateException);
         $this->captureLogs();
 
-        $this->get('/auth/google/callback?code=oauth-code-must-not-be-logged&state=tampered')->assertServerError();
+        $this->get('/auth/google/callback?code=oauth-code-must-not-be-logged&state=tampered')
+            ->assertRedirect('/?auth_error=state_expired');
 
         $this->assertSecurityEvent('authn_login_fail', [
             'auth_method' => 'google',

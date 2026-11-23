@@ -21,6 +21,7 @@
   - 全新的資料庫要能直接跑過：資料不存在時就跳過（`if (! DB::table('techniques')->exists()) return;`）。
   - 有 `down()`。會刪資料或改寫資料的，先把原值備份到暫存表，`down()` 照備份還原（`merge_duplicate_techniques` 的 `technique_merge_backups`）。
   - 補一個測試，跑 `up()`、`down()` 驗證資料：`FixUsesRelationDirectionMigrationTest`、`MergeDuplicateTechniquesMigrationTest`。
+- 新增、改名或刪除 README 兩張 ER 圖（`docs/readme/er_model_*.svg`）畫到的資料表、欄位或述詞時（migration 或 `RelationSeeder`），同一個 PR 一起改圖；當下改不了，就開 issue 寫明圖上哪裡要改。
 
 ## 寫 seeder
 
@@ -36,12 +37,8 @@
 
 ## 結構變更的順序
 
-部署流程是：先用 Cloud Run Job 跑 `php artisan migrate --force`、再跑預設資料 seeder（`ReferenceDataSeeder`），然後才部署新版程式。所以 migration 跑完到新版上線之間，**舊版程式還在用新的資料庫結構接流量**。
+migration 跑完到新版上線之間，舊版程式還在用新的資料庫結構接流量，所以只做向下相容的新增（加欄位、加資料表、加索引），刪除或改名欄位要分次上線。「一次上線」就是一次部署，部署只發生在合進 `main` 的時候（`CLAUDE.md`「分支策略」）。
 
-合進 `develop` 不會部署，部署只發生在合進 `main` 的時候（每週的上線 PR，或直接對 `main` 的修補），所以下面說的「一次部署」就是一次上線（`CLAUDE.md`「分支策略」）。
-
-- 只做向下相容的新增：加欄位（可以是 null，或有預設值）、加資料表、加索引。
-- 刪除或改名欄位，不要跟改程式放在同一次部署。順序：加新結構 → 回填資料 → 程式改讀新結構（另一次上線）→ 確認沒問題後，再用另一次上線刪掉舊欄位。「另一次」是指不能跟前一步在同一個上線 PR 裡：後一步的 PR 要等前一步已經上線，才合進 `develop`。
 - 回填或刪除資料的 migration：PR 裡記錄執行前後的筆數，說明怎麼確認影響範圍正確；大量改寫資料時，先用查詢確認筆數再動手。
 - 會刪資料的 migration 第一次在正式環境跑之前，先確認資料庫有開自動備份：`docs/deployment-gcp.md` 建立 instance 的指令帶了 `--no-backup`。
 
