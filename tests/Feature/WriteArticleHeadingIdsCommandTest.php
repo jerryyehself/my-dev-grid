@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use RuntimeException;
 use Tests\TestCase;
@@ -248,6 +249,63 @@ class WriteArticleHeadingIdsCommandTest extends TestCase
         $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n內容\n\n## 丙 {#s3}\n", file_get_contents($renamed));
     }
 
+    #[TestDox('只寫在合併 commit 裡的 ID（解衝突時新加的節）也跳過')]
+    public function test_ids_only_in_a_merge_commit_stay_reserved(): void
+    {
+        $path = $this->makeFile('a.md', self::FRONT_MATTER."## 甲 {#s1}\n原本的內容\n");
+        $this->commitAll('原稿');
+        $main = trim($this->git('rev-parse', '--abbrev-ref', 'HEAD'));
+        $this->git('checkout', '-q', '-b', 'side');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\nside 改的內容\n");
+        $this->commitAll('side 改');
+        $this->git('checkout', '-q', $main);
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\nmain 改的內容\n");
+        $this->commitAll('main 改');
+
+        // 合併衝突，解衝突時新加一節 s2，只存在於合併 commit 的樹裡
+        $merge = Process::path($this->dir)->run(['git', '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'merge', '-q', 'side']);
+        $this->assertFalse($merge->successful(), '應該要有衝突');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n合併後的內容\n\n## 乙 {#s2}\n解衝突時加的\n");
+        $this->git('add', '-A');
+        $this->git('commit', '-q', '--no-edit');
+
+        // 下一個 commit 刪掉乙，之後加一節新的
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n合併後的內容\n");
+        $this->commitAll('刪掉乙');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n合併後的內容\n\n## 丙\n");
+
+        $this->artisan('articles:write-heading-ids', ['path' => $path])->assertExitCode(0);
+
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n合併後的內容\n\n## 丙 {#s3}\n", file_get_contents($path));
+    }
+
+    /** @return array<string, array{string}> */
+    public static function pathspecLookingNames(): array
+    {
+        return [
+            '冒號開頭（pathspec 的 magic）' => [':colon.md'],
+            '含 * （glob）' => ['star*.md'],
+        ];
+    }
+
+    #[DataProvider('pathspecLookingNames')]
+    #[TestDox('檔名照字面比對，不當成 pathspec：冒號開頭、含 * 的檔名也查得到自己的歷史，不會讀到別的檔案')]
+    public function test_file_names_are_literal_pathspecs(string $name): void
+    {
+        // 同一個 commit 裡另有一個排在前面、* 也比對得到的檔案，只有它的歷史沒有 s2
+        $path = $this->makeFile($name, self::FRONT_MATTER."## 甲 {#s1}\n\n## 乙 {#s2}\n");
+        $other = $this->makeFile('star!other.md', self::FRONT_MATTER."## 別篇 {#s1}\n");
+        $this->commitAll('原稿');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n");
+        file_put_contents($other, self::FRONT_MATTER."## 別篇 {#s1}\n改過\n");
+        $this->commitAll('刪掉乙');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n\n## 丙\n");
+
+        $this->artisan('articles:write-heading-ids', ['path' => $path])->assertExitCode(0);
+
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n\n## 丙 {#s3}\n", file_get_contents($path));
+    }
+
     #[TestDox('別的檔案的歷史不算：同一個 repo 裡另一篇用過的 ID 不影響這篇')]
     public function test_history_of_other_files_does_not_count(): void
     {
@@ -309,7 +367,7 @@ class WriteArticleHeadingIdsCommandTest extends TestCase
         ]);
 
         $this->artisan('articles:write-heading-ids', ['path' => $path])
-            ->expectsOutputToContain('讀不到 '.str_repeat('a', 40).' 的 a.md')
+            ->expectsOutputToContain('讀不到 '.str_repeat('a', 40).':a.md')
             ->assertExitCode(1);
 
         $this->assertSame($raw, file_get_contents($path));

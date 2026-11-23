@@ -132,7 +132,7 @@ class ArticleHeadingIdWriterTest extends TestCase
      * @param  list<string>  $expectedIds
      */
     #[DataProvider('reservedIds')]
-    #[TestDox('新 ID 也跳過呼叫端保留的 ID（資料庫裡這篇文章用過、原稿已經刪掉的）')]
+    #[TestDox('新 ID 也跳過呼叫端保留的 ID（原稿 git 歷史裡用過、已經刪掉的）')]
     public function test_new_ids_skip_reserved_ones(string $body, array $reserved, array $expectedIds): void
     {
         $this->assertSame($expectedIds, $this->addedIds($this->write($this->doc($body), $reserved)));
