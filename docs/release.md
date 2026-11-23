@@ -10,7 +10,7 @@
 - 平常的 PR 從 `origin/develop` 開、對 `develop`，只改文件的也一樣，所以 `main` 上的文件會等到下次上線才更新。clone 裡沒有 `origin/develop` 的話，先 `git fetch origin develop:refs/remotes/origin/develop`。
 - 每週一上線。要不要上線一律先問使用者，就算 CI 全過也一樣。
 - 前後端同一天上線時，後端先上、部署成功後再上前端，前端用到的新 API 才會已經在正式環境。
-- CI 在開往 `main` 與 `develop` 的 PR 都會跑，所以從 `release/*` 開往 `main` 的上線 PR 也會跑。
+- CI 在開往 `main`、`develop`、`release/**` 的 PR 都會跑，所以從 `release/*` 開往 `main` 的上線 PR、開到 release 分支的修正 PR 也會跑。
 - 預設分支維持 `main`：`main` 的保護規則與 Dependabot 的安全性更新都跟著預設分支。`develop` 有保護規則擋刪除與 force push。
 
 ## 2. 切 release 分支
@@ -48,7 +48,7 @@ git push -u origin release/vX.Y.Z
 1. 從 `origin/develop` 開分支，`git merge --no-ff origin/main`，一般 push，不是 force push。release 分支上的修正會在這一步回到 `develop`；跟 `develop` 之後的改動衝突的話，在這個 merge commit 裡解，解法不確定就停下來問使用者。
 2. `develop` 設了必要檢查，沒跑過 CI 的 merge commit 直推會被擋：先把這個 merge commit 推到 `claude/merge-main-vX.Y.Z` 分支、開 PR 到 `develop` 只為了跑 CI。
 3. CI 全綠後用 `git push origin <同一個 SHA>:refs/heads/develop` 快轉推送。不要在網頁上合併那個 PR（squash 或 rebase 會改寫歷史）；快轉推不上去就停下來問使用者。
-4. repo 開了「合併後自動刪除分支」，`release/vX.Y.Z` 在上線 PR 合併後會被自動刪掉，這是預期的；還開著、對象是它的 PR 也會跟著關掉。`develop` 有保護規則，不會被刪。
+4. repo 開了「合併後自動刪除分支」，`release/vX.Y.Z` 在上線 PR 合併後會被自動刪掉，這是預期的；還開著、對象是它的 PR 不會關掉，GitHub 會把它們的目標改成 `main`，看起來就像一個直接修補 `main` 的 PR，所以第 4 節要求合併上線 PR 前先把它們合併或關掉。`develop` 有保護規則，不會被刪。
 
 ## 6. 退版
 

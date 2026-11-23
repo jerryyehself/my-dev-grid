@@ -1,12 +1,12 @@
 name: Tests
 
 # Runs the PHPUnit/Pest suite (`composer test`, i.e. `php artisan test`) on
-# every push to main/develop and every pull request targeting main/develop,
+# every push to main/develop and every pull request targeting main, develop or release/**,
 # so regressions are caught before merge instead of relying on someone
 # running the suite by hand afterwards. Feature PRs target `develop` (the
 # integration branch), release PRs go from `release/*` to `main`, and only
 # `main` deploys (release flow: docs/release.md). Fix PRs into a `release/*`
-# branch don't trigger this workflow; the release PR re-runs it on its new head.
+# branch run it too, and the release PR re-runs it on its new head.
 #
 # Runs against BOTH SQLite (local dev's default, `DB_CONNECTION=sqlite` in
 # `.env.example`) AND Postgres (production's actual `DB_CONNECTION=pgsql`,
