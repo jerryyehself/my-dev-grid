@@ -30,19 +30,25 @@ class WriteArticleHeadingIdsCommandTest extends TestCase
         $this->git('commit', '-q', '--allow-empty', '-m', 'init');
     }
 
-    /** 在臨時 repo 裡跑 git，失敗就讓測試失敗。 */
-    private function git(string ...$args): string
+    /** 在臨時 repo 裡跑 git，失敗就讓測試失敗。`$date` 給了就當成 commit 的作者與提交時間（控制 git log 走訪的順序）。 */
+    private function gitAt(?string $date, string ...$args): string
     {
-        $result = Process::path($this->dir)->run(['git', '-c', 'user.name=test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...$args]);
+        $env = $date === null ? [] : ['GIT_AUTHOR_DATE' => $date, 'GIT_COMMITTER_DATE' => $date];
+        $result = Process::path($this->dir)->env($env)->run(['git', '-c', 'user.name=test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...$args]);
         $this->assertTrue($result->successful(), 'git '.implode(' ', $args).'：'.$result->errorOutput());
 
         return $result->output();
     }
 
-    private function commitAll(string $message): void
+    private function git(string ...$args): string
+    {
+        return $this->gitAt(null, ...$args);
+    }
+
+    private function commitAll(string $message, ?string $date = null): void
     {
         $this->git('add', '-A');
-        $this->git('commit', '-q', '-m', $message);
+        $this->gitAt($date, 'commit', '-q', '-m', $message);
     }
 
     protected function tearDown(): void
@@ -249,34 +255,35 @@ class WriteArticleHeadingIdsCommandTest extends TestCase
         $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n內容\n\n## 丙 {#s3}\n", file_get_contents($renamed));
     }
 
-    #[TestDox('只寫在合併 commit 裡的 ID（解衝突時新加的節）也跳過')]
-    public function test_ids_only_in_a_merge_commit_stay_reserved(): void
+    #[TestDox('主線單獨 commit 改名、加了又刪掉一個 ID，之後合併用舊檔名改內文的側枝：主線那些版本照樣讀到')]
+    public function test_ids_on_the_mainline_after_a_rename_survive_a_side_branch_merge(): void
     {
-        $path = $this->makeFile('a.md', self::FRONT_MATTER."## 甲 {#s1}\n原本的內容\n");
-        $this->commitAll('原稿');
+        $this->makeFile('a.md', self::FRONT_MATTER."## 甲 {#s1}\n原本的內容\n");
+        $this->commitAll('原稿', '2026-01-01T00:00:00');
         $main = trim($this->git('rev-parse', '--abbrev-ref', 'HEAD'));
+
+        // 側枝用舊檔名改內文，時間最晚（git log 會先走到它）
         $this->git('checkout', '-q', '-b', 'side');
-        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\nside 改的內容\n");
-        $this->commitAll('side 改');
+        file_put_contents($this->dir.'/a.md', self::FRONT_MATTER."## 甲 {#s1}\n側枝改的內容\n");
+        $this->commitAll('側枝改內文', '2026-01-05T00:00:00');
+
+        // 主線：單獨 commit 改名，再加 s2、刪 s2
         $this->git('checkout', '-q', $main);
-        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\nmain 改的內容\n");
-        $this->commitAll('main 改');
+        $this->git('mv', 'a.md', 'b.md');
+        $this->commitAll('改名', '2026-01-02T00:00:00');
+        $path = $this->dir.'/b.md';
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n原本的內容\n\n## 乙 {#s2}\n");
+        $this->commitAll('加乙', '2026-01-03T00:00:00');
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n原本的內容\n");
+        $this->commitAll('刪掉乙', '2026-01-04T00:00:00');
 
-        // 合併衝突，解衝突時新加一節 s2，只存在於合併 commit 的樹裡
-        $merge = Process::path($this->dir)->run(['git', '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'merge', '-q', 'side']);
-        $this->assertFalse($merge->successful(), '應該要有衝突');
-        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n合併後的內容\n\n## 乙 {#s2}\n解衝突時加的\n");
-        $this->git('add', '-A');
-        $this->git('commit', '-q', '--no-edit');
-
-        // 下一個 commit 刪掉乙，之後加一節新的
-        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n合併後的內容\n");
-        $this->commitAll('刪掉乙');
-        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n合併後的內容\n\n## 丙\n");
+        $this->gitAt('2026-01-06T00:00:00', 'merge', '-q', '--no-edit', 'side');
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n側枝改的內容\n", file_get_contents($path));
+        file_put_contents($path, self::FRONT_MATTER."## 甲 {#s1}\n側枝改的內容\n\n## 丙\n");
 
         $this->artisan('articles:write-heading-ids', ['path' => $path])->assertExitCode(0);
 
-        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n合併後的內容\n\n## 丙 {#s3}\n", file_get_contents($path));
+        $this->assertSame(self::FRONT_MATTER."## 甲 {#s1}\n側枝改的內容\n\n## 丙 {#s3}\n", file_get_contents($path));
     }
 
     /** @return array<string, array{string}> */
