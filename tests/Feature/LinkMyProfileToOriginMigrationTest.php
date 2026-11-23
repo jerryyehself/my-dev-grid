@@ -104,7 +104,7 @@ class LinkMyProfileToOriginMigrationTest extends TestCase
             default => 'packagetool',
         };
 
-        return Technique::whereRaw('lower(title) = ?', [mb_strtolower($title)])->value('id')
+        return Technique::whereRaw('lower(title) = ?', [mb_strtolower($title)])->orderBy('id')->value('id')
             ?? Technique::factory()->create(['title' => $title, 'version' => null, 'type' => Scope::where('name', $scope)->value('id')])->id;
     }
 
