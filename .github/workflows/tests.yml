@@ -32,7 +32,8 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    # release/**：上線期間開到 release 分支的修正 PR 也要跑（docs/release.md §4）。
+    branches: [main, develop, 'release/**']
 
 permissions:
   contents: read

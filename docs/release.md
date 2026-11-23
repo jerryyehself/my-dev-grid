@@ -38,7 +38,7 @@ git push -u origin release/vX.Y.Z
 - 上線 PR 開著的期間發現這次上線要修的問題：從 `origin/release/vX.Y.Z` 開分支、PR 對 `release/vX.Y.Z`。合併後上線 PR 的 head 會變，照 §3 重新確認。
 - 修正不用另外開 PR 到 `develop`：上線後照 §5 把 `main` 合回 `develop`，修正會跟著回去。
 - 不是這次上線要修的，照常開到 `develop`，搭下一次上線。
-- `tests.yml` 只監聽開往 `main`、`develop` 的 PR，開往 release 分支的修正 PR 本身不會跑 CI；修正合進 release 分支後，上線 PR 會在新的 head 上重跑。
+- `tests.yml` 也監聽開往 `release/**` 的 PR，所以修正 PR 本身就會跑 CI；修正合進 release 分支後，上線 PR 會在新的 head 上再跑一次。
 - 上線 PR 合併前，開往這條 release 分支的修正 PR 要先合併或關掉（理由見 §5 第 4 步）。
 
 ## 5. 合併後：把 `main` 合回 `develop`
