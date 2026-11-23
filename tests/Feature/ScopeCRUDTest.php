@@ -102,6 +102,57 @@ class ScopeCRUDTest extends TestCase
     }
 
     /**
+     * 範圍說明的長度上限是 255 字。用 ScopeSeeder 裡最長的那段說明（233 字）當輸入，
+     * 因為正式資料裡有說明超過原本 100 字的上限，後台存不進去。
+     */
+    private function longestSeededComment(): string
+    {
+        preg_match_all("/'comment' => '(.*)',\n/", file_get_contents(base_path('database/seeders/ScopeSeeder.php')), $matches);
+        $comment = collect($matches[1])->sortByDesc(fn (string $text) => mb_strlen($text))->first();
+
+        $this->assertSame(233, mb_strlen($comment), 'ScopeSeeder 最長的說明應為 233 字');
+
+        return $comment;
+    }
+
+    #[TestDox('新增 scope 時說明 233 字可存入，256 字回 422')]
+    public function test_create_scope_comment_length_limit()
+    {
+        $this->actingAsOwner();
+
+        $parent = Scope::factory()->create(['class_number' => '99', 'call_number' => '00', 'parent_class' => null]);
+        $payload = ['name' => 'Test', 'parent_class' => $parent->id, 'call_number' => '10'];
+
+        $this->postJson('/api/scopes', $payload + ['comment' => str_repeat('字', 256)])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('comment');
+
+        $this->postJson('/api/scopes', $payload + ['comment' => str_repeat('字', 255)])->assertCreated();
+
+        $comment = $this->longestSeededComment();
+        $this->postJson('/api/scopes', ['name' => 'Test 2', 'call_number' => '11'] + $payload + ['comment' => $comment])->assertCreated();
+        $this->assertDatabaseHas('scopes', ['name' => 'Test 2', 'comment' => $comment]);
+    }
+
+    #[TestDox('更新 scope 時說明 233 字回 200 並存入，256 字回 422')]
+    public function test_update_scope_comment_length_limit()
+    {
+        $this->actingAsOwner();
+
+        $parent = Scope::factory()->create(['class_number' => '99', 'call_number' => '00', 'parent_class' => null]);
+        $scope = Scope::factory()->create(['class_number' => '99', 'call_number' => '10', 'parent_class' => $parent->id]);
+        $payload = ['name' => 'Updated Name', 'parent_class' => $parent->id, 'call_number' => $scope->call_number];
+
+        $this->putJson("/api/scopes/{$scope->id}", $payload + ['comment' => str_repeat('字', 256)])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('comment');
+
+        $comment = $this->longestSeededComment();
+        $this->putJson("/api/scopes/{$scope->id}", $payload + ['comment' => $comment])->assertOk();
+        $this->assertDatabaseHas('scopes', ['id' => $scope->id, 'comment' => $comment]);
+    }
+
+    /**
      * class_number 一律由 parent_class 推導:換了父層,class_number 要跟著變。
      *
      * 2026-09-17 之前這是兩個獨立的問題:新增端點的 class_number 收的是**父 Scope 的 id**

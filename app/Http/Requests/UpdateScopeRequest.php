@@ -51,7 +51,8 @@ class UpdateScopeRequest extends FormRequest
                 'max:50',
                 Rule::unique('scopes', 'name')->ignore($this->scope?->id)->withoutTrashed(),
             ],
-            'comment' => 'string|max:100',
+            /** 範圍說明，最多 255 字。 */
+            'comment' => 'string|max:255',
             'note' => 'nullable|string|max:255',
         ];
     }
