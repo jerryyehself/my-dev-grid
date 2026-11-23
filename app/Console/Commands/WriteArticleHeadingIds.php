@@ -2,13 +2,11 @@
 
 namespace App\Console\Commands;
 
-use App\Models\ArticleUnit;
-use App\Models\Documentation;
 use App\Services\ArticleHeadingIdWriter;
-use App\Services\ArticleSourceParser;
 use Illuminate\Console\Command;
-use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Process;
 use InvalidArgumentException;
+use RuntimeException;
 use Symfony\Component\Finder\Finder;
 
 /**
@@ -18,10 +16,9 @@ use Symfony\Component\Finder\Finder;
  *   先處理完所有檔案、都沒問題才寫檔，免得文章 repo 留下補到一半的工作目錄。
  * - 沒有 front matter 的檔案（例如 README）略過，不算失敗。
  * - 可以重跑：已經補完的檔案 0 變更，也不會重寫檔案。
- * - 刪掉的段落的 ID 不會再發出去：用 front matter 的 `slug` 對上資料庫裡的文章（`documentations.source_key`，
- *   含已軟刪除的），那篇文章在 `article_units` 用過的 ID（含已標成移除的單位）都當成已占用。
- *   只看得到這次連的資料庫裡的紀錄；查不了資料庫（連不上、還沒 migrate）時當成失敗，不當成沒有用過的 ID。
- *   front matter 不是合法的 YAML 時看不出是哪一篇，也當成失敗。
+ * - 刪掉的段落的 ID 不會再發出去：這個檔案在 git 歷史裡任何一個版本的標題上出現過的 `{#id}`
+ *   （改名前的路徑也算）都當成已占用。曾經發出去的 ID 都在原稿的歷史裡，跟連的是哪個資料庫無關，
+ *   所以這支指令不碰資料庫。檔案不在 git repo 裡、或 git 跑失敗時當成失敗，不當成沒有用過的 ID。
  * - `--dry-run` 只印會補哪些行，不寫檔。
  */
 class WriteArticleHeadingIds extends Command
@@ -32,7 +29,7 @@ class WriteArticleHeadingIds extends Command
 
     protected $description = '替文章原稿的 H2、H3 補上 {#id}（已有的不動，可重跑）';
 
-    public function handle(ArticleHeadingIdWriter $writer, ArticleSourceParser $parser): int
+    public function handle(ArticleHeadingIdWriter $writer): int
     {
         $path = (string) $this->argument('path');
         $dryRun = (bool) $this->option('dry-run');
@@ -62,12 +59,13 @@ class WriteArticleHeadingIds extends Command
             }
 
             try {
-                $results[$file] = ['label' => $label, 'raw' => $raw] + $writer->write($raw, $this->usedIds($parser, $raw));
+                $results[$file] = ['label' => $label, 'raw' => $raw] + $writer->write($raw, $this->historicalIds($writer, $file));
             } catch (InvalidArgumentException $e) {
                 $this->error("{$label}：{$e->getMessage()}");
                 $failed = true;
-            } catch (QueryException $e) {
-                $this->error("{$label}：查不到資料庫裡這篇文章用過的 ID（{$e->getMessage()}）");
+            } catch (RuntimeException $e) {
+                // 含 git 逾時（ProcessTimedOutException 也是 RuntimeException）
+                $this->error("{$label}：查不到 git 歷史裡用過的 ID（{$e->getMessage()}）");
                 $failed = true;
             }
         }
@@ -107,26 +105,50 @@ class WriteArticleHeadingIds extends Command
     }
 
     /**
-     * 資料庫裡這篇文章（slug 相同，含已軟刪除的）所有段落單位用過的 ID，含已標成移除的。
-     * 不限匯入來源的 repo：多保留幾個 ID 只是跳號，少保留才會重用。
+     * 這個檔案在 git 歷史裡每個版本的標題上出現過的 `{#id}`（改名前的路徑也算，`git log --follow`），
+     * 標題怎麼認由 `ArticleHeadingIdWriter::headingIds()` 決定。只看目前分支（HEAD）的歷史；
+     * 還沒 commit 過的檔案沒有歷史，是空清單。
      *
      * @return list<string>
      *
-     * @throws InvalidArgumentException front matter 不是合法的 YAML
-     * @throws QueryException 查不了資料庫
+     * @throws RuntimeException 不在 git repo 裡、git 跑不起來或結束碼不是 0、讀不到某個版本
      */
-    private function usedIds(ArticleSourceParser $parser, string $raw): array
+    private function historicalIds(ArticleHeadingIdWriter $writer, string $file): array
     {
-        $slug = $parser->slug($raw);
-        if ($slug === null) {
-            return [];
+        $dir = dirname($file);
+        $inside = Process::path($dir)->run(['git', 'rev-parse', '--is-inside-work-tree']);
+        if (! $inside->successful() || trim($inside->output()) !== 'true') {
+            throw new RuntimeException('不在 git repo 裡，查不到這個檔案以前發出去的 ID');
         }
 
-        // 不管有沒有對上文章都查 article_units：查不了（例如還沒 migrate）時要丟錯，不能因為沒有文章就略過
-        return ArticleUnit::whereIn('article_id', Documentation::withTrashed()->where('source_key', $slug)->select('id'))
-            ->whereNotNull('unit_id')
-            ->pluck('unit_id')
-            ->all();
+        // -z：每個 commit 是「commit:<sha>」與它當時的路徑（相對於 repo 根目錄）兩段，以 NUL 分隔；--diff-filter=d 跳過刪掉檔案的那次
+        $log = Process::path($dir)->run(['git', 'log', '--follow', '--diff-filter=d', '--name-only', '-z', '--format=commit:%H', '--', basename($file)]);
+        if (! $log->successful()) {
+            throw new RuntimeException('git log 失敗：'.trim($log->errorOutput()));
+        }
+
+        $ids = [];
+        $commit = null;
+        foreach (explode("\0", $log->output()) as $token) {
+            $token = ltrim($token, "\n");
+            if (str_starts_with($token, 'commit:')) {
+                $commit = substr($token, strlen('commit:'));
+
+                continue;
+            }
+            if ($token === '' || $commit === null) {
+                continue;
+            }
+
+            $show = Process::path($dir)->run(['git', 'cat-file', 'blob', $commit.':'.$token]);
+            if (! $show->successful()) {
+                throw new RuntimeException("讀不到 {$commit} 的 {$token}：".trim($show->errorOutput()));
+            }
+            array_push($ids, ...$writer->headingIds($show->output()));
+            $commit = null;
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**

@@ -138,6 +138,26 @@ class ArticleHeadingIdWriterTest extends TestCase
         $this->assertSame($expectedIds, $this->addedIds($this->write($this->doc($body), $reserved)));
     }
 
+    /** @return array<string, array{string, list<string>}> */
+    public static function headingIdSources(): array
+    {
+        return [
+            '各層級標題上的 ID 都算，照文件順序' => [self::FRONT_MATTER."# 大標 {#top}\n## 甲 {#s1}\n#### 細項 {#s9}\n### 乙 {#S2}\n## 沒有 ID\n", ['top', 's1', 's9', 'S2']],
+            '程式碼區塊與縮排行裡的不算' => [self::FRONT_MATTER."```\n## 範例 {#s5}\n```\n    ## 縮排 {#s6}\n## 甲 {#s1}\n", ['s1']],
+            'front matter 裡長得像標題的不算' => ["---\nnote: |\n  ## 假的 {#s7}\n---\n## 甲 {#s1}\n", ['s1']],
+            '沒有 front matter 時整份都算（舊版本可能還沒加）' => ["## 甲 {#s1}\n\n## 乙 {#s2}\n", ['s1', 's2']],
+            'CRLF' => [str_replace("\n", "\r\n", self::FRONT_MATTER."## 甲 {#s1}\n"), ['s1']],
+        ];
+    }
+
+    /** @param  list<string>  $expected */
+    #[DataProvider('headingIdSources')]
+    #[TestDox('headingIds()：原稿標題上寫的所有 {#id}，標題怎麼認跟補寫時相同')]
+    public function test_heading_ids_lists_every_written_id(string $raw, array $expected): void
+    {
+        $this->assertSame($expected, (new ArticleHeadingIdWriter)->headingIds($raw));
+    }
+
     private function bodyOf(string $content): string
     {
         return substr($content, strlen(self::FRONT_MATTER));
