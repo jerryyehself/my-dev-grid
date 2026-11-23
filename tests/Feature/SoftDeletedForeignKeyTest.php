@@ -182,9 +182,16 @@ class SoftDeletedForeignKeyTest extends TestCase
         if ($own === 'scope') {
             $existing = Scope::factory()->create(['parent_class' => null]);
 
+            // 子類號在同一個類號底下不能重複。ScopeFactory 的類號、子類號都是隨機的，固定寫死某個子類號，
+            // 就會偶爾跟 $top 或 $existing 撞上而回 422；所以挑一個那個類號底下還沒人用的。
+            $used = Scope::where('class_number', $top->class_number)->pluck('call_number')->all();
+            $callNumber = collect(range(10, 99))
+                ->map(fn (int $n) => str_pad((string) $n, 2, '0', STR_PAD_LEFT))
+                ->first(fn (string $n) => ! in_array($n, $used, true));
+
             return [
                 $mode === 'store' ? '/api/scopes' : "/api/scopes/{$existing->id}",
-                ['name' => 'newScope', 'comment' => 'comment', 'call_number' => '10', 'parent_class' => $top->id],
+                ['name' => 'newScope', 'comment' => 'comment', 'call_number' => $callNumber, 'parent_class' => $top->id],
                 ['parent_class' => $top],
             ];
         }
