@@ -62,7 +62,7 @@
 - **只看報告，不擋 PR。** 沒被抓到的改法不會讓檢查變紅，也不設分數門檻；變紅只代表 Infection 本身出錯（例如現有測試沒過）。
 - **結果看哪裡。** PR「Files changed」上對應那一行的警告註解（每個沒被抓到的改法一則，內容是改壞前後的差異）；Actions 裡「Infection」這個 job 的 log 有完整清單；log 檔也附在該次執行的 `infection` artifact。
 - **看到註解怎麼辦。** 照上面的原則，只問「這行壞了，使用者會不會受影響？」會就補測試，不會就略過，不用為了讓註解消失而補。
-- **範圍。** PR 沒改到 `app/` 底下的 PHP 時這個檢查不會啟動；`develop` 到 `main` 的上線 PR 也不跑（每個改動在進 `develop` 的 PR 上已經跑過）。只在 SQLite 上跑。
+- **範圍。** PR 沒改到 `app/` 底下的 PHP 時這個檢查不會啟動；head 分支是 `develop` 的 PR 也不跑（每個改動在進 `develop` 的 PR 上已經跑過），從 `release/*` 開的上線 PR 則會跑（上線流程見 [`docs/release.md`](../release.md)）。只在 SQLite 上跑。
 - **本機怎麼跑。** Infection 不在 `composer.json` 裡。從 [Infection 的 GitHub release](https://github.com/infection/infection/releases) 下載跟 workflow 同一版的 `infection.phar`（版本號看 `infection.yml` 的 `tools:`），本機要有 pcov 或 Xdebug 才能算覆蓋率，並且有 `.env`（`APP_KEY` 不能是空的）。在專案根目錄：
   ```bash
   php infection.phar --git-diff-lines --git-diff-base=origin/develop --show-mutations --threads=max
@@ -71,7 +71,7 @@
 
 ## 靜態分析與覆蓋率報告
 
-CI 在每個 PR 上另外產出兩份報告，跟 Infection 一樣**只看報告，不擋 PR**：找到問題或覆蓋率低都不會讓檢查變紅；檢查變紅只代表工具自己出錯（例如 phpstan 當掉或回報內部錯誤、測試都過了卻沒有覆蓋率報告），Summary 會寫明「沒有產出結果」，不會被當成「沒有問題」。測試沒過時只由 Tests 那項檢查變紅，覆蓋率這項不重複擋。兩份都不跑在 `develop` 到 `main` 的上線 PR（改動在進 `develop` 的 PR 上已經跑過），也不跑在沒碰到相關檔案的 PR（`paths` 篩選）。
+CI 在每個 PR 上另外產出兩份報告，跟 Infection 一樣**只看報告，不擋 PR**：找到問題或覆蓋率低都不會讓檢查變紅；檢查變紅只代表工具自己出錯（例如 phpstan 當掉或回報內部錯誤、測試都過了卻沒有覆蓋率報告），Summary 會寫明「沒有產出結果」，不會被當成「沒有問題」。測試沒過時只由 Tests 那項檢查變紅，覆蓋率這項不重複擋。兩份都不跑在 head 分支是 `develop` 的 PR（改動在進 `develop` 的 PR 上已經跑過；從 `release/*` 開的上線 PR 會跑，上線流程見 [`docs/release.md`](../release.md)），也不跑在沒碰到相關檔案的 PR（`paths` 篩選）。
 
 **Larastan（`.github/workflows/larastan.yml`，設定在 `phpstan.neon`）。** [Larastan](https://github.com/larastan/larastan) 是 PHPStan 的 Laravel 擴充，不執行程式就檢查呼叫的方法與屬性是否存在、參數與回傳型別是否對得上。
 

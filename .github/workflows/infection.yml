@@ -41,7 +41,8 @@ concurrency:
 jobs:
   infection:
     name: Infection (changed lines)
-    # develop -> main 的上線 PR 帶的是一整週已經各自跑過的改動，不再整批重跑。
+    # head 是 develop 的 PR 不跑：帶的是已經在進 develop 的 PR 上各自跑過的改動。
+    # 從 release/* 開的上線 PR 不符合這個條件，會照常跑（上線流程見 docs/release.md）。
     if: github.head_ref != 'develop'
     runs-on: ubuntu-latest
     timeout-minutes: 30

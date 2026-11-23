@@ -4,8 +4,9 @@ name: Tests
 # every push to main/develop and every pull request targeting main/develop,
 # so regressions are caught before merge instead of relying on someone
 # running the suite by hand afterwards. Feature PRs target `develop` (the
-# integration branch); `develop` -> `main` is the release PR, and only
-# `main` deploys (see CLAUDE.md「分支策略」).
+# integration branch), release PRs go from `release/*` to `main`, and only
+# `main` deploys (release flow: docs/release.md). Fix PRs into a `release/*`
+# branch don't trigger this workflow; the release PR re-runs it on its new head.
 #
 # Runs against BOTH SQLite (local dev's default, `DB_CONNECTION=sqlite` in
 # `.env.example`) AND Postgres (production's actual `DB_CONNECTION=pgsql`,
