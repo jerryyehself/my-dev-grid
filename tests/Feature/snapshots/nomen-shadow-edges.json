@@ -383,6 +383,12 @@
             "status": 1
         },
         {
+            "title": "memochou1993/nyan-profile",
+            "url": "https://github.com/memochou1993/nyan-profile",
+            "scope": "repository",
+            "status": 1
+        },
+        {
             "title": "影子文章",
             "url": null,
             "scope": "post",
@@ -1128,6 +1134,11 @@
         }
     ],
     "documentation_implementation": [
+        {
+            "documentation": "https://github.com/memochou1993/nyan-profile",
+            "implementation": "929886110",
+            "relation": "isBasisFor"
+        },
         {
             "documentation": "影子文章",
             "implementation": "1123193041",
