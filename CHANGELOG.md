@@ -4,6 +4,17 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
+## [1.4.1] - 2026-11-23
+
+### 變更
+
+- 同步不再讀 `config/repo_sync.php` 的 `skip_technique_edges` 清單（整份檔案刪除），改成只看資料庫裡的改作連結：專案有一條沒刪除的文件連結、述詞沿改用解析後是 `isBasisFor`，就不寫技術連線，已經連上的舊連線不碰。建置產物（`isBasedOnProject`）照常同步技術連線（#221）。
+
+### 修正
+
+- OAuth 回呼的 state 不符（舊分頁、重複點登入、session 過期）時不再回 500：照常記一筆 `authn_login_fail`（reason `invalid_state`），改成 302 導回並帶 `auth_error=state_expired`。session 模式導回首頁，token 模式導回前端網址；其他例外維持原樣。前端顯示重試提示另行處理（#220）。
+- 新增資料修正 migration `2026_11_23_000000_link_my_profile_to_origin_and_downgrade_topic_only_edges`：把 my-profile 以 `isBasisFor` 連到原作（新增一筆已發布、`repository` 分類的文件），並清掉它的技術連線；只有 topic 證據、沒有語言或套件證據的「使用」連線（`usedBy`）改成「關於」（`subjectOfProject`），站主手動指定過的不動。動到的每一列先記進備份表 `sync_predicate_fix_backups`，上線後該表會保留。`GET /api/graph` 與 `GET /api/graph/path` 上相關專案的技術連線會跟著變（#221）。
+
 ## [1.4.0] - 2026-11-20
 
 ### 新增
@@ -190,6 +201,7 @@ GitHub 同步
 - CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
+[1.4.1]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.4.1
 [1.4.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.4.0
 [1.3.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.3.0
 [1.2.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.2.0
