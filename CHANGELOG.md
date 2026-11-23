@@ -6,6 +6,11 @@
 
 ## [1.4.1] - 2026-11-23
 
+### 新增
+
+- 文章匯入時把段落單位存進新資料表 `article_units`（只新增表，不改既有的表）：鍵是 `(article_id, unit_id)`，重新匯入時依明確 ID、標題、內容相似度對上原本的單位，原稿裡不見的單位只填 `removed_at`、不刪列。原稿標題的 `{#id}` 重複或超過 255 字元時，`GET /api/article-sources` 列成 invalid，匯入回 409（#225）。
+- `article_units` 新增 `is_container`、`footnotes`、`chunks` 三欄（只新增、不回填）：腳註附給引用它的單位，只有子節、自己幾乎沒有內文的 H2 標成容器，正文超過 1500 字的單位切出檢索用的子片段（#226）。
+
 ### 變更
 
 - 同步不再讀 `config/repo_sync.php` 的 `skip_technique_edges` 清單（整份檔案刪除），改成只看資料庫裡的改作連結：專案有一條沒刪除的文件連結、述詞沿改用解析後是 `isBasisFor`，就不寫技術連線，已經連上的舊連線不碰。建置產物（`isBasedOnProject`）照常同步技術連線（#221）。
@@ -13,7 +18,7 @@
 ### 修正
 
 - OAuth 回呼的 state 不符（舊分頁、重複點登入、session 過期）時不再回 500：照常記一筆 `authn_login_fail`（reason `invalid_state`），改成 302 導回並帶 `auth_error=state_expired`。session 模式導回首頁，token 模式導回前端網址；其他例外維持原樣。前端顯示重試提示另行處理（#220）。
-- 新增資料修正 migration `2026_11_23_000000_link_my_profile_to_origin_and_downgrade_topic_only_edges`：把 my-profile 以 `isBasisFor` 連到原作（新增一筆已發布、`repository` 分類的文件），並清掉它的技術連線；只有 topic 證據、沒有語言或套件證據的「使用」連線（`usedBy`）改成「關於」（`subjectOfProject`），站主手動指定過的不動。動到的每一列先記進備份表 `sync_predicate_fix_backups`，上線後該表會保留。`GET /api/graph` 與 `GET /api/graph/path` 上相關專案的技術連線會跟著變（#221）。
+- 新增資料修正 migration `2026_11_23_000000_link_my_profile_to_origin_and_downgrade_topic_only_edges`：把 my-profile 以 `isBasisFor` 連到原作（新增一筆已發布、`repository` 分類的文件），並清掉它的技術連線；只有 topic 證據、沒有語言或套件證據的「使用」連線（`usedBy`）改成「關於」（`subjectOfProject`），站主手動指定過的不動。上線前看過名單後決定的例外寫在 migration 裡，以專案與技術名稱比對：9 條其實有用到的維持「使用」並標成手動指定（之後同步不再改），my-dev-grid 與 Vue（兩條）、tailwind 的三條整列刪除；名單上配對不到的只記進日誌。動到的每一列先記進備份表 `sync_predicate_fix_backups`（含動作與原因），上線後該表會保留。`GET /api/graph` 與 `GET /api/graph/path` 上相關專案的技術連線會跟著變（#221）。
 
 ## [1.4.0] - 2026-11-20
 

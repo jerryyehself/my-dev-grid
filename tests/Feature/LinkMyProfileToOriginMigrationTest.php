@@ -21,7 +21,8 @@ use Tests\TestCase;
 
 /**
  * 2026_11_23_000000_link_my_profile_to_origin_and_downgrade_topic_only_edges：
- * my-profile 連到原作、清掉技術邊；只有 topic 證據的使用邊改成關於；down() 照備份還原。
+ * my-profile 連到原作、清掉技術邊；名單上的例外維持使用（標為手動指定）或刪掉；只有 topic 證據的使用邊改成關於；
+ * down() 照備份還原。
  *
  * 資料照正式資料的形狀重播：my-profile 有 React、tailwind、TypeScript、JavaScript、CSS、Dockerfile 六條使用邊，
  * GitHub Pages（建置產物）語言只有 HTML、JavaScript、CSS，topic 是 php、laravel。nomens 用 NomenRecorder 寫，
@@ -504,5 +505,314 @@ class LinkMyProfileToOriginMigrationTest extends TestCase
             [['documentation-'.DB::table('documentations')->where('url', self::ORIGIN_URL)->value('id'), $node, 'isBasisFor']],
             $edges->map(fn (array $e) => [$e['source'], $e['target'], $e['predicate']])->values()->all(),
         );
+    }
+
+    /**
+     * 上線前在正式資料庫跑的唯讀預覽列出 31 條會降級的邊（9 個專案）。這裡照預覽的「why」欄重建每個專案的
+     * 語言、topic、套件證據與那 31 條邊，另外每個專案再放幾條有程式證據、本來就不動的使用邊。
+     * my-dev-grid 的兩條 Vue 邊在預覽裡只看得到 title，這裡用 Vue 與 Vue 3 兩個節點重現（同一對不能有兩列同述詞）。
+     *
+     * @return array<string, array{languages: list<string>, topics: list<string>, packages: array<string, list<string>>, edges: list<string>, stays: list<string>}>
+     */
+    private static function previewShape(): array
+    {
+        $visualizerTopics = ['database', 'erd', 'laravel', 'migrations', 'php', 'schema', 'static-analysis', 'visualization'];
+
+        return [
+            'my-dev-grid' => [
+                'languages' => ['Dockerfile', 'PHP', 'Shell'],
+                'topics' => ['vue3', 'tailwind', 'laravel'],
+                'packages' => ['composer' => ['dedoc/scramble', 'laravel/framework', 'laravel/sanctum', 'laravel/socialite']],
+                'edges' => ['Vue', 'Vue 3', 'tailwind'],
+                'stays' => ['PHP', 'laravel'],
+            ],
+            'Laravel-LearningLibrary' => [
+                'languages' => ['Blade', 'PHP', 'Procfile'],
+                'topics' => ['bootstrap5'],
+                'packages' => ['composer' => ['laravel/framework', 'laravel/sanctum', 'rebing/graphql-laravel'], 'npm' => ['chart.js']],
+                'edges' => ['Bootstrap'],
+                'stays' => [],
+            ],
+            'gym-people-count-parser' => [
+                'languages' => ['JavaScript'],
+                'topics' => ['appscript', 'cheerio', 'linebot'],
+                'packages' => [],
+                'edges' => ['appscript', 'cheerio', 'linebot'],
+                'stays' => ['JavaScript'],
+            ],
+            'api-demo' => [
+                'languages' => [],
+                'topics' => ['php'],
+                'packages' => ['composer' => ['laravel/framework', 'laravel/sanctum']],
+                'edges' => ['PHP'],
+                'stays' => [],
+            ],
+            'laravel-demo' => [
+                'languages' => [],
+                'topics' => ['php'],
+                'packages' => ['composer' => ['laravel/framework', 'laravel/sanctum'], 'npm' => ['bootstrap', 'vue']],
+                'edges' => ['PHP'],
+                'stays' => [],
+            ],
+            'leetcode-practice' => [
+                'languages' => ['PHP'],
+                'topics' => ['leetcode'],
+                'packages' => [],
+                'edges' => ['leetcode'],
+                'stays' => [],
+            ],
+            'thesis' => [
+                'languages' => ['Jupyter Notebook'],
+                'topics' => ['graphviz', 'json', 'python', 'rdflib'],
+                'packages' => [],
+                'edges' => ['graphviz', 'json', 'Python', 'rdflib'],
+                'stays' => [],
+            ],
+            'laravel-migration-visualizer' => [
+                'languages' => ['CSS', 'HTML', 'JavaScript', 'Python', 'Shell', 'TypeScript'],
+                'topics' => [...$visualizerTopics, 'react'],
+                'packages' => ['npm' => ['php-parser', 'react', 'typescript', 'vite']],
+                'edges' => ['database', 'erd', 'laravel', 'migrations', 'PHP', 'schema', 'static-analysis', 'visualization'],
+                'stays' => ['React', 'TypeScript'],
+            ],
+            'laravel-migration-visualizer-pages' => [
+                'languages' => ['HTML'],
+                'topics' => [...$visualizerTopics, 'github-pages'],
+                'packages' => [],
+                'edges' => ['database', 'erd', 'github-pages', 'laravel', 'migrations', 'PHP', 'schema', 'static-analysis', 'visualization'],
+                'stays' => ['HTML'],
+            ],
+        ];
+    }
+
+    /** 建 previewShape() 的專案、邊與 nomens；回傳 [專案 title => Implementation] */
+    private function buildPreviewShape(): array
+    {
+        // 套件要對得到唯一的技術節點，nomens 才不會把整個專案標成不確定（正式環境這些節點都在）
+        foreach (['Vue', 'Scramble', 'laravel', 'Sanctum', 'Socialite', 'GraphQL', 'chartjs', 'Bootstrap', 'php-parser', 'React', 'TypeScript', 'Vite'] as $title) {
+            $this->technique($title);
+        }
+        $vue3 = Technique::factory()->create(['title' => 'Vue', 'version' => '3', 'type' => Scope::where('name', 'framework')->value('id')]);
+
+        $projects = [];
+        $id = 5000;
+        foreach (self::previewShape() as $title => $shape) {
+            $repo = $this->repoData(++$id, "https://github.com/example/{$title}", $shape['languages'], $shape['topics'], $shape['packages']);
+            $projects[$title] = $project = $this->project($repo);
+            foreach ([...$shape['edges'], ...$shape['stays']] as $technique) {
+                if ($technique === 'Vue 3') {
+                    DB::table('technique_implementation')->insert([
+                        'implementation_id' => $project->id, 'technique_id' => $vue3->id, 'relation_id' => Relation::where('name', 'usedBy')->value('id'),
+                        'last_seen_at' => '2026-09-01 00:00:00', 'created_at' => '2026-09-01 00:00:00', 'updated_at' => '2026-09-01 00:00:00',
+                    ]);
+                } else {
+                    $this->usedBy($project, $technique);
+                }
+            }
+            $this->record($project, $repo);
+        }
+
+        return $projects;
+    }
+
+    /** @return array<string, string> `專案 → 技術（含版本）` => `述詞`，手動指定的後面加 ` (manual)` */
+    private function allEdges(): array
+    {
+        return DB::table('technique_implementation')
+            ->join('implementations', 'implementations.id', '=', 'technique_implementation.implementation_id')
+            ->join('techniques', 'techniques.id', '=', 'technique_implementation.technique_id')
+            ->join('relations', 'relations.id', '=', 'technique_implementation.relation_id')
+            ->get(['implementations.title as project', 'techniques.title', 'techniques.version', 'relations.name', 'technique_implementation.manually_set_at'])
+            ->mapWithKeys(fn (object $r) => [
+                $r->project.' → '.Technique::labelFrom($r->title, $r->version) => $r->name.($r->manually_set_at === null ? '' : ' (manual)'),
+            ])
+            ->sortKeys()
+            ->all();
+    }
+
+    #[TestDox('預覽的 31 條：9 條維持使用並標為手動指定、3 條刪掉、19 條降為關於，有程式證據的邊不動')]
+    public function test_preview_list_of_31_edges(): void
+    {
+        $this->buildPreviewShape();
+        $this->assertCount(31, $this->migration->topicOnlyEdges());
+        Log::spy();
+
+        $this->migration->up();
+
+        $edges = $this->allEdges();
+        $kept = [
+            'Laravel-LearningLibrary → Bootstrap', 'api-demo → PHP', 'gym-people-count-parser → appscript',
+            'gym-people-count-parser → cheerio', 'gym-people-count-parser → linebot', 'laravel-demo → PHP',
+            'thesis → Python', 'thesis → graphviz', 'thesis → rdflib',
+        ];
+        $deleted = ['my-dev-grid → Vue', 'my-dev-grid → Vue 3', 'my-dev-grid → tailwind'];
+        $stays = [
+            'gym-people-count-parser → JavaScript', 'laravel-migration-visualizer → React', 'laravel-migration-visualizer → TypeScript',
+            'laravel-migration-visualizer-pages → HTML', 'my-dev-grid → PHP', 'my-dev-grid → laravel',
+        ];
+
+        $this->assertSame(array_fill_keys($kept, 'usedBy (manual)'), array_intersect_key($edges, array_flip($kept)));
+        $this->assertSame([], array_intersect_key($edges, array_flip($deleted)));
+        $this->assertSame(array_fill_keys($stays, 'usedBy'), array_intersect_key($edges, array_flip($stays)));
+        $downgraded = array_diff_key($edges, array_flip([...$kept, ...$stays]));
+        $this->assertCount(19, $downgraded);
+        $this->assertSame(['subjectOfProject'], array_values(array_unique($downgraded)));
+        $this->assertSame(9 + 19 + 6, count($edges));
+        $this->assertSame(['2026-11-23 03:17:00'], DB::table('technique_implementation')->whereNotNull('manually_set_at')->pluck('manually_set_at')->map(fn ($at) => Carbon::parse($at)->toDateTimeString())->unique()->values()->all());
+
+        Log::shouldHaveReceived('info')->once()->withArgs(fn (string $message, array $context) => count($context['kept_used_by']) === 9
+            && $context['deleted'] === ['my-dev-grid → Vue', 'my-dev-grid → Vue', 'my-dev-grid → tailwind']
+            && $context['exclusions_unmatched'] === []
+            && count($context['downgraded']) === 19);
+    }
+
+    #[TestDox('備份表每一列記下動作與原因：KEEP 9 列 updated、DELETE 3 列 deleted（整列原值）、降級 19 列 updated')]
+    public function test_every_action_is_recorded_with_its_reason(): void
+    {
+        $this->buildPreviewShape();
+        $deleteIds = DB::table('technique_implementation')
+            ->whereIn('implementation_id', Implementation::where('title', 'my-dev-grid')->pluck('id'))
+            ->whereIn('technique_id', Technique::whereIn('title', ['Vue', 'tailwind'])->pluck('id'))
+            ->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        $this->migration->up();
+
+        $backup = DB::table('sync_predicate_fix_backups')->orderBy('id')->get();
+        $this->assertSame([
+            'deleted|'.$this->migration::REASON_DELETE_EDGE => 3,
+            'updated|'.$this->migration::REASON_KEEP_USED_BY => 9,
+            'updated|'.$this->migration::REASON_TOPIC_ONLY => 19,
+        ], $backup->countBy(fn (object $r) => "{$r->action}|{$r->reason}")->sortKeys()->all());
+
+        // 刪掉的列整列存下來，原本的 id 與述詞都在
+        $deletedRows = $backup->where('action', 'deleted');
+        $this->assertSame($deleteIds, $deletedRows->pluck('row_id')->map(fn ($id) => (int) $id)->values()->all());
+        $original = json_decode($deletedRows->first()->original, true);
+        $this->assertSame($deleteIds[0], (int) $original['id']);
+        $this->assertSame((int) Relation::where('name', 'usedBy')->value('id'), (int) $original['relation_id']);
+        // 維持的列存的是改之前的值（manually_set_at 是 null）
+        $kept = $backup->where('reason', $this->migration::REASON_KEEP_USED_BY)->first();
+        $this->assertNull(json_decode($kept->original, true)['manually_set_at']);
+    }
+
+    #[TestDox('down() 還原 KEEP（manually_set_at 改回 null）與 DELETE（整列插回、id 不變），跟執行前一樣')]
+    public function test_down_restores_kept_and_deleted_edges(): void
+    {
+        $this->buildPreviewShape();
+        $before = $this->snapshot();
+
+        $this->migration->up();
+        // 先確認真的有 KEEP 與 DELETE 可以還原
+        $this->assertSame(9, DB::table('technique_implementation')->whereNotNull('manually_set_at')->count());
+        $this->assertSame(['PHP', 'laravel'], array_values(array_map(
+            fn (string $k) => substr($k, strlen('my-dev-grid → ')),
+            array_filter(array_keys($this->allEdges()), fn (string $k) => str_starts_with($k, 'my-dev-grid → ')),
+        )));
+
+        $this->migration->down();
+
+        $this->assertSame($before, $this->snapshot());
+        $this->assertFalse(Schema::hasTable('sync_predicate_fix_backups'));
+    }
+
+    #[TestDox('名單上的專案或邊都不在：不丟例外，11 對全部記進 info log 的 exclusions_unmatched')]
+    public function test_unmatched_pairs_are_logged_without_aborting(): void
+    {
+        $this->productionShape();
+        Log::spy();
+
+        $this->migration->up();
+
+        Log::shouldHaveReceived('info')->once()->withArgs(fn (string $message, array $context) => $context['exclusions_unmatched'] === [
+            'my-dev-grid → Vue', 'my-dev-grid → tailwind',
+            'api-demo → PHP', 'laravel-demo → PHP', 'thesis → Python', 'thesis → rdflib', 'thesis → graphviz',
+            'gym-people-count-parser → appscript', 'gym-people-count-parser → cheerio', 'gym-people-count-parser → linebot',
+            'Laravel-LearningLibrary → Bootstrap',
+        ] && $context['kept_used_by'] === [] && $context['deleted'] === []);
+    }
+
+    /**
+     * 只動 usedBy、沒有手動指定、專案與技術都沒刪除、專案 title 只對到一個的列；其他一律不當成名單上的邊。
+     */
+    #[TestDox('名單只認完全相同的一對：$_dataName')]
+    #[DataProvider('nearMisses')]
+    public function test_near_misses_are_not_treated_as_listed_pairs(string $case): void
+    {
+        $projects = $this->buildPreviewShape();
+        $thesisPython = fn () => DB::table('technique_implementation')->where('implementation_id', $projects['thesis']->id)
+            ->where('technique_id', $this->technique('Python'));
+        $devGridTailwind = fn () => DB::table('technique_implementation')->where('implementation_id', $projects['my-dev-grid']->id)
+            ->where('technique_id', $this->technique('tailwind'));
+        $expectedUnmatched = [];
+        $expected = [];
+
+        switch ($case) {
+            case 'prefix':
+                // 名稱只共用前綴的專案（my-dev-grid-front、thesis-notes）不算
+                $front = $this->project($repo = $this->repoData(7001, 'https://github.com/example/my-dev-grid-front', ['TypeScript'], ['tailwind']));
+                $this->usedBy($front, 'tailwind');
+                $this->record($front, $repo);
+                $notes = $this->project($repo = $this->repoData(7002, 'https://github.com/example/thesis-notes', ['HTML'], ['python']));
+                $this->usedBy($notes, 'Python');
+                $this->record($notes, $repo);
+                $expected = ['my-dev-grid-front → tailwind' => 'subjectOfProject', 'thesis-notes → Python' => 'subjectOfProject'];
+                break;
+            case 'already-manual':
+                // 已經手動指定過的不再改，也不算配對到
+                $thesisPython()->update(['manually_set_at' => '2026-11-21 10:00:00']);
+                $devGridTailwind()->update(['manually_set_at' => '2026-11-21 10:00:00']);
+                $expectedUnmatched = ['my-dev-grid → tailwind', 'thesis → Python'];
+                $expected = ['my-dev-grid → tailwind' => 'usedBy (manual)', 'thesis → Python' => 'usedBy (manual)'];
+                break;
+            case 'not-usedBy':
+                // 述詞已經不是 usedBy 的列不碰
+                $thesisPython()->update(['relation_id' => Relation::where('name', 'assists')->value('id')]);
+                $devGridTailwind()->update(['relation_id' => Relation::where('name', 'assists')->value('id')]);
+                $expectedUnmatched = ['my-dev-grid → tailwind', 'thesis → Python'];
+                $expected = ['my-dev-grid → tailwind' => 'assists', 'thesis → Python' => 'assists'];
+                break;
+            case 'soft-deleted':
+                // 專案或技術已刪除：不刪、不標
+                $projects['my-dev-grid']->delete();
+                Technique::where('title', 'Python')->firstOrFail()->delete();
+                $expectedUnmatched = ['my-dev-grid → Vue', 'my-dev-grid → tailwind', 'thesis → Python'];
+                break;
+            case 'ambiguous-title':
+                // 同一個 title 有兩個沒刪除的專案：分不出是哪一個，兩對都跳過，照一般規則降級
+                $twin = $this->project($repo = $this->repoData(7003, 'https://github.com/example-2/my-dev-grid', ['Go'], ['tailwind']));
+                $this->usedBy($twin, 'tailwind');
+                $this->record($twin, $repo);
+                $expectedUnmatched = ['my-dev-grid → Vue', 'my-dev-grid → tailwind'];
+                $expected = ['my-dev-grid → Vue' => 'subjectOfProject', 'my-dev-grid → Vue 3' => 'subjectOfProject', 'my-dev-grid → tailwind' => 'subjectOfProject'];
+                break;
+        }
+        $before = $this->allEdges();
+        Log::spy();
+
+        $this->migration->up();
+
+        $sorted = fn (array $pairs) => collect($pairs)->sort()->values()->all();
+        Log::shouldHaveReceived('info')->once()->withArgs(fn (string $message, array $context) => $sorted($context['exclusions_unmatched']) === $sorted($expectedUnmatched));
+        $after = $this->allEdges();
+        foreach ($expected as $edge => $relation) {
+            $this->assertSame($relation, $after[$edge] ?? null, $edge);
+        }
+        if ($case === 'soft-deleted') {
+            // 刪掉的專案、技術上的邊（含 my-dev-grid 的三條 Vue／tailwind）一列都沒少、沒改
+            $this->assertSame(
+                array_filter($before, fn ($k) => str_starts_with($k, 'my-dev-grid → ') || $k === 'thesis → Python', ARRAY_FILTER_USE_KEY),
+                array_filter($after, fn ($k) => str_starts_with($k, 'my-dev-grid → ') || $k === 'thesis → Python', ARRAY_FILTER_USE_KEY),
+            );
+        }
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function nearMisses(): iterable
+    {
+        yield '只共用前綴的專案 title（my-dev-grid-front、thesis-notes）照一般規則降級' => ['prefix'];
+        yield '那一對已經手動指定過 → 不動，記為配對不到' => ['already-manual'];
+        yield '那一對的述詞不是 usedBy → 不動，記為配對不到' => ['not-usedBy'];
+        yield '專案或技術已軟刪除 → 不動，記為配對不到' => ['soft-deleted'];
+        yield '同一個 title 有兩個專案 → 跳過那一對，照一般規則降級' => ['ambiguous-title'];
     }
 }
