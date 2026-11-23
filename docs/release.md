@@ -98,7 +98,7 @@ git push -u origin release/vX.Y.Z
 
 每次上線，在給使用者的上線前事項裡寫一行提醒：建議在 Cloud SQL 做一次 on-demand 備份（指令見 [`zero-downtime-migrations.md`](zero-downtime-migrations.md) §6.3）。這一行是提醒，不寫成勾選項目，免得沒勾被當成上線還沒完成。
 
-例外：這次上線帶了會刪除正式資料的 migration（§10 的清單）時，照 `zero-downtime-migrations.md` §6.3 必做，使用者確認備份完成後才合併。Claude 的雲端沙盒沒有 GCP 權限，不自己做、也不宣稱做過。退版需要還原資料時，先用這份。
+例外：這次上線帶了會刪除或大量改寫正式資料的 migration（刪欄位、刪資料、大量改寫，同 `zero-downtime-migrations.md` §6.3；看 §10 的清單）時，照 `zero-downtime-migrations.md` §6.3 必做，使用者確認備份完成後才合併。Claude 的雲端沙盒沒有 GCP 權限，不自己做、也不宣稱做過。退版需要還原資料時，先用這份。
 
 ### 11.2 選做：本機異地備份
 
@@ -128,5 +128,5 @@ git push -u origin release/vX.Y.Z
 共通注意：
 
 - 檔案含使用者的登入資料：放加密的磁碟，不放進 repo 或雲端同步資料夾。
-- 這份不取代 §11.1 的 on-demand 備份，退版時一樣先用 on-demand 還原。
+- 這份不取代 §11.1 的 on-demand 備份；有做 on-demand 備份時，退版先用它還原。
 - 費用：以目前的資料量不到 1 美分；bucket 裡的檔案下載完就刪。
