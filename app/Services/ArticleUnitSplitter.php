@@ -187,6 +187,19 @@ final class ArticleUnitSplitter
     }
 
     /**
+     * 每個標題行的資訊（任何層級，程式碼區塊裡的不算），key 是 1 起算的行號。給補寫 `{#id}` 的工具用，
+     * 讓它認標題的方式跟切段完全一樣：`level` 是井號數、`text` 是去掉 `{#id}` 的標題文字、`id` 是明確 ID（沒寫是 null），
+     * `end` 是標題文字結束處在那一行的位元組位置（在收尾的井號與行尾空白之前），沒有 `{#id}` 的標題要補的話就補在這裡。
+     *
+     * @param  list<string>  $lines  原稿的行，可以帶行尾 `\r`
+     * @return array<int, array{level: int, text: string, id: string|null, end: int}>
+     */
+    public static function headings(array $lines): array
+    {
+        return (new self)->scan(array_map(self::stripCr(...), $lines))['headings'];
+    }
+
+    /**
      * 程式碼區塊（含圍欄行）的行號，1 起算。沒關上的圍欄一直延續到最後一行（CommonMark）。
      *
      * @param  list<string>  $lines  已去掉行尾 `\r` 的行
@@ -202,7 +215,7 @@ final class ArticleUnitSplitter
      * `code` 是程式碼區塊的行號（含開頭與結尾的圍欄行）。
      *
      * @param  list<string>  $lines
-     * @return array{headings: array<int, array{level: int, text: string, id: string|null}>, code: array<int, true>}
+     * @return array{headings: array<int, array{level: int, text: string, id: string|null, end: int}>, code: array<int, true>}
      */
     private function scan(array $lines): array
     {
@@ -239,18 +252,21 @@ final class ArticleUnitSplitter
                 continue;
             }
 
-            if (preg_match(self::HEADING_PATTERN, $line, $match) !== 1) {
+            if (preg_match(self::HEADING_PATTERN, $line, $match, PREG_OFFSET_CAPTURE) !== 1) {
                 continue;
             }
 
-            $text = trim($match[2], " \t");
+            [$hashes] = $match[1];
+            [$rawText, $textStart] = $match[2];
+            $end = $textStart + strlen($rawText);
+            $text = trim($rawText, " \t");
             $id = null;
             if (preg_match(self::ID_PATTERN, $text, $idMatch) === 1) {
                 $id = $idMatch[1];
                 $text = trim(substr($text, 0, -strlen($idMatch[0])), " \t");
             }
 
-            $result[$number] = ['level' => strlen($match[1]), 'text' => $text, 'id' => $id];
+            $result[$number] = ['level' => strlen($hashes), 'text' => $text, 'id' => $id, 'end' => $end];
         }
 
         return ['headings' => $result, 'code' => $code];
