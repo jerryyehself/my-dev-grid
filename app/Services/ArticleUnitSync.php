@@ -11,7 +11,8 @@ use LogicException;
 
 /**
  * 把一篇文章目前的內文切成段落單位（`ArticleUnitSplitter`），跟 `article_units` 裡上次存的單位對上，
- * 寫回資料庫。由文章匯入（`ArticleSourceService`）在新增、更新文章時呼叫，跟寫文章在同一個 transaction。
+ * 寫回資料庫。由文章匯入（`ArticleSourceService`）與後台新增、修改文章內文（`DocumentationController`）在新增、更新文章時呼叫，
+ * 跟寫文章在同一個 transaction。
  *
  * 對上同一個單位的順序：
  * 1. 明確 ID（標題行尾的 `{#id}`，導言固定是 `lead`）相同。已移除的單位也算，ID 回到原稿就復原。
@@ -53,7 +54,7 @@ final class ArticleUnitSync
     public function __construct(private readonly ArticleUnitSplitter $splitter = new ArticleUnitSplitter) {}
 
     /**
-     * @throws InvalidArgumentException 內文的 `{#id}` 重複或太長（匯入時 `ArticleSourceParser` 已經先擋下）
+     * @throws InvalidArgumentException 內文的 `{#id}` 重複或太長（匯入時 `ArticleSourceParser` 已經先擋下，後台儲存時由 controller 轉成 422）
      * @throws LogicException 寫入時撞到 `(article_id, unit_id)` 唯一鍵，代表比對有 bug
      */
     public function sync(Documentation $article): void
@@ -174,11 +175,11 @@ final class ArticleUnitSync
     private function assertStorable(array $split): void
     {
         if ($split['duplicate_ids'] !== []) {
-            throw new InvalidArgumentException('段落單位的 ID 重複：'.implode('、', $split['duplicate_ids']));
+            throw new InvalidArgumentException(ArticleSourceParser::INVALID_REASONS['duplicate_unit_id'].'重複的 ID：'.implode('、', $split['duplicate_ids']));
         }
         foreach ($split['units'] as $unit) {
             if ($unit['unit_id'] !== null && strlen($unit['unit_id']) > ArticleUnit::MAX_UNIT_ID_LENGTH) {
-                throw new InvalidArgumentException('段落單位的 ID 超過 '.ArticleUnit::MAX_UNIT_ID_LENGTH.' 字元。');
+                throw new InvalidArgumentException(ArticleSourceParser::INVALID_REASONS['unit_id_too_long']);
             }
         }
     }
