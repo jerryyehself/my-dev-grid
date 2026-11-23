@@ -72,6 +72,24 @@ class ArticleUnitChunkerTest extends TestCase
         $this->assertSame(['前面', $block, '後面'], $this->chunk("前面\n\n{$block}\n\n後面"));
     }
 
+    /** @return iterable<string, array{string}> */
+    public static function blocksAfterParagraphWithoutBlankLine(): iterable
+    {
+        yield '段落後面直接接清單：同一個清單項目不能切成兩半' => ["以下幾點：\n- 第一項很長的內容。第一項的第二句話。\n- 第二項的內容。"];
+        yield '段落後面直接接引言：引言不能被切開' => ["引言前的說明：\n> 引言第一句。引言第二句。引言第三句。"];
+        yield '段落後面直接接清單、項目之間有空行：清單不能在項目之間分開' => ["說明：\n- 甲項。\n\n- 乙項內容很長很長很長。\n\n- 丙項內容很長很長很長。"];
+    }
+
+    #[DataProvider('blocksAfterParagraphWithoutBlankLine')]
+    #[TestDox('段落後面不空行直接接清單或引言：整塊放一片，不切斷清單或引言')]
+    public function test_list_or_quote_right_after_a_paragraph_is_not_split(string $content): void
+    {
+        $this->assertGreaterThan(12, ArticleUnitChunker::length($content));
+        $this->assertSame([$content], ArticleUnitChunker::chunk($content, 12));
+        // 前後有別的段落時，這一塊仍然完整地落在同一片
+        $this->assertContains($content, ArticleUnitChunker::chunk("前面的段落。\n\n{$content}\n\n後面的段落。", 12));
+    }
+
     #[TestDox('切出來的片段接起來（段落之間一個空行）等於原內容')]
     public function test_chunks_rejoin_to_the_content(): void
     {
