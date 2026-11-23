@@ -23,7 +23,15 @@ use Illuminate\Support\Facades\Schema;
  *    - 沒有同網址、沒刪除的 Documentation 才建一筆 `repository` 分類的（已發布，沒登入的訪客在圖上也看得到出處）。
  *    - 這一對文件與專案還沒有 isBasisFor 連結才新增。
  *    - my-profile 在 `technique_implementation` 的所有列刪掉，包括站主手動指定過的（改作的技術都不是作者的）。
- * 2. 只有 topic 證據的「使用」邊改成「關於」（`subjectOfProject`），名單在執行時從 `nomens` 算（topicOnlyEdges()）。
+ * 2. 人工看過預覽名單後決定的例外（KEEP_USED_BY、DELETE_EDGES），在第 3 步之前處理：
+ *    - 用「專案 title＋技術 title」（小寫）配對，不寫死 edge id：預覽到上線之間同步多出或少了邊，也不會改錯列。
+ *      技術 title 相同、版本不同的節點（Vue 與 Vue 3）算同一對。
+ *    - 只動述詞是 `usedBy`、`manually_set_at` 是 null、專案與技術都沒有軟刪除的列（跟第 3 步的候選條件一樣）。
+ *    - KEEP_USED_BY：證據沒抓到、其實有用到的技術，維持 `usedBy`，`manually_set_at` 設成執行時間，之後同步不再改它的述詞。
+ *    - DELETE_EDGES：專案沒用到、也不是關於這個技術的邊，整列刪掉。
+ *    - 一對都配不到（或專案 title 對到不只一個沒刪除的專案，分不出是哪一個）就跳過，記進 info log 的
+ *      `exclusions_unmatched`，不丟例外。
+ * 3. 只有 topic 證據的「使用」邊改成「關於」（`subjectOfProject`），名單在執行時從 `nomens` 算（topicOnlyEdges()）。
  *    條件全部符合才改：
  *    - 述詞就是 `usedBy`、`manually_set_at` 是 null，專案與技術都沒有軟刪除；
  *    - 同一對沒有站主手動指定的列，也還沒有 `subjectOfProject` 列；
@@ -38,8 +46,8 @@ use Illuminate\Support\Facades\Schema;
  * AUTHORITY、IGNORED_LANGUAGES 是 2026-11-23 SaveReposDataService 同名常數的快照，刻意不跟著那邊改
  * （data.md：對照表寫成 migration 自己的常數）。只留 title，判斷證據時只比小寫 title。
  *
- * 執行前後的筆數記成一筆 info log。每一筆新建、刪掉、改過的資料都先記進 BACKUP，down() 照著還原，最後把那張表刪掉
- * （做法同 2026_09_30_190200_merge_duplicate_techniques.php）。
+ * 執行前後的筆數記成一筆 info log。每一筆新建、刪掉、改過的資料都先記進 BACKUP，連同動作（`action`）與原因
+ * （`reason`，見 REASON_* 常數），down() 照著還原，最後把那張表刪掉（做法同 2026_09_30_190200_merge_duplicate_techniques.php）。
  */
 return new class extends Migration
 {
@@ -77,6 +85,44 @@ return new class extends Migration
     /** 同步略過的 GitHub 語言（小寫），不算程式證據 */
     public const IGNORED_LANGUAGES = ['hack'];
 
+    /**
+     * 人工確認有用到、只是程式證據沒抓到的技術（套件清單讀不到、語言統計沒列出）：維持 `usedBy` 並標成手動指定。
+     *
+     * @var list<array{0: string, 1: string}> [專案 title, 技術 title]，比對時不分大小寫
+     */
+    public const KEEP_USED_BY = [
+        ['api-demo', 'PHP'],
+        ['laravel-demo', 'PHP'],
+        ['thesis', 'Python'],
+        ['thesis', 'rdflib'],
+        ['thesis', 'graphviz'],
+        ['gym-people-count-parser', 'appscript'],
+        ['gym-people-count-parser', 'cheerio'],
+        ['gym-people-count-parser', 'linebot'],
+        ['Laravel-LearningLibrary', 'Bootstrap'],
+    ];
+
+    /**
+     * 人工確認專案沒用到、也不是關於這個技術的邊（topic 已經從 repo 拿掉）：整列刪掉，不降成「關於」。
+     *
+     * @var list<array{0: string, 1: string}> [專案 title, 技術 title]，比對時不分大小寫
+     */
+    public const DELETE_EDGES = [
+        ['my-dev-grid', 'Vue'],
+        ['my-dev-grid', 'tailwind'],
+    ];
+
+    /** BACKUP 的 `reason`：每一列為什麼被動到 */
+    public const REASON_MY_PROFILE_ORIGIN = 'my-profile 改作自外部 repo：建原作出處與 isBasisFor 連結';
+
+    public const REASON_MY_PROFILE_EDGE = 'my-profile 改作自外部 repo：技術邊不是作者自己的，刪除';
+
+    public const REASON_KEEP_USED_BY = '人工確認有用到（程式證據沒抓到）：維持使用，標為手動指定';
+
+    public const REASON_DELETE_EDGE = '人工確認沒用到、也不是關於這個技術：整列刪除';
+
+    public const REASON_TOPIC_ONLY = '只有 topic 證據：使用改為關於';
+
     private const BACKUP = 'sync_predicate_fix_backups';
 
     public function up(): void
@@ -88,11 +134,13 @@ return new class extends Migration
                 $table->string('table_name', 50);
                 $table->unsignedBigInteger('row_id');
                 $table->string('action', 10)->comment('updated / deleted / created');
+                $table->string('reason', 100)->comment('為什麼動這一列（REASON_* 常數）');
                 $table->json('original')->nullable();
             });
 
             $before = $this->counts();
             $myProfile = $this->linkMyProfileToOrigin();
+            $exclusions = $this->applyExclusions();
             $downgraded = $this->downgradeTopicOnlyEdges();
             $after = $this->counts();
 
@@ -100,13 +148,16 @@ return new class extends Migration
                 'before' => $before,
                 'after' => $after,
                 'my_profile' => $myProfile,
+                'kept_used_by' => $exclusions['kept'],
+                'deleted' => $exclusions['deleted'],
+                'exclusions_unmatched' => $exclusions['unmatched'],
                 'downgraded' => $downgraded,
             ]);
         });
     }
 
     /**
-     * 目前「只有 topic 證據」的使用邊。只讀不寫，條件見類別說明第 2 點。
+     * 目前「只有 topic 證據」的使用邊。只讀不寫，條件見類別說明第 3 點。
      *
      * @return Collection<int, object{id: int, implementation_id: int, technique_id: int, implementation_title: string, technique_title: string}>
      */
@@ -225,7 +276,7 @@ return new class extends Migration
 
         $documentationId = DB::table('documentations')->where('url', self::ORIGIN['url'])->whereNull('deleted_at')->orderBy('id')->value('id');
         if ($documentationId === null) {
-            $documentationId = $this->insert('documentations', [
+            $documentationId = $this->insert('documentations', self::REASON_MY_PROFILE_ORIGIN, [
                 'type' => $repository,
                 'title' => self::ORIGIN['title'],
                 'url' => self::ORIGIN['url'],
@@ -239,13 +290,63 @@ return new class extends Migration
 
         $link = ['documentation_id' => $documentationId, 'implementation_id' => $projectId, 'relation_id' => $isBasisFor];
         if (! DB::table('documentation_implementation')->where($link)->exists()) {
-            $this->insert('documentation_implementation', $link + ['created_at' => now(), 'updated_at' => now()]);
+            $this->insert('documentation_implementation', self::REASON_MY_PROFILE_ORIGIN, $link + ['created_at' => now(), 'updated_at' => now()]);
             $result['link_created'] = true;
         }
 
         foreach (DB::table('technique_implementation')->where('implementation_id', $projectId)->orderBy('id')->get() as $edge) {
-            $this->delete('technique_implementation', $edge);
+            $this->delete('technique_implementation', self::REASON_MY_PROFILE_EDGE, $edge);
             $result['edges_deleted']++;
+        }
+
+        return $result;
+    }
+
+    /**
+     * KEEP_USED_BY 標成手動指定、DELETE_EDGES 整列刪掉，條件見類別說明第 2 點。
+     *
+     * @return array{kept: list<string>, deleted: list<string>, unmatched: list<string>} 都是 `專案 → 技術`
+     */
+    private function applyExclusions(): array
+    {
+        $result = ['kept' => [], 'deleted' => [], 'unmatched' => []];
+
+        $usedBy = $this->relationId('usedBy');
+        $candidates = $usedBy === null ? collect() : DB::table('technique_implementation as ti')
+            ->join('implementations as i', 'i.id', '=', 'ti.implementation_id')
+            ->join('techniques as t', 't.id', '=', 'ti.technique_id')
+            ->whereNull('i.deleted_at')
+            ->whereNull('t.deleted_at')
+            ->where('ti.relation_id', $usedBy)
+            ->whereNull('ti.manually_set_at')
+            ->orderBy('ti.id')
+            ->get(['ti.id', 'i.title as implementation_title', 't.title as technique_title']);
+        // 同一個 title 有好幾個沒刪除的專案時分不出是哪一個，那一對整個跳過
+        $projectsPerTitle = DB::table('implementations')->whereNull('deleted_at')->pluck('title')
+            ->countBy(fn ($title) => mb_strtolower((string) $title));
+
+        foreach (['deleted' => self::DELETE_EDGES, 'kept' => self::KEEP_USED_BY] as $kind => $pairs) {
+            foreach ($pairs as [$project, $technique]) {
+                $edges = ($projectsPerTitle[mb_strtolower($project)] ?? 0) !== 1 ? collect() : $candidates->filter(
+                    fn (object $row) => mb_strtolower($row->implementation_title) === mb_strtolower($project)
+                        && mb_strtolower($row->technique_title) === mb_strtolower($technique),
+                );
+
+                if ($edges->isEmpty()) {
+                    $result['unmatched'][] = "{$project} → {$technique}";
+
+                    continue;
+                }
+
+                foreach ($edges as $edge) {
+                    if ($kind === 'deleted') {
+                        $this->delete('technique_implementation', self::REASON_DELETE_EDGE, DB::table('technique_implementation')->where('id', $edge->id)->first());
+                    } else {
+                        $this->update('technique_implementation', (int) $edge->id, self::REASON_KEEP_USED_BY, ['manually_set_at' => now(), 'updated_at' => now()]);
+                    }
+                    $result[$kind][] = "{$edge->implementation_title} → {$edge->technique_title}";
+                }
+            }
         }
 
         return $result;
@@ -265,7 +366,7 @@ return new class extends Migration
         }
 
         foreach ($edges as $edge) {
-            $this->update('technique_implementation', (int) $edge->id, ['relation_id' => $about, 'updated_at' => now()]);
+            $this->update('technique_implementation', (int) $edge->id, self::REASON_TOPIC_ONLY, ['relation_id' => $about, 'updated_at' => now()]);
         }
 
         return $edges->map(fn (object $edge) => "{$edge->implementation_title} → {$edge->technique_title}")->all();
@@ -293,38 +394,39 @@ return new class extends Migration
         return $id === null ? null : (int) $id;
     }
 
-    private function update(string $table, int $id, array $values): void
+    private function update(string $table, int $id, string $reason, array $values): void
     {
-        $this->remember($table, $id, 'updated', DB::table($table)->where('id', $id)->first());
+        $this->remember($table, $id, 'updated', $reason, DB::table($table)->where('id', $id)->first());
         DB::table($table)->where('id', $id)->update($values);
     }
 
-    private function delete(string $table, object $row): void
+    private function delete(string $table, string $reason, object $row): void
     {
-        $this->remember($table, (int) $row->id, 'deleted', $row);
+        $this->remember($table, (int) $row->id, 'deleted', $reason, $row);
         DB::table($table)->where('id', $row->id)->delete();
     }
 
-    private function insert(string $table, array $values): int
+    private function insert(string $table, string $reason, array $values): int
     {
         $id = (int) DB::table($table)->insertGetId($values);
-        $this->remember($table, $id, 'created', null);
+        $this->remember($table, $id, 'created', $reason, null);
 
         return $id;
     }
 
-    private function remember(string $table, int $id, string $action, ?object $original): void
+    private function remember(string $table, int $id, string $action, string $reason, ?object $original): void
     {
         DB::table(self::BACKUP)->insert([
             'table_name' => $table,
             'row_id' => $id,
             'action' => $action,
+            'reason' => $reason,
             'original' => $original ? json_encode($original) : null,
         ]);
     }
 
     /**
-     * 照備份倒著還原：改過的邊改回原本的述詞，刪掉的邊整列插回去，這支建的連結與 Documentation 刪掉
+     * 照備份倒著還原：改過的邊改回原本的述詞與 `manually_set_at`，刪掉的邊（my-profile 的、DELETE_EDGES 的）整列插回去，這支建的連結與 Documentation 刪掉
      * （只刪記錄過 id 的；原本就有的同網址 Documentation 不動）。之後站主連到那筆 Documentation 的其他連結會跟著刪
      * （外鍵 cascade）。
      *
