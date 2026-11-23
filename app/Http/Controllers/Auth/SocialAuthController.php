@@ -9,6 +9,7 @@ use App\Services\SocialiteDriver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Laravel\Socialite\Two\InvalidStateException;
 use Throwable;
 
 class SocialAuthController extends Controller
@@ -43,10 +44,18 @@ class SocialAuthController extends Controller
         try {
             $socialiteUser = SocialiteDriver::for($provider)->user();
         } catch (Throwable $e) {
-            // state 不符、使用者在 provider 那邊按取消、換 token 失敗：記一筆
-            // authn_login_fail 再照原樣丟出去，回應跟改動前一樣。
+            // state 不符、使用者在 provider 那邊按取消、換 token 失敗：都記一筆
+            // authn_login_fail。
             SecurityLog::oauthLoginFailed($provider, 'session', $e, $request);
 
+            // state 不符（出發時存在 session 的 state 跟導回來的對不上）多半是使用者端
+            // 的狀況：舊分頁或瀏覽器還原的頁面、重複點登入、等太久 session 過期。
+            // 重新登入一次就好，不該是 500，所以導回首頁帶 auth_error 讓前端提示重試。
+            if ($e instanceof InvalidStateException) {
+                return redirect('/?auth_error=state_expired');
+            }
+
+            // 其他例外照原樣丟出去，回應跟改動前一樣。
             throw $e;
         }
 

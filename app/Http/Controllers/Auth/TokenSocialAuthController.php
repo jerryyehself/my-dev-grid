@@ -9,6 +9,7 @@ use App\Models\OauthIdentity;
 use App\Services\SocialiteDriver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Laravel\Socialite\Two\InvalidStateException;
 use Throwable;
 
 /**
@@ -51,8 +52,12 @@ class TokenSocialAuthController extends Controller
                 ->redirectUrl(route('auth.token.social.callback', $provider))
                 ->user();
         } catch (Throwable $e) {
-            // 同 SocialAuthController::callback：記一筆再照原樣丟出去
+            // 同 SocialAuthController::callback：記一筆；state 不符導回前端，其他照原樣丟出去
             SecurityLog::oauthLoginFailed($provider, 'token', $e, $request);
+
+            if ($e instanceof InvalidStateException) {
+                return redirect(config('app.frontend_url').'/?auth_error=state_expired');
+            }
 
             throw $e;
         }
