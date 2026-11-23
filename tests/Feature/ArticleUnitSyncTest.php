@@ -525,6 +525,22 @@ class ArticleUnitSyncTest extends TestCase
         $this->assertNotSame(ArticleUnitSync::contentHash('A', "內容\n2:xy"), ArticleUnitSync::contentHash('A', '內容', ['xy']));
     }
 
+    #[TestDox('Documentation::units()：這篇文章的所有單位，含已標成移除的，不含別篇的')]
+    public function test_documentation_units_relation(): void
+    {
+        $article = Documentation::factory()->create(['body' => "## A {#a}\n甲\n## B {#b}\n乙\n"]);
+        $other = Documentation::factory()->create(['body' => "## A {#a}\n丙\n"]);
+        $this->sync($article);
+        $this->sync($other);
+        $article->forceFill(['body' => "## A {#a}\n甲\n"])->save();
+        $this->sync($article);
+
+        $units = $article->refresh()->units()->orderBy('id')->get();
+        $this->assertSame(['lead', 'a', 'b'], $units->pluck('unit_id')->all());
+        $this->assertSame([false, false, true], $units->map->isRemoved()->all());
+        $this->assertSame([$article->id], $units->pluck('article_id')->unique()->values()->all());
+    }
+
     #[TestDox('不同文章的單位互不影響，同一個 ID 可以各用一次')]
     public function test_articles_do_not_share_units(): void
     {
