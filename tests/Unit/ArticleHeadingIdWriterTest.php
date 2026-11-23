@@ -18,9 +18,10 @@ class ArticleHeadingIdWriterTest extends TestCase
 {
     private const FRONT_MATTER = "---\nslug: sample\ntitle: 範例\nimport: true\n---\n";
 
-    private function write(string $raw): array
+    /** @param  list<string>  $reserved */
+    private function write(string $raw, array $reserved = []): array
     {
-        return (new ArticleHeadingIdWriter)->write($raw);
+        return (new ArticleHeadingIdWriter)->write($raw, $reserved);
     }
 
     private function doc(string $body): string
@@ -112,6 +113,29 @@ class ArticleHeadingIdWriterTest extends TestCase
 
         $this->assertSame($expectedIds, $this->addedIds($result));
         $this->assertSame([], (new ArticleUnitSplitter)->split($this->bodyOf($result['content']))['duplicate_ids']);
+    }
+
+    /** @return array<string, array{string, list<string>, list<string>}> */
+    public static function reservedIds(): array
+    {
+        return [
+            '刪掉的 s2 不再發出去' => ["## 甲 {#s1}\n\n## 丙\n", ['lead', 's1', 's2'], ['s3']],
+            '原稿已經沒有任何 ID，保留的照樣跳過' => ["## 甲\n\n## 乙\n", ['s1', 's3'], ['s2', 's4']],
+            '保留的大小寫不同也算（S1）' => ["## 甲\n", ['S1'], ['s2']],
+            '不是 sN 的保留 ID 不影響編號' => ["## 甲\n", ['intro', 's10'], ['s1']],
+            '沒有保留的 ID 時照舊從 s1 起' => ["## 甲\n", [], ['s1']],
+        ];
+    }
+
+    /**
+     * @param  list<string>  $reserved
+     * @param  list<string>  $expectedIds
+     */
+    #[DataProvider('reservedIds')]
+    #[TestDox('新 ID 也跳過呼叫端保留的 ID（資料庫裡這篇文章用過、原稿已經刪掉的）')]
+    public function test_new_ids_skip_reserved_ones(string $body, array $reserved, array $expectedIds): void
+    {
+        $this->assertSame($expectedIds, $this->addedIds($this->write($this->doc($body), $reserved)));
     }
 
     private function bodyOf(string $content): string

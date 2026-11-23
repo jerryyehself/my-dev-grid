@@ -11,7 +11,8 @@ use InvalidArgumentException;
  *   `ArticleUnitSplitter::headings()`，不另外寫一套；所以補完之後 `ArticleUnitSplitter` 切出的單位只多了 ID。
  * - 只補 H2、H3 裡還沒有 `{#id}` 的，已經有的不動；H1、H4 以下不補。
  * - 新 ID 是 `s1`、`s2`…，照文件順序，短 ASCII、不從標題文字推：ID 是身分，不是名稱，標題改寫了也不能跟著變。
- *   跳過這篇已經用掉的 ID（任何層級標題上的 `{#id}` 都算，不分大小寫）與導言固定的 `lead`。
+ *   跳過這篇已經用掉的 ID（任何層級標題上的 `{#id}` 都算，不分大小寫）、呼叫端傳進來的保留 ID
+ *   （這篇文章在資料庫裡用過的，含已標成移除的單位，見 `write()`）與導言固定的 `lead`。
  * - 只在標題文字結束處插入 ` {#id}`，其餘位元組（換行、BOM、結尾有沒有換行、標題尾端的空白與收尾井號）一個都不動，
  *   所以補完再補一次是 0 變更。
  * - 內文從 front matter 之後算起，界線的判斷與 `ArticleSourceParser` 一致（第一行是 `---`、之後第一個 `---` 或 `...`）。
@@ -30,11 +31,16 @@ final class ArticleHeadingIdWriter
     /**
      * `added` 的 `line` 是補在原檔的第幾行（1 起算，含 front matter）；`skipped` 是略過的原因，沒略過是 null。
      *
+     * `$reserved` 是新 ID 也要跳過的 ID（不分大小寫），呼叫端傳這篇文章在資料庫裡用過的。要緊的是原稿裡已經刪掉的：
+     * 段落刪掉之後，資料庫裡那一列標成移除、ID 留著，引用它的地方顯示「段落已移除」；同一個 ID 再發給新標題的話，
+     * 下次匯入會用 ID 對上那一列，舊的引用就指到不相干的新段落。
+     *
+     * @param  list<string>  $reserved
      * @return array{content: string, added: list<array{line: int, level: int, heading: string, id: string}>, skipped: string|null}
      *
      * @throws InvalidArgumentException
      */
-    public function write(string $raw): array
+    public function write(string $raw, array $reserved = []): array
     {
         $lines = explode("\n", $raw);
         $bodyStart = $this->bodyStart($lines);
@@ -57,6 +63,9 @@ final class ArticleHeadingIdWriter
 
         $headings = ArticleUnitSplitter::headings($bodyLines);
         $taken = [ArticleUnitSplitter::LEAD_ID => true];
+        foreach ($reserved as $id) {
+            $taken[strtolower($id)] = true;
+        }
         foreach ($headings as $heading) {
             if ($heading['id'] !== null) {
                 $taken[strtolower($heading['id'])] = true;

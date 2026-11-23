@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ArticleUnit;
 use DateTimeInterface;
+use InvalidArgumentException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -173,6 +174,35 @@ final class ArticleSourceParser
             'about' => ['techniques' => $techniques, 'projects' => $projects],
             'body_line' => $bodyLine,
         ] + $result;
+    }
+
+    /**
+     * front matter 的 `slug` 原值，不看 `import`、不檢查格式：補寫 `{#id}` 的指令用它找資料庫裡的同一篇文章，
+     * 曾經匯入過、之後改成不匯入的檔案也要找得到。沒有 front matter、沒寫 `slug` 或不是字串時是 null。
+     *
+     * @throws InvalidArgumentException front matter 不是合法的 YAML：看不出是哪一篇，呼叫端不能當成沒有這篇
+     */
+    public function slug(string $raw): ?string
+    {
+        $text = str_replace("\r\n", "\n", $raw);
+        if (str_starts_with($text, "\u{FEFF}")) {
+            $text = substr($text, 3);
+        }
+
+        $frontMatter = $this->splitFrontMatter($text);
+        if ($frontMatter === null) {
+            return null;
+        }
+
+        try {
+            $meta = Yaml::parse($frontMatter[0], Yaml::PARSE_DATETIME);
+        } catch (ParseException) {
+            throw new InvalidArgumentException(self::INVALID_REASONS['yaml_error']);
+        }
+
+        $slug = is_array($meta) ? ($meta['slug'] ?? null) : null;
+
+        return is_string($slug) && $slug !== '' ? $slug : null;
     }
 
     /**

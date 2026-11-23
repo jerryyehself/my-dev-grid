@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\ArticleSourceParser;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use PHPUnit\Framework\TestCase;
@@ -235,5 +236,35 @@ class ArticleSourceParserTest extends TestCase
         $this->assertFalse($result['import']);
         $this->assertNull($result['invalid']);
         $this->assertSame(['techniques' => [], 'projects' => []], $result['about']);
+    }
+
+    /** @return array<string, array{string, string|null}> */
+    public static function slugs(): array
+    {
+        return [
+            '一般' => ["---\nslug: my-post\nimport: true\n---\n內文\n", 'my-post'],
+            '沒有選擇匯入也讀得到' => ["---\nslug: my-post\nimport: false\n---\n內文\n", 'my-post'],
+            'BOM 與 CRLF' => ["\u{FEFF}---\r\nslug: my-post\r\n---\r\n內文\r\n", 'my-post'],
+            '格式不合匯入規則也照原值' => ["---\nslug: My_Post\n---\n", 'My_Post'],
+            '沒有 front matter' => ["# 標題\nslug: my-post\n", null],
+            '沒寫 slug' => ["---\ntitle: 標題\n---\n", null],
+            'slug 是空字串' => ["---\nslug: ''\n---\n", null],
+            'slug 不是字串' => ["---\nslug: 123\n---\n", null],
+            'front matter 不是對照表' => ["---\n- a\n---\n", null],
+        ];
+    }
+
+    #[DataProvider('slugs')]
+    #[TestDox('slug()：front matter 的 slug 原值，不看 import、不檢查格式；沒有就是 null')]
+    public function test_slug_reads_the_raw_front_matter_value(string $raw, ?string $expected): void
+    {
+        $this->assertSame($expected, (new ArticleSourceParser)->slug($raw));
+    }
+
+    #[TestDox('slug()：front matter 不是合法的 YAML 時丟例外，不當成沒有 slug')]
+    public function test_slug_rejects_unreadable_front_matter(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        (new ArticleSourceParser)->slug("---\nslug: [my-post\n---\n");
     }
 }
