@@ -77,7 +77,7 @@ git push -u origin release/vX.Y.Z
 上線 PR 與 §7 的修補 PR 都適用：
 
 - 這一批只要有任何一項 `CLAUDE.md`「高風險改動」列的東西，就照那一節把回滾方式、驗證範圍與資料安全檢查（含上線前、上線後的確認）寫進內部上線紀錄，上線 PR 只寫「已依內部清單完成」。
-- 上線 PR 合併前做好 §11 的備份。
+- 上線 PR 合併前提醒使用者 §11 的備份（只有 §11.1 第二段的情況是必做）。
 - 部署（合進 `main`）後由使用者看一次 Cloud Logging，確認沒有新錯誤：Claude 的雲端沙盒沒有 GCP 權限，部署後提醒使用者去看，不自己宣稱看過。
 
 ### 9.3 立即退版
@@ -94,9 +94,11 @@ git push -u origin release/vX.Y.Z
 
 ## 11. 上線前備份
 
-### 11.1 必做：Cloud SQL on-demand 備份
+### 11.1 Cloud SQL on-demand 備份（提醒）
 
-上線 PR 合併前，由使用者在 Cloud SQL 做一次 on-demand 備份（指令見 [`zero-downtime-migrations.md`](zero-downtime-migrations.md) §6.3），確認備份完成後才合併。Claude 的雲端沙盒沒有 GCP 權限，不自己做、也不宣稱做過。退版需要還原資料時，先用這份。
+每次上線，在給使用者的上線前事項裡寫一行提醒：建議在 Cloud SQL 做一次 on-demand 備份（指令見 [`zero-downtime-migrations.md`](zero-downtime-migrations.md) §6.3）。這一行是提醒，不寫成勾選項目，免得沒勾被當成上線還沒完成。
+
+例外：這次上線帶了會刪除正式資料的 migration（§10 的清單）時，照 `zero-downtime-migrations.md` §6.3 必做，使用者確認備份完成後才合併。Claude 的雲端沙盒沒有 GCP 權限，不自己做、也不宣稱做過。退版需要還原資料時，先用這份。
 
 ### 11.2 選做：本機異地備份
 
