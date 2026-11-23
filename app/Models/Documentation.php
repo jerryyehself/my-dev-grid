@@ -72,6 +72,17 @@ class Documentation extends Model
         return (int) $this->status === self::STATUS_PUBLISHED;
     }
 
+    /**
+     * 是不是文章：分類是 `post`。匯入新文章時用同一個條件（最小 id 的 `post` 分類）選分類，
+     * 文章才有段落單位（`article_units`）；其他分類的文件不切段。
+     */
+    public function isArticle(): bool
+    {
+        $post = Scope::where('name', 'post')->orderBy('id')->first();
+
+        return $post !== null && (int) $this->type === $post->id;
+    }
+
     public function scope()
     {
         return $this->belongsTo(Scope::class, 'type');
