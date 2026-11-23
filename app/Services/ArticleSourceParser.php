@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ArticleUnit;
 use DateTimeInterface;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
@@ -23,6 +24,11 @@ use Symfony\Component\Yaml\Yaml;
  *   只收字串清單（沒寫、`null`、空清單都是沒有），每筆去掉頭尾空白、不分大小寫去重，最多
  *   `MAX_ABOUT_NAMES` 筆、每筆最長 `MAX_ABOUT_NAME_LENGTH` 字元；格式不對的列為 invalid。
  *   這裡只負責讀成名稱，對上站上的技術與專案、建立連結是匯入時的事（`ArticleSourceService`）。
+ *
+ * - 內文用 `ArticleUnitSplitter` 切成段落單位，檢查標題行尾的 `{#id}`：重複（含跟導言固定的 `lead` 重複）
+ *   或超過 `ArticleUnit::MAX_UNIT_ID_LENGTH` 字元的列為 invalid。資料庫以 `(文章, unit_id)` 為鍵，
+ *   前端遇到重複的 ID 會把後面那個改名當錨點，兩邊會對不上，所以整篇不匯入，也不替作者改名。
+ *   重複的 ID 放在 `invalid_detail`，清單上接在原因後面。
  *
  * 其他 front matter 欄位目前不處理。
  */
@@ -54,18 +60,24 @@ final class ArticleSourceParser
         'creation_date_invalid' => 'creation_date 必須是 YYYY-MM-DD 格式的日期。',
         'about_techniques_invalid' => 'about_techniques 必須是名稱（文字）的清單，最多 50 筆、每筆最長 100 字元，不能有空白的項目。',
         'about_projects_invalid' => 'about_projects 必須是名稱（文字）的清單，最多 50 筆、每筆最長 100 字元，不能有空白的項目。',
+        'duplicate_unit_id' => '標題行尾的 {#id} 有重複（導言固定用 lead，標題也不能用）；同一篇文章裡每個 ID 只能出現一次。',
+        'unit_id_too_long' => '標題行尾的 {#id} 最長 255 字元。',
     ];
+
+    public function __construct(private readonly ArticleUnitSplitter $splitter = new ArticleUnitSplitter) {}
 
     /**
      * `body_line` 是 `body` 第一行在原檔的行號（從 1 起算），掃描警告時用來回報原檔的行號。
      *
      * `about` 是 front matter 宣告的技術與專案名稱（已去掉空白與重複），沒寫就是兩份空清單。
      *
-     * @return array{import: bool, key: string|null, title: string|null, body: string|null, creation_date: string|null, about: array{techniques: list<string>, projects: list<string>}, invalid: string|null, body_line: int}
+     * `invalid_detail` 是接在原因後面的補充（目前只有重複的 ID），沒有就是 null。
+     *
+     * @return array{import: bool, key: string|null, title: string|null, body: string|null, creation_date: string|null, about: array{techniques: list<string>, projects: list<string>}, invalid: string|null, invalid_detail: string|null, body_line: int}
      */
     public function parse(string $raw): array
     {
-        $result = ['import' => false, 'key' => null, 'title' => null, 'body' => null, 'creation_date' => null, 'about' => ['techniques' => [], 'projects' => []], 'invalid' => null, 'body_line' => 1];
+        $result = ['import' => false, 'key' => null, 'title' => null, 'body' => null, 'creation_date' => null, 'about' => ['techniques' => [], 'projects' => []], 'invalid' => null, 'invalid_detail' => null, 'body_line' => 1];
 
         $text = str_replace("\r\n", "\n", $raw);
         if (str_starts_with($text, "\u{FEFF}")) {
@@ -142,6 +154,16 @@ final class ArticleSourceParser
         $projects = $this->aboutNames($meta['about_projects'] ?? null);
         if ($projects === false) {
             return ['invalid' => 'about_projects_invalid'] + $result;
+        }
+
+        $units = $this->splitter->split($body);
+        if ($units['duplicate_ids'] !== []) {
+            return ['invalid' => 'duplicate_unit_id', 'invalid_detail' => '重複的 ID：'.implode('、', $units['duplicate_ids'])] + $result;
+        }
+        foreach ($units['units'] as $unit) {
+            if ($unit['unit_id'] !== null && strlen($unit['unit_id']) > ArticleUnit::MAX_UNIT_ID_LENGTH) {
+                return ['invalid' => 'unit_id_too_long'] + $result;
+            }
         }
 
         return [
