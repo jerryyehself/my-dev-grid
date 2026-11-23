@@ -26,8 +26,19 @@ use LogicException;
  *
  * 父單位要先對上，子單位的第 2 步才比得了；父單位可能要到第 3 步才對上，所以第 2、3 步輪流跑到沒有新的配對為止。
  *
- * 這次沒出現的舊單位不刪，填 `removed_at`（已經填過的不再改時間）。`content_hash` 是標題與內容的雜湊，
- * 標題或內容變了才會變；ID 寫法（`{#id}`）不算在內。
+ * 這次沒出現的舊單位不刪，填 `removed_at`（已經填過的不再改時間）。
+ *
+ * `content_hash` 是標題與單位在原稿裡原文（`source`：腳註定義還沒搬走之前）的雜湊，標題或原文變了才會變；
+ * ID 寫法（`{#id}`）不算在內。不用搬過腳註之後的 `content` 算，理由：
+ * - 原稿沒改時，雜湊跟還沒有腳註搬移之前寫入的列一樣，重新匯入不會把每個引用腳註的單位都判成改過。
+ * - 之後調整腳註歸屬或子片段的規則，雜湊也不會跟著全部變。
+ * 代價是改了某個腳註定義的文字時，變的是定義原本所在單位（通常是文末的「來源」節）的雜湊，
+ * 不是引用它的單位。
+ *
+ * 腳註（`footnotes`）、子片段（`chunks`）沒有時存 null，不存空陣列：跟加欄位之前寫入的列一樣，
+ * 沒有腳註的單位重新匯入時不會因為這兩欄被當成有變動。
+ *
+ * @phpstan-import-type Unit from ArticleUnitSplitter
  */
 final class ArticleUnitSync
 {
@@ -68,7 +79,7 @@ final class ArticleUnitSync
     }
 
     /**
-     * @param  list<array{unit_id: string|null, parent_index: int|null, heading: string|null, role: string, level: int|null, content: string}>  $units
+     * @param  list<Unit>  $units
      * @param  Collection<int, ArticleUnit>  $existing
      * @param  array<int, ArticleUnit>  $matches
      */
@@ -85,7 +96,10 @@ final class ArticleUnitSync
                 'level' => $unit['level'],
                 'heading' => $unit['heading'],
                 'content' => $unit['content'],
-                'content_hash' => self::contentHash($unit['heading'], $unit['content']),
+                'content_hash' => self::contentHash($unit['heading'], $unit['source']),
+                'is_container' => $unit['is_container'],
+                'footnotes' => $unit['footnotes'] === [] ? null : $unit['footnotes'],
+                'chunks' => $unit['chunks'],
                 'position' => $index,
                 'removed_at' => null,
             ]);

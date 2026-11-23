@@ -2,12 +2,14 @@
 
 namespace Tests\Unit;
 
+use App\Services\ArticleUnitChunker;
 use App\Services\ArticleUnitSplitter;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use PHPUnit\Framework\TestCase;
 
 /**
- * 文章切段：單位的界線、父子關係、角色、明確 ID，以及顯示用的 `{#id}` 剝除。
+ * 文章切段：單位的界線、父子關係、角色、明確 ID、腳註歸屬、容器、子片段，以及顯示用的 `{#id}` 剝除。
  */
 class ArticleUnitSplitterTest extends TestCase
 {
@@ -20,6 +22,22 @@ class ArticleUnitSplitterTest extends TestCase
     private function ids(array $result): array
     {
         return array_column($result['units'], 'unit_id');
+    }
+
+    private function unit(array $result, string $id): array
+    {
+        foreach ($result['units'] as $unit) {
+            if ($unit['unit_id'] === $id) {
+                return $unit;
+            }
+        }
+        $this->fail("找不到單位 {$id}");
+    }
+
+    /** @return list<string> */
+    private function labels(array $unit): array
+    {
+        return array_column($unit['footnotes'], 'label');
     }
 
     #[TestDox('導言是第一個標題前的內容，固定 lead 與 intro')]
@@ -320,5 +338,262 @@ class ArticleUnitSplitterTest extends TestCase
     public function test_bare_hashes_line_is_not_a_heading(): void
     {
         $this->assertSame(['lead'], $this->ids($this->split("##\n內容\n")));
+    }
+
+    #[TestDox('腳註定義歸給引用它的單位：從原單位內容拿掉，原文與原始位置另外記錄')]
+    public function test_footnote_definition_moves_to_the_citing_unit(): void
+    {
+        $result = $this->split("## A {#a}\n甲說了一句話[^1]。\n## 來源 {#refs}\n- 連結\n\n[^1]: 甲的出處。\n");
+
+        $a = $this->unit($result, 'a');
+        $this->assertSame([['label' => '1', 'content' => '[^1]: 甲的出處。', 'defined_in' => 2, 'start_line' => 6, 'end_line' => 6]], $a['footnotes']);
+        $this->assertSame('甲說了一句話[^1]。', $a['content']);
+
+        $refs = $this->unit($result, 'refs');
+        $this->assertSame([], $refs['footnotes']);
+        $this->assertSame("- 連結\n\n", $refs['content']);
+        // source 是原稿原文，定義還在
+        $this->assertSame("- 連結\n\n[^1]: 甲的出處。\n", $refs['source']);
+    }
+
+    #[TestDox('多行定義：縮排的續行（中間可夾空行）與惰性續行一起搬，定義後面的空行與下一段不搬')]
+    public function test_multi_line_definition_moves_whole(): void
+    {
+        $result = $this->split("## A {#a}\n見[^n]\n## B {#b}\n[^n]: 第一行\n惰性續行\n\n    縮排的第二段\n\tTab 縮排\n\n不縮排的下一段\n");
+
+        $footnote = $this->unit($result, 'a')['footnotes'][0];
+        $this->assertSame("[^n]: 第一行\n惰性續行\n\n    縮排的第二段\n\tTab 縮排", $footnote['content']);
+        $this->assertSame([4, 8], [$footnote['start_line'], $footnote['end_line']]);
+        $this->assertSame("\n不縮排的下一段\n", $this->unit($result, 'b')['content']);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function definitionInterrupters(): iterable
+    {
+        yield '清單項目' => ['- 清單'];
+        yield '有序清單' => ['1. 清單'];
+        yield '引言' => ['> 引言'];
+        yield '圍欄' => ["```\ncode\n```"];
+        yield '分隔線' => ['---'];
+        yield '標題以外的 H4' => ['#### 小標'];
+        yield '另一個定義' => ['[^m]: 另一個'];
+        yield 'HTML' => ['<div>x</div>'];
+        yield '空行之後只縮排三格' => ["\n   三格"];
+    }
+
+    #[DataProvider('definitionInterrupters')]
+    #[TestDox('會打斷段落的區塊不算定義的續行，留在原單位')]
+    public function test_block_starts_end_a_definition(string $next): void
+    {
+        $result = $this->split("## A {#a}\n見[^n]\n## B {#b}\n[^n]: 定義\n{$next}\n");
+
+        $this->assertSame('[^n]: 定義', $this->unit($result, 'a')['footnotes'][0]['content']);
+        $this->assertSame("{$next}\n", $this->unit($result, 'b')['content']);
+    }
+
+    #[TestDox('同一個標籤被兩個單位引用：兩邊都附上；同一單位引用兩次只附一份')]
+    public function test_footnote_cited_by_two_units_is_attached_to_both(): void
+    {
+        $result = $this->split("## A {#a}\n甲[^x]、再一次[^x]\n## B {#b}\n乙[^x]\n## C {#c}\n[^x]: 共用\n");
+
+        $this->assertSame(['x'], $this->labels($this->unit($result, 'a')));
+        $this->assertSame(['x'], $this->labels($this->unit($result, 'b')));
+        $this->assertSame($this->unit($result, 'a')['footnotes'], $this->unit($result, 'b')['footnotes']);
+        $this->assertSame([], $this->labels($this->unit($result, 'c')));
+        $this->assertSame('', $this->unit($result, 'c')['content']);
+    }
+
+    #[TestDox('沒有被引用的定義留在原位，不附給任何單位')]
+    public function test_unreferenced_definition_stays(): void
+    {
+        $result = $this->split("## A {#a}\n沒有引用\n## B {#b}\n[^lonely]: 沒人用\n");
+
+        $this->assertSame([], array_merge(...array_column($result['units'], 'footnotes')));
+        $this->assertSame("[^lonely]: 沒人用\n", $this->unit($result, 'b')['content']);
+    }
+
+    #[TestDox('程式碼區塊裡的 [^x]: 不是定義，程式碼區塊與行內程式碼裡的 [^x] 不是引用')]
+    public function test_code_is_not_a_footnote(): void
+    {
+        $body = "## A {#a}\n```md\n正文[^1]\n[^1]: 區塊裡的定義\n```\n行內 `[^2]` 與 ``x [^2] y`` 也不算\n## B {#b}\n[^1]: 真的定義一\n[^2]: 真的定義二\n";
+        $result = $this->split($body);
+
+        $this->assertSame([], $this->unit($result, 'a')['footnotes']);
+        $this->assertStringContainsString("[^1]: 區塊裡的定義\n```", $this->unit($result, 'a')['content']);
+        // 都沒有真的被引用，定義留在原位
+        $this->assertSame("[^1]: 真的定義一\n[^2]: 真的定義二\n", $this->unit($result, 'b')['content']);
+    }
+
+    #[TestDox('程式碼區塊裡的定義不搶真的定義：區塊外有引用時，搬走的是區塊外的那個')]
+    public function test_definition_in_code_does_not_shadow_the_real_one(): void
+    {
+        $result = $this->split("## A {#a}\n```\n[^1]: 假的\n```\n引用[^1]\n## B {#b}\n[^1]: 真的\n");
+
+        $this->assertSame('[^1]: 真的', $this->unit($result, 'a')['footnotes'][0]['content']);
+        $this->assertStringContainsString('[^1]: 假的', $this->unit($result, 'a')['content']);
+        $this->assertSame('', $this->unit($result, 'b')['content']);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function nonDefinitions(): iterable
+    {
+        yield '冒號前有空白' => ['[^1] : 不是'];
+        yield '縮排四格' => ['    [^1]: 不是'];
+        yield '空標籤' => ['[^]: 不是'];
+        yield '標籤有空白' => ['[^a b]: 不是'];
+        yield '沒有冒號' => ['[^1] 不是'];
+        yield '寫在行中間' => ['前面 [^1]: 不是'];
+        yield '標籤超過 999 字元' => ['[^'.str_repeat('a', 1000).']: 不是'];
+        yield '少了 ^' => ['[1]: 不是'];
+    }
+
+    #[DataProvider('nonDefinitions')]
+    #[TestDox('長得像但不是腳註定義的行不搬')]
+    public function test_near_miss_definitions_are_not_moved(string $line): void
+    {
+        $result = $this->split("## A {#a}\n引用[^1]與[^a b]與[^".str_repeat('a', 1000)."]\n## B {#b}\n{$line}\n");
+
+        $this->assertSame([], $this->unit($result, 'a')['footnotes']);
+        $this->assertSame("{$line}\n", $this->unit($result, 'b')['content']);
+    }
+
+    #[TestDox('跳脫的 \\[^1] 與沒有定義的 [^9] 不算引用')]
+    public function test_escaped_and_undefined_references(): void
+    {
+        $result = $this->split("## A {#a}\n跳脫 \\[^1] 與沒定義的 [^9]\n## B {#b}\n[^1]: 定義\n");
+
+        $this->assertSame([], $this->unit($result, 'a')['footnotes']);
+        $this->assertSame("[^1]: 定義\n", $this->unit($result, 'b')['content']);
+    }
+
+    #[TestDox('標題裡的引用算那個單位的；標籤大小寫不同也對得上')]
+    public function test_reference_in_heading_and_case_insensitive_label(): void
+    {
+        $result = $this->split("## 標題[^Note] {#a}\n內容\n## B {#b}\n[^note]: 定義\n");
+
+        $this->assertSame(['note'], $this->labels($this->unit($result, 'a')));
+    }
+
+    #[TestDox('定義裡引用別的腳註：兩個都附給引用第一個的單位，照定義順序')]
+    public function test_nested_reference_is_attached_too(): void
+    {
+        $result = $this->split("## A {#a}\n見[^2]\n## B {#b}\n[^1]: 被引用的內層\n[^2]: 外層，另見[^1]\n");
+
+        $this->assertSame(['1', '2'], $this->labels($this->unit($result, 'a')));
+        $this->assertSame('', $this->unit($result, 'b')['content']);
+    }
+
+    #[TestDox('同一個標籤定義兩次：第一個附給引用的單位，第二個留在原位')]
+    public function test_duplicate_definition_first_wins(): void
+    {
+        $result = $this->split("## A {#a}\n見[^1]\n## B {#b}\n[^1]: 第一個\n[^1]: 第二個\n");
+
+        $this->assertSame('[^1]: 第一個', $this->unit($result, 'a')['footnotes'][0]['content']);
+        $this->assertSame("[^1]: 第二個\n", $this->unit($result, 'b')['content']);
+    }
+
+    #[TestDox('定義與引用在同一個單位：一樣從內容拿掉，附在自己身上')]
+    public function test_definition_in_the_citing_unit(): void
+    {
+        $lead = $this->split("前言[^1]\n\n[^1]: 導言的腳註\n## A {#a}\n")['units'][0];
+
+        $this->assertSame('[^1]: 導言的腳註', $lead['footnotes'][0]['content']);
+        $this->assertSame(0, $lead['footnotes'][0]['defined_in']);
+        $this->assertSame("前言[^1]\n", $lead['content']);
+    }
+
+    #[TestDox('CRLF 換行的腳註跟 LF 切出一樣的結果')]
+    public function test_crlf_footnotes(): void
+    {
+        $this->assertSame(
+            $this->split("## A {#a}\n見[^1]\n## B {#b}\n[^1]: 定義\n    續行\n"),
+            $this->split("## A {#a}\r\n見[^1]\r\n## B {#b}\r\n[^1]: 定義\r\n    續行\r\n"),
+        );
+    }
+
+    #[TestDox('沒有腳註的文章：content 與 source 相同，footnotes 是空的')]
+    public function test_article_without_footnotes_is_unchanged(): void
+    {
+        foreach ($this->split("前言\n## A {#a}\n內容\n### B {#b}\n內容\n")['units'] as $unit) {
+            $this->assertSame($unit['source'], $unit['content']);
+            $this->assertSame([], $unit['footnotes']);
+        }
+    }
+
+    #[TestDox('H2 只有子節、自己沒有內容時是容器，仍在清單裡、H3 照常指向它')]
+    public function test_h2_with_only_children_is_a_container(): void
+    {
+        $result = $this->split("## 其他取捨 {#other}\n\n### 甲 {#x}\n內容\n### 乙 {#y}\n內容\n## 下一節 {#next}\n內容\n");
+
+        $this->assertSame([false, true, false, false, false], array_column($result['units'], 'is_container'));
+        $this->assertSame(['lead', 'other', 'x', 'y', 'next'], $this->ids($result));
+        $this->assertSame([1, 1], [$result['units'][2]['parent_index'], $result['units'][3]['parent_index']]);
+    }
+
+    #[TestDox('容器的門檻：自己的內容去掉空白後 20 字算容器，21 字不算；沒有子節的空 H2、H3 都不算')]
+    public function test_container_threshold(): void
+    {
+        $twenty = str_repeat('字', 10)."\n ".str_repeat('字', 10);
+        $this->assertTrue($this->split("## A {#a}\n{$twenty}\n### A1 {#a1}\n")['units'][1]['is_container']);
+        $this->assertFalse($this->split("## A {#a}\n{$twenty}字\n### A1 {#a1}\n")['units'][1]['is_container']);
+        $this->assertFalse($this->split("## A {#a}\n## B {#b}\n")['units'][1]['is_container']);
+        // H2 之前的孤兒 H3、沒內容的 H3、導言都不是容器；只有 A 是
+        $this->assertSame([false, false, true, false], array_column($this->split("### 孤兒 {#o}\n## A {#a}\n### B {#b}\n")['units'], 'is_container'));
+    }
+
+    #[TestDox('容器看的是腳註定義搬走之後的內容')]
+    public function test_container_after_footnote_removal(): void
+    {
+        $result = $this->split("## A {#a}\n[^1]: 這段定義很長很長很長很長很長很長很長很長很長很長\n### B {#b}\n引用[^1]\n");
+
+        $this->assertTrue($this->unit($result, 'a')['is_container']);
+        $this->assertSame(['1'], $this->labels($this->unit($result, 'b')));
+    }
+
+    #[TestDox('正文超過 1500 字：在段落邊界切出子片段，ID 是 unit~N，每片附自己引用的腳註')]
+    public function test_long_unit_gets_chunks(): void
+    {
+        $paragraph = fn (string $char) => str_repeat($char, 600);
+        $body = "## 長節 {#long}\n{$paragraph('甲')}[^1]\n\n{$paragraph('乙')}\n\n{$paragraph('丙')}[^2]\n\n{$paragraph('丁')}\n## 來源 {#refs}\n[^1]: 一\n[^2]: 二\n";
+        $long = $this->unit($this->split($body), 'long');
+
+        $this->assertSame(['1', '2'], $this->labels($long));
+        $this->assertSame(['long~1', 'long~2'], array_column($long['chunks'], 'id'));
+        $this->assertSame([['1'], ['2']], array_column($long['chunks'], 'footnotes'));
+        $this->assertSame("{$paragraph('甲')}[^1]\n\n{$paragraph('乙')}", $long['chunks'][0]['content']);
+        $this->assertSame("{$paragraph('丙')}[^2]\n\n{$paragraph('丁')}", $long['chunks'][1]['content']);
+        foreach ($long['chunks'] as $chunk) {
+            $this->assertLessThanOrEqual(ArticleUnitSplitter::CHUNK_SOFT_LIMIT, ArticleUnitChunker::length($chunk['content']));
+        }
+    }
+
+    #[TestDox('子片段：剛好 1500 字不切；導言也會切；還沒有 ID 的單位片段 ID 是 null；參考文獻節與容器不切')]
+    public function test_chunk_edges(): void
+    {
+        $this->assertNull($this->split("## A {#a}\n".str_repeat('字', 1500)."\n")['units'][1]['chunks']);
+
+        $long = str_repeat('甲', 800)."\n\n".str_repeat('乙', 800);
+        $this->assertSame(['lead~1', 'lead~2'], array_column($this->split("{$long}\n## A {#a}\n")['units'][0]['chunks'], 'id'));
+        $this->assertSame([null, null], array_column($this->split("## 沒有 ID\n{$long}\n")['units'][1]['chunks'], 'id'));
+        $this->assertNull($this->split("## 來源 {#refs}\n{$long}\n")['units'][1]['chunks']);
+        $this->assertNull($this->split("## 參考文獻 {#refs}\n### 子節 {#sub}\n{$long}\n")['units'][2]['chunks']);
+    }
+
+    #[TestDox('整節是切不開的一個大表格時沒有子片段')]
+    public function test_unsplittable_unit_has_no_chunks(): void
+    {
+        $rows = implode("\n", array_fill(0, 200, '| 甲甲甲甲 | 乙乙乙乙 |'));
+
+        $this->assertNull($this->split("## 表 {#t}\n| 欄一 | 欄二 |\n|---|---|\n{$rows}\n")['units'][1]['chunks']);
+    }
+
+    #[TestDox('子片段不會附上留在原位的定義：沒被引用的定義開頭雖然像引用，也不算')]
+    public function test_chunk_footnotes_ignore_definitions_left_in_place(): void
+    {
+        $body = "## 長節 {#long}\n".str_repeat('甲', 800)."\n\n".str_repeat('乙', 800)."\n\n[^lonely]: 沒人引用\n";
+        $long = $this->unit($this->split($body), 'long');
+
+        $this->assertSame([], $long['footnotes']);
+        $this->assertSame([[], []], array_column($long['chunks'], 'footnotes'));
     }
 }
