@@ -44,7 +44,8 @@ use Illuminate\Validation\ValidationException;
  * 匯入一律寫成草稿；更新既有文章時不改它的發布狀態（已發布的文章會直接換成新內容）。
  * 更新時，這次的 commit 不能比站上上次匯入的 commit 舊（見 `importedCommitRelations()`）。
  * 新增與更新時，另外依 front matter 的 `about_techniques`、`about_projects` 補上文章到技術與專案的連結
- * （規則見 `ArticleAboutLinker`）；連結（`link`）只寫來源欄位，不讀內容，也就不建這些連結。
+ * （規則見 `ArticleAboutLinker`），並把內文切成段落單位存進 `article_units`（`ArticleUnitSync`）；
+ * 連結（`link`）只寫來源欄位，不讀內容，也就不建這些連結、不存段落單位。
  * 來源欄位（`source_*`）不在 `$fillable` 裡，只有這裡用 `forceFill()` 寫。
  */
 final class ArticleSourceService
@@ -82,7 +83,7 @@ final class ArticleSourceService
     private const CACHE_PREFIX = 'article-sources:';
 
     /** 解析規則改了就加一，舊的解析結果快取自然失效。 */
-    private const PARSER_VERSION = 2;
+    private const PARSER_VERSION = 3;
 
     private const SHA_PATTERN = '/^[0-9a-f]{40}$/';
 
@@ -90,6 +91,7 @@ final class ArticleSourceService
         private readonly ArticleSourceParser $parser,
         private readonly PublishSafetyScanner $scanner,
         private readonly ArticleAboutLinker $aboutLinker,
+        private readonly ArticleUnitSync $unitSync,
     ) {}
 
     /**
@@ -129,16 +131,23 @@ final class ArticleSourceService
         $files = $this->files($config, $commit['sha'], $commit['tree']);
 
         $validFiles = [];
+        $invalidFiles = [];
         foreach ($files as $file) {
             if ($file['invalid'] === null) {
                 $validFiles[$file['key']] = $file;
+            } elseif ($file['key'] !== null) {
+                $invalidFiles[$file['key']] = $file;
             }
         }
 
         $stale = [];
         foreach ($requested as $i => $item) {
             $file = $validFiles[$item['key']] ?? null;
-            if ($file === null || $file['sha'] !== $item['expected_blob_sha']) {
+            $invalid = $invalidFiles[$item['key']] ?? null;
+            if ($file === null && $invalid !== null && $invalid['sha'] === $item['expected_blob_sha']) {
+                // 清單上已經列成 invalid 的同一版檔案：直接說不能匯入的原因，不要讓人以為重新整理就好
+                $stale["items.{$i}.expected_blob_sha"] = ['這篇文章不能匯入：'.self::reasonMessage($invalid)];
+            } elseif ($file === null || $file['sha'] !== $item['expected_blob_sha']) {
                 $stale["items.{$i}.expected_blob_sha"] = ['這個版本裡沒有這篇文章，或內容跟清單上的不同。'];
             }
         }
@@ -305,6 +314,7 @@ final class ArticleSourceService
                 $documentation->forceFill($source + ['source_body_hash' => self::importedContentHash($documentation)])->save();
                 // 連結只新增、不刪除；警告跟內容掃描的警告放在一起回報
                 $warnings = [...$this->warnings($article), ...$this->aboutLinker->link($documentation, $article['about'])];
+                $this->unitSync->sync($documentation);
             }
 
             $results[] = [
@@ -346,9 +356,9 @@ final class ArticleSourceService
             $key = $known[$entry['path']."\0".$entry['sha']] ?? null;
 
             if ($key !== null) {
-                $files[] = $base + ['key' => $key, 'title' => null, 'invalid' => null, 'warnings' => []];
+                $files[] = $base + ['key' => $key, 'title' => null, 'invalid' => null, 'invalid_detail' => null, 'warnings' => []];
             } elseif ($entry['size'] > self::MAX_FILE_BYTES) {
-                $files[] = $base + ['key' => null, 'title' => null, 'invalid' => 'too_large', 'warnings' => []];
+                $files[] = $base + ['key' => null, 'title' => null, 'invalid' => 'too_large', 'invalid_detail' => null, 'warnings' => []];
             } else {
                 $summary = $this->summarize($config, $commitSha, $entry['path'], $entry['sha']);
                 if ($summary['import']) {
@@ -362,6 +372,7 @@ final class ArticleSourceService
         foreach ($files as &$file) {
             if ($file['key'] !== null && $counts[$file['key']] > 1) {
                 $file['invalid'] = 'duplicate_slug';
+                $file['invalid_detail'] = null;
             }
         }
         unset($file);
@@ -372,7 +383,7 @@ final class ArticleSourceService
     /**
      * 一份檔案的解析摘要，依 blob SHA 快取：同一個 blob 的內容永遠相同。只存清單需要的欄位，不存內文。
      *
-     * @return array{import: bool, key?: string|null, title?: string|null, invalid?: string|null, warnings?: list<array<string, mixed>>}
+     * @return array{import: bool, key?: string|null, title?: string|null, invalid?: string|null, invalid_detail?: string|null, warnings?: list<array<string, mixed>>}
      */
     private function summarize(array $config, string $commitSha, string $path, string $sha): array
     {
@@ -387,6 +398,7 @@ final class ArticleSourceService
                 'key' => $article['key'],
                 'title' => $article['title'],
                 'invalid' => $article['invalid'],
+                'invalid_detail' => $article['invalid_detail'],
                 'warnings' => $article['invalid'] === null ? $this->warnings($article) : [],
             ];
         });
@@ -504,9 +516,21 @@ final class ArticleSourceService
             'documentation_id' => $row?->id,
             'published' => $row === null || $row->trashed() ? null : $row->isPublished(),
             'reason' => $entry['invalid'],
-            'reason_message' => $entry['invalid'] === null ? null : ArticleSourceParser::INVALID_REASONS[$entry['invalid']],
+            'reason_message' => $entry['invalid'] === null ? null : self::reasonMessage($entry),
             'warnings' => $entry['warnings'],
         ];
+    }
+
+    /**
+     * 不能匯入的原因說明，有補充（例如重複的 ID）時接在後面。
+     *
+     * @param  array{invalid: string, invalid_detail?: string|null}  $entry
+     */
+    private static function reasonMessage(array $entry): string
+    {
+        $detail = $entry['invalid_detail'] ?? null;
+
+        return ArticleSourceParser::INVALID_REASONS[$entry['invalid']].($detail === null ? '' : $detail);
     }
 
     /**
