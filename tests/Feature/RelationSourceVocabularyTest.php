@@ -44,7 +44,7 @@ class RelationSourceVocabularyTest extends TestCase
 
     public static function borrowedPredicateProvider(): array
     {
-        // 31 筆裡扣掉 specs/specifiedBy（上面那支測試單獨守），剩下 29 筆全部
+        // 34 筆裡扣掉 specs/specifiedBy（上面那支測試單獨守），剩下 32 筆全部
         // 應該是借來的，逐筆核對——不是只挑幾個代表，因為漏一筆不會報錯，
         // 只會安靜留一個 null。挑選依據記在回填 migration 的 docblock。
         return [
@@ -77,13 +77,16 @@ class RelationSourceVocabularyTest extends TestCase
             'isBasisForProject' => ['isBasisForProject', 'schema', 'isBasisFor'],
             'subjectOfProject（技術是專案的主題，只有 topic 證據時同步寫這條）' => ['subjectOfProject', 'schema', 'subjectOf'],
             'projectAbout（反向）' => ['projectAbout', 'schema', 'about'],
+            'broader（詞表的上位，技術與概念詞之間）' => ['broader', 'skos', 'broader'],
+            'narrower（SKOS 具名的反向詞條）' => ['narrower', 'skos', 'narrower'],
+            'related（對稱，反向是自己）' => ['related', 'skos', 'related'],
         ];
     }
 
     #[TestDox('每個 seeder 種出的述詞都做過出處判斷')]
     public function test_every_seeded_relation_has_a_source_decision(): void
     {
-        // 上面兩支測試合起來要覆蓋全部 31 筆——這支測試不驗證個別值，只驗證
+        // 上面兩支測試合起來要覆蓋全部 34 筆——這支測試不驗證個別值，只驗證
         // 「沒有漏掉的一筆」。漏掉的一筆會落成 source_vocabulary 為 null，
         // 跟「查證後判斷是自創」在資料庫裡長得一模一樣，光看資料分不出來，
         // 所以覆蓋率要用「這 29 個名字都出現在上面兩支測試的清單裡」來守，
@@ -97,7 +100,7 @@ class RelationSourceVocabularyTest extends TestCase
 
         $allNames = Relation::pluck('name')->all();
 
-        $this->assertCount(31, $allNames, '目前 seeder 應該種出 31 筆 relation——這個數字變了，上面兩支測試的覆蓋清單要跟著補');
+        $this->assertCount(34, $allNames, '目前 seeder 應該種出 34 筆 relation——這個數字變了，上面兩支測試的覆蓋清單要跟著補');
         $this->assertEqualsCanonicalizing($allNames, $decided, '有 relation 沒有被任何一支測試的清單涵蓋到，即使它剛好是 null 也不能算「驗證過」');
     }
 
@@ -168,6 +171,7 @@ class RelationSourceVocabularyTest extends TestCase
             ['targets', 'targetedBy'],
             ['influences', 'influencedBy'],
             ['subjectOfProject', 'projectAbout'],
+            ['broader', 'narrower'],
         ];
 
         foreach ($pairs as [$forward, $reverse]) {

@@ -400,6 +400,32 @@ class RelationSeeder extends Seeder
 
         $this->pairReverse($seeded['subjectOfProject'], $seeded['projectAbout']);
 
+        // 詞表的上下位與相關，借 SKOS 的 broader／narrower／related：
+        // https://www.w3.org/TR/skos-reference/#semantic-relations
+        // 技術與概念詞（Technique 底下的 concept）都在 techniques 表，所以跟 requires、isVersionOf 一樣
+        // 用 Technique×Technique 的類號 11，子類號接在 hasVersion（30）後面。broader／narrower 互為反向；
+        // related 是對稱關係，反向指向自己（跟 accompanies 一樣）。邊只存一個方向：上下位存 broader
+        // （下位指向上位），narrower 是反向走時用的名稱。放在最後面，既有述詞種出來的 id 不變。
+        $skosSeeds = [
+            ['40', 'broader', 'SKOS skos:broader — the object Technique is a broader concept than the subject (e.g. Cloudflare Workers broader Cloudflare).'],
+            ['50', 'narrower', 'SKOS skos:narrower — reverse of broader.'],
+            ['60', 'related', 'SKOS skos:related — associative, symmetric link between two Techniques that are neither broader nor narrower than each other (e.g. vue-router related SPA).'],
+        ];
+        foreach ($skosSeeds as [$callNumber, $name, $note]) {
+            $seeded[$name] = $this->relation([
+                'subject_id' => $technique->id,
+                'object_id' => $technique->id,
+                'class_number' => '11',
+                'call_number' => $callNumber,
+                'name' => $name,
+                'note' => $note,
+                'source_vocabulary' => 'skos',
+                'source_term' => $name,
+            ]);
+        }
+        $this->pairReverse($seeded['broader'], $seeded['narrower']);
+        $this->pairReverse($seeded['related'], $seeded['related']);
+
         // $this->createRandomRelation($nonLeadScopes);
     }
 

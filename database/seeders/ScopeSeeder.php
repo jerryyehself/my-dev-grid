@@ -131,6 +131,17 @@ class ScopeSeeder extends Seeder
             'comment' => 'AI 工具本身的身分節點,例如 Claude Code、ChatGPT、GitHub Copilot',
         ]);
 
+        // 概念詞放在 techniques 表、Technique 底下，不另開頂層分類：entity_relations 的兩端要在同一張表，
+        // 概念和技術才能互相掛上下位（broader／narrower）與相關（related），見 RelationSeeder。
+        // 外部分類依據：SKOS Concept https://www.w3.org/TR/skos-reference/#concepts
+        $this->scope([
+            'class_number' => '10',
+            'call_number' => '60',
+            'parent_class' => $technique->id,
+            'name' => 'concept',
+            'comment' => '`Technique` 底下的子分類，對應不是某個產品的概念詞（例如 SPA、token、冷啟動），跟技術一樣可以有別名、上下位與相關。外部分類對應 SKOS Concept：https://www.w3.org/TR/skos-reference/#concepts 。',
+        ]);
+
         $implementation = $this->scope([
             'class_number' => '20',
             'name' => 'Implementation',
