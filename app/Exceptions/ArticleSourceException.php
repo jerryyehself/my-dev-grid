@@ -16,11 +16,13 @@ use RuntimeException;
  * - 502：GitHub 回錯誤或回應不對（`github_unauthorized`、`github_forbidden`、`github_not_found`、
  *   `github_unreachable`、`github_error`、`github_bad_response`、`github_tree_truncated`）。
  * - 409：清單過期或站上狀態變了（`stale`、`conflict`），`errors` 以請求欄位（`items.0.action`）為 key。
+ *   `conflict` 另外可能附上 `unverified_commits`（判斷不出來源 commit 先後、可以確認後更新的項目）。
  *
  * GitHub 的 401／403 不原樣轉給前端：前端把 401 當成自己的登入過期去換 token，
  * 403 會被記成 `authz_fail`；兩種都會讓人以為是這個網站的登入出了問題。
  *
- * 自己負責 render()，呼叫端不用 try/catch。409 是用戶端要重新整理的正常情況，不寫日誌；
+ * 自己負責 render()，呼叫端不用 try/catch。409 是用戶端要重新整理的正常情況，這裡不寫日誌
+ * （判斷不出 commit 先後的那一種由 `ArticleSourceService` 自己記）；
  * 5xx 寫一行 warning（代號與 GitHub 的狀態碼，不含 token 與回應內容），
  * 不走預設的 error 回報：token 過期、沒設定這類情況要人去處理設定，不是程式錯誤。
  */
@@ -28,6 +30,7 @@ class ArticleSourceException extends RuntimeException
 {
     /**
      * @param  array<string, list<string>>  $errors
+     * @param  array<string, mixed>  $details  另外附在回應最上層的欄位（不能跟 `message`、`reason`、`errors` 同名）
      */
     public function __construct(
         string $message,
@@ -36,6 +39,7 @@ class ArticleSourceException extends RuntimeException
         public readonly array $errors = [],
         public readonly ?int $retryAfter = null,
         public readonly ?int $upstreamStatus = null,
+        public readonly array $details = [],
     ) {
         parent::__construct($message);
     }
@@ -109,10 +113,11 @@ class ArticleSourceException extends RuntimeException
 
     /**
      * @param  array<string, list<string>>  $errors
+     * @param  array<string, mixed>  $details  例如 `unverified_commits`
      */
-    public static function conflict(array $errors): self
+    public static function conflict(array $errors, array $details = []): self
     {
-        return new self('部分文章在站上的狀態已經改變，無法照這次的選擇匯入，請重新整理清單。', 409, 'conflict', $errors);
+        return new self('部分文章在站上的狀態已經改變，無法照這次的選擇匯入，請重新整理清單。', 409, 'conflict', $errors, details: $details);
     }
 
     public function report(): bool
@@ -134,6 +139,7 @@ class ArticleSourceException extends RuntimeException
         if ($this->errors !== []) {
             $body['errors'] = $this->errors;
         }
+        $body += $this->details;
 
         $headers = $this->retryAfter === null ? [] : ['Retry-After' => (string) $this->retryAfter];
 
