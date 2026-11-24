@@ -34,6 +34,7 @@
 | `packagetool` | Technique | 套件管理與建置工具，例如 npm、Composer |
 | `framework` | Technique | 軟體框架，例如 Vue、Laravel |
 | `assistant` | Technique | AI 工具本身，例如 Claude Code、ChatGPT、GitHub Copilot |
+| `concept` | Technique | 概念詞：文章談到的觀念或主題，不是具體的工具或套件，例如「建置工具」「認證」 |
 | `work` | Implementation | 非 GitHub repo 形式的產出物，例如作品、成果展示 |
 | `project` | Implementation | GitHub repo 專案，同步進來的每個公開 repo |
 | `problem` | Implementation | 待解決或已記錄的問題、議題 |
@@ -61,6 +62,8 @@
 | `assisted-by`／`assists` | 實際執行 ↔ 使用技術（`uses`／`usedBy`） | AI 只提供建議，不是直接產出或執行成品；與 `uses`／`usedBy` 並存，不是取代 |
 | `projectAbout`／`subjectOfProject` | 實際執行 ↔ 使用技術（`uses`／`usedBy`） | 專案在講某個技術，但程式裡沒有用到它的證據（只出現在 repo topics） |
 | `isVersionOf`／`hasVersion` | 使用技術 ↔ 使用技術（`requires`／`isRequiredBy`） | 某個版本（例如 Vue 3）是版本留空的那一筆（Vue）的一個版本 |
+| `broader`／`narrower` | 使用技術 ↔ 使用技術（`requires`／`isRequiredBy`） | 詞表的上位與下位：主詞的意思比受詞窄（例如 Vite `broader` 建置工具） |
+| `related`（對稱） | 使用技術 ↔ 使用技術（`requires`／`isRequiredBy`） | 詞表的相關：兩個詞有關聯，但不是上下位 |
 | `accompanies`（對稱） | 實際執行 ↔ 實際執行（`descendantOf`／`ancestorOf`） | 兩個獨立但相伴而生、共同組成同一個產品的 repo，例如前後端拆分 |
 | `precedes`／`succeeds` | 實際執行 ↔ 實際執行（`descendantOf`／`ancestorOf`） | 依建立時間前後相接的同性質練習專案 |
 | `isBasedOnProject`／`isBasisForProject` | 實際執行 ↔ 實際執行（`descendantOf`／`ancestorOf`） | 建置產物與它的來源專案；跟 `descendantOf` 不同，後者是同一個譜系的前後代（含 fork） |
