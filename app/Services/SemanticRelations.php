@@ -6,6 +6,7 @@ use App\Models\EntityRelation;
 use App\Models\Relation;
 use App\Models\Technique;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
 /**
  * 詞表裡技術之間的上下位與相關（SKOS 的 broader、narrower、related）。
@@ -99,6 +100,46 @@ final class SemanticRelations
         $all = [...($this->broader[$id] ?? []), ...$narrower, ...($this->related[$id] ?? [])];
 
         return self::uniqueIds(array_values(array_filter($all, fn (int $other) => $other !== $id)));
+    }
+
+    /**
+     * 直接連到 $id 的技術，依種類分開：上位、下位（反著讀 broader）、相關。
+     *
+     * @return array{broader: list<int>, narrower: list<int>, related: list<int>}
+     */
+    public function around(int $id): array
+    {
+        $narrower = array_keys(array_filter($this->broader, fn (array $parents) => in_array($id, $parents, true)));
+        sort($narrower);
+        $broader = $this->broader[$id] ?? [];
+        sort($broader);
+        $related = $this->related[$id] ?? [];
+        sort($related);
+
+        return [self::BROADER => $broader, self::NARROWER => $narrower, self::RELATED => $related];
+    }
+
+    /**
+     * 多加一條邊之後的樣子（不寫資料庫）。broader 是 $subject 掛到 $object 底下；related 兩個方向都記。
+     * narrower 要呼叫端先換成反方向的 broader，這裡不收：只存一個方向，免得兩邊各寫一種。
+     *
+     * @throws InvalidArgumentException $kind 不是 broader 或 related
+     */
+    public function with(string $kind, int $subject, int $object): self
+    {
+        $broader = $this->broader;
+        $related = $this->related;
+
+        if ($kind === self::BROADER) {
+            $broader[$subject][] = $object;
+        } elseif ($kind === self::RELATED) {
+            $related[$subject][] = $object;
+            $related[$object][] = $subject;
+        } else {
+            throw new InvalidArgumentException("只能加 broader 或 related，收到 {$kind}。");
+        }
+
+        return new self(array_map(self::uniqueIds(...), $broader), array_map(self::uniqueIds(...), $related));
     }
 
     /** @return array<int, list<int>> 下位 id => 直接上位的 id */

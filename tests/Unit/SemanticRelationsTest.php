@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\SemanticRelations;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use PHPUnit\Framework\TestCase;
@@ -101,5 +102,35 @@ class SemanticRelationsTest extends TestCase
 
         $this->assertEqualsCanonicalizing([64, 67, 68], $relations->neighbours(66));
         $this->assertEqualsCanonicalizing([65, 66], $relations->neighbours(64));
+    }
+
+    #[TestDox('with() 加一條上下位或相關，不改原本的物件；narrower 不收')]
+    public function test_with_adds_one_edge_without_touching_the_original(): void
+    {
+        $relations = new SemanticRelations(self::e2(), []);
+
+        $withBroader = $relations->with(SemanticRelations::BROADER, 99, 66);
+        $withRelated = $relations->with(SemanticRelations::RELATED, 65, 46);
+
+        $this->assertSame([66], $withBroader->broader()[99]);
+        $this->assertArrayNotHasKey(99, $relations->broader());
+        $this->assertSame([[46, 65]], $withRelated->relatedPairs());
+        $this->assertSame([], $relations->relatedPairs());
+        // 已經有的邊再加一次不會重複
+        $this->assertSame([64, 67], $relations->with(SemanticRelations::BROADER, 66, 67)->broader()[66]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $relations->with(SemanticRelations::NARROWER, 64, 65);
+    }
+
+    #[TestDox('around() 依種類列出直接連到的技術，下位是反著讀 broader')]
+    public function test_around_lists_broader_narrower_and_related(): void
+    {
+        $relations = new SemanticRelations(self::e2(), [56 => [68], 66 => [68], 68 => [66, 56]]);
+
+        $this->assertSame(['broader' => [], 'narrower' => [65, 66], 'related' => []], $relations->around(64));
+        $this->assertSame(['broader' => [64, 67], 'narrower' => [], 'related' => [68]], $relations->around(66));
+        $this->assertSame(['broader' => [], 'narrower' => [], 'related' => [56, 66]], $relations->around(68));
+        $this->assertSame(['broader' => [], 'narrower' => [], 'related' => []], $relations->around(1));
     }
 }

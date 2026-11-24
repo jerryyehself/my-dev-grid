@@ -146,6 +146,10 @@ class GuestApiSweepTest extends TestCase
             'PATCH api/techniques/{technique}' => self::auth(),
             'DELETE api/techniques/{technique}' => self::auth(),
             'PATCH api/techniques/{technique}/deprecation' => self::auth('停用、合併與取消停用，沒登入一律 401。'),
+            'PUT api/techniques/{technique}/broader/{broader}' => self::auth('新增技術之間的上下位，沒登入一律 401。'),
+            'DELETE api/techniques/{technique}/broader/{broader}' => self::auth('刪除技術之間的上下位，沒登入一律 401。'),
+            'PUT api/techniques/{technique}/related/{related}' => self::auth('標記兩個技術相關，沒登入一律 401。'),
+            'DELETE api/techniques/{technique}/related/{related}' => self::auth('取消兩個技術相關，沒登入一律 401。'),
 
             // 實作
             'GET api/implementations' => self::publicRead('設為不公開的實作只給登入的人看，帶 type 篩選也一樣。', ['type={scope}']),
@@ -712,12 +716,18 @@ class GuestApiSweepTest extends TestCase
         return json_encode($data);
     }
 
+    /**
+     * 路由參數名稱不是實體種類、但綁定的是某種實體時，用哪一種的夾具：
+     * 技術之間的邊，另一端的參數叫 `{broader}`、`{related}`，綁的都是技術。
+     */
+    private const PARAMETER_FIXTURES = ['broader' => 'technique', 'related' => 'technique'];
+
     /** 把網址裡的 `{參數}` 換成夾具裡看得到的那一列的 id。 */
     private function urlFor(string $uri): string
     {
         return '/'.preg_replace_callback(
             '/\{(\w+)\}/',
-            fn (array $match) => (string) $this->ids[$match[1]]['live'],
+            fn (array $match) => (string) $this->ids[self::PARAMETER_FIXTURES[$match[1]] ?? $match[1]]['live'],
             $uri,
         );
     }
