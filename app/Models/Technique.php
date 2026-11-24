@@ -62,7 +62,8 @@ class Technique extends Model
         return Attribute::get(fn () => self::labelFrom($this->title, $this->version));
     }
 
-    public function scope()
+    /** @return BelongsTo<Scope, $this> */
+    public function scope(): BelongsTo
     {
         return $this->belongsTo(Scope::class, 'type');
     }
