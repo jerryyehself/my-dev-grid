@@ -1,163 +1,94 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 1780" width="1650" height="1780" role="img" aria-label="Documentation、Technique、Implementation 三個大類，各自底下有子類（Documentation 下有 sourcesite、document、post、conversation；Technique 下有 language、environment、packagetool、framework、assistant；Implementation 下有 work、project、problem、picture）。每個方向各一支單向箭頭，從主詞指向受詞：Documentation specs Technique、Technique specifiedBy Documentation；Documentation documents Implementation、Implementation documentedBy Documentation；Implementation uses Technique、Technique usedBy Implementation，代表技術或 AI 直接產出、執行成果；Implementation assisted-by Technique、Technique assists Implementation，代表 AI 只提供建議，與 uses／usedBy 並存的平輩謂語。三個大類各自右上角都標了 entity_relations 的小迴圈，代表這個 Model 也能透過 entity_relations 表跟自己同型態的另一筆紀錄建立關聯，例如 Technique 的 requires（框架需要語言）與 isVersionOf／hasVersion（Vue 3 是 Vue 的一個版本，2026-09-30 加入）。每條線在紀錄層級都掛著 relation_id，回指某一筆 Relation。">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 650" width="830" height="650" role="img">
+  <!-- 概念圖：只畫三個基礎類別，加上類別之間的基礎關聯，每條線標一個動詞（述詞）。
+       子類（Scope）與述詞子類型不畫在圖上，列在 README 的「Scope」「Relation」兩節的表格。
+       依據：origin/develop（7c678d5），2026-11-24。基礎關聯取自 RelationSeeder 每組類號的第一筆
+       （子類號 00）：specs／specifiedBy、documents／documentedBy、uses／usedBy、
+       requires／isRequiredBy、descendantOf／ancestorOf。
+       字級：viewBox 寬 830，GitHub 顯示寬度約 830px，所以 SVG 字級就是顯示字級（最小 13px）。
+       色票：前端 variables.css 的藏青第二版，淺色與深色各一組（深色用 prefers-color-scheme）。 -->
+  <title>概念圖：Documentation、Technique、Implementation 三個基礎類別與它們之間的基礎關聯</title>
+  <desc>三個基礎類別兩兩之間各有一對方向相反的箭頭，每支箭頭標示該方向的述詞。Technique 與 Implementation 各有兩支指回自己的迴圈箭頭，代表同一類別裡兩筆紀錄之間的關聯。</desc>
   <style>
-    text { font-family: Georgia, "Noto Serif TC", serif; }
-    .box-doc  { fill: rgba(63,98,18,0.07);  stroke: #3f6212; }
-    .box-tech { fill: rgba(180,83,9,0.07); stroke: #b45309; }
-    .box-impl { fill: rgba(69,26,3,0.06); stroke: #451a03; }
-    .title-doc  { fill: #3f6212; }
-    .title-tech { fill: #b45309; }
-    .title-impl { fill: #451a03; }
-    .node       { fill: #fcfaf2; stroke-width: 2.5; }
-    .node-doc   { stroke: #3f6212; }
-    .node-tech  { stroke: #b45309; }
-    .node-impl  { stroke: #451a03; }
-    .node-label { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 17px; font-weight: 500; text-anchor: middle; }
-    .label-doc  { fill: #3f6212; }
-    .label-tech { fill: #b45309; }
-    .label-impl { fill: #451a03; }
-    .title-text { font-family: Georgia, "Noto Serif TC", serif; font-weight: 700; font-size: 27px; text-anchor: middle; }
-    .field-list { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 16px; fill: #78350f; text-anchor: middle; }
-    .field-head { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 13px; fill: #b45309; letter-spacing: 0.06em; text-anchor: middle; }
-    .edge        { fill: none; stroke: #b45309; stroke-width: 2.5; }
-    .edge-assist { fill: none; stroke: #b45309; stroke-width: 2.5; }
-    .edge-label  { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 17px; font-weight: 500; text-anchor: middle; fill: #451a03; }
-    .edge-label-bg { fill: #f4f0e1; }
-    .meta-text  { font-family: Helvetica, Arial, "Noto Sans TC", sans-serif; font-size: 16px; fill: #78350f; }
-    .tag-small  { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 13px; fill: #b45309; }
-    .legend { font-family: Helvetica, Arial, "Noto Sans TC", sans-serif; font-size: 15.5px; fill: #b45309; }
+    .bg { fill: #f6f5f2; }
+    .node-doc  { fill: #b34f57; }
+    .node-tech { fill: #007d7d; }
+    .node-impl { fill: #7264b3; }
+    .node-title { font-family: Georgia, "Noto Serif TC", serif; font-weight: 700; font-size: 23px; text-anchor: middle; fill: #ffffff; }
+    .node-gloss { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 14px; text-anchor: middle; fill: #ffffff; }
+    .edge { fill: none; stroke: #6d7686; stroke-width: 2.5; }
+    .arrow-head { fill: #6d7686; }
+    .verb { font-family: "SFMono-Regular", Consolas, Menlo, "Liberation Mono", monospace; font-size: 15px; font-weight: 500; fill: #202839; stroke: #f6f5f2; stroke-width: 5; paint-order: stroke; stroke-linejoin: round; }
+    .mid { text-anchor: middle; }
+    .end { text-anchor: end; }
+    .legend { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 13.5px; fill: #3e4758; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1529; }
+      .edge { stroke: #8a93a4; }
+      .arrow-head { fill: #8a93a4; }
+      .verb { fill: #e8edf6; stroke: #0d1529; }
+      .legend { fill: #c8ced9; }
+    }
   </style>
 
-  <rect width="1650" height="1780" fill="#fcfaf2"></rect>
-
   <defs>
-    <marker id="arrowMuted2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"></path>
-    </marker>
-    <marker id="arrowAssist" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"></path>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto">
+      <path class="arrow-head" d="M0,0 L10,5 L0,10 z"></path>
     </marker>
   </defs>
 
-  <!-- ===== edges (under boxes) ===== -->
-  <!-- 每個方向各畫一支單向箭頭、各標自己的述詞，從主詞指向受詞。2026-09-30 以前一對關係畫成一條
-       雙箭頭線、標「uses / used」，看不出哪個名字是哪個方向，連 AI 都讀反了 -->
+  <rect class="bg" width="830" height="650"></rect>
 
-  <!-- Documentation -> Technique : specs ; Technique -> Documentation : specifiedBy -->
-  <path class="edge" d="M 650 602 C 480 660, 300 720, 300 836" marker-end="url(#arrowMuted2)"></path>
-  <rect class="edge-label-bg" x="371" y="682" width="80" height="30" rx="6"></rect>
-  <text class="edge-label" x="411" y="703">specs</text>
-  <path class="edge" d="M 470 840 C 470 760, 640 680, 788 604" marker-end="url(#arrowMuted2)"></path>
-  <rect class="edge-label-bg" x="504" y="705" width="140" height="30" rx="6"></rect>
-  <text class="edge-label" x="574" y="726">specifiedBy</text>
+  <!-- ===== 箭頭（畫在方塊底下；每個方向各一支，標那個方向的述詞） ===== -->
 
-  <!-- Documentation -> Implementation : documents ; Implementation -> Documentation : documentedBy -->
-  <path class="edge" d="M 1000 602 C 1170 660, 1350 720, 1350 836" marker-end="url(#arrowMuted2)"></path>
-  <rect class="edge-label-bg" x="1179" y="682" width="120" height="30" rx="6"></rect>
-  <text class="edge-label" x="1239" y="703">documents</text>
-  <path class="edge" d="M 1180 840 C 1180 760, 1010 680, 862 604" marker-end="url(#arrowMuted2)"></path>
-  <rect class="edge-label-bg" x="1001" y="705" width="150" height="30" rx="6"></rect>
-  <text class="edge-label" x="1076" y="726">documentedBy</text>
+  <!-- Documentation → Technique：specs；Technique → Documentation：specifiedBy -->
+  <path class="edge" d="M 318 120 L 138 372" marker-end="url(#arrow)"></path>
+  <text class="verb end" x="213" y="250">specs</text>
+  <path class="edge" d="M 178 372 L 358 120" marker-end="url(#arrow)"></path>
+  <text class="verb" x="282" y="250">specifiedBy</text>
 
-  <!-- Implementation -> Technique : uses ; Technique -> Implementation : usedBy
-       （實作 uses 技術。2026-09-30 以前後端把這一對定義反了，技術 → 實作叫 uses） -->
-  <path class="edge" d="M 998 975 L 654 975" marker-end="url(#arrowMuted2)"></path>
-  <rect class="edge-label-bg" x="790" y="960" width="70" height="30" rx="6"></rect>
-  <text class="edge-label" x="825" y="981">uses</text>
-  <path class="edge" d="M 652 1025 L 996 1025" marker-end="url(#arrowMuted2)"></path>
-  <rect class="edge-label-bg" x="780" y="1010" width="90" height="30" rx="6"></rect>
-  <text class="edge-label" x="825" y="1031">usedBy</text>
+  <!-- Documentation → Implementation：documents；Implementation → Documentation：documentedBy -->
+  <path class="edge" d="M 512 120 L 692 372" marker-end="url(#arrow)"></path>
+  <text class="verb" x="617" y="250">documents</text>
+  <path class="edge" d="M 652 372 L 472 120" marker-end="url(#arrow)"></path>
+  <text class="verb end" x="548" y="250">documentedBy</text>
 
-  <!-- Implementation -> Technique : assisted-by ; Technique -> Implementation : assists（AI 只提供建議，與 uses／usedBy 平輩） -->
-  <path class="edge-assist" d="M 998 1095 L 654 1095" marker-end="url(#arrowAssist)"></path>
-  <rect class="edge-label-bg" x="760" y="1080" width="130" height="30" rx="6"></rect>
-  <text class="edge-label" x="825" y="1101" fill="#b45309">assisted-by</text>
-  <path class="edge-assist" d="M 652 1145 L 996 1145" marker-end="url(#arrowAssist)"></path>
-  <rect class="edge-label-bg" x="775" y="1130" width="100" height="30" rx="6"></rect>
-  <text class="edge-label" x="825" y="1151" fill="#b45309">assists</text>
-  <text class="meta-text" x="825" y="1190" text-anchor="middle" fill="#b45309" style="font-size:13.5px">AI 僅提供建議 · 與 uses／usedBy 並存，不是取代</text>
+  <!-- Implementation → Technique：uses；Technique → Implementation：usedBy -->
+  <path class="edge" d="M 570 402 L 260 402" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="415" y="393">uses</text>
+  <path class="edge" d="M 260 442 L 570 442" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="415" y="433">usedBy</text>
 
-  <!-- ===== Documentation box ===== -->
-  <rect class="box-doc" x="555" y="40" width="540" height="560" rx="26" stroke-width="3"></rect>
-  <text class="title-text title-doc" x="825" y="86">Documentation</text>
+  <!-- Technique 指向自己：requires／isRequiredBy（同一類別裡兩筆紀錄之間的關聯） -->
+  <path class="edge" d="M 105 464 C 105 510, 69 510, 69 464" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="87" y="526">requires</text>
+  <path class="edge" d="M 185 464 C 185 510, 221 510, 221 464" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="203" y="526">isRequiredBy</text>
 
-  <path class="edge" stroke-dasharray="4 4" d="M 1029 84 C 1029 58, 1061 58, 1061 84" marker-end="url(#arrowMuted2)"></path>
-  <text class="tag-small" x="1085" y="100" text-anchor="end">entity_relations</text>
+  <!-- Implementation 指向自己：descendantOf／ancestorOf -->
+  <path class="edge" d="M 645 464 C 645 510, 609 510, 609 464" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="627" y="526">descendantOf</text>
+  <path class="edge" d="M 725 464 C 725 510, 761 510, 761 464" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="743" y="526">ancestorOf</text>
 
-  <text class="field-head" x="825" y="110">FIELDS</text>
-  <text class="field-list" x="825" y="132">type · title · url · uri</text>
-  <text class="field-list" x="825" y="154">note · status · creation_date</text>
+  <!-- ===== 三個基礎類別 ===== -->
+  <rect class="node-doc" x="300" y="28" width="230" height="92" rx="14"></rect>
+  <text class="node-title" x="415" y="70">Documentation</text>
+  <text class="node-gloss" x="415" y="98">文件</text>
 
-  <circle class="node node-doc" cx="715" cy="270" r="70"></circle>
-  <text class="node-label label-doc" x="715" y="276">sourcesite</text>
+  <rect class="node-tech" x="30" y="372" width="230" height="92" rx="14"></rect>
+  <text class="node-title" x="145" y="414">Technique</text>
+  <text class="node-gloss" x="145" y="442">使用技術</text>
 
-  <circle class="node node-doc" cx="935" cy="270" r="70"></circle>
-  <text class="node-label label-doc" x="935" y="276">document</text>
+  <rect class="node-impl" x="570" y="372" width="230" height="92" rx="14"></rect>
+  <text class="node-title" x="685" y="414">Implementation</text>
+  <text class="node-gloss" x="685" y="442">實際執行</text>
 
-  <circle class="node node-doc" cx="715" cy="490" r="70"></circle>
-  <text class="node-label label-doc" x="715" y="496">post</text>
+  <!-- ===== 圖例 ===== -->
+  <line class="edge" x1="30" y1="568" x2="70" y2="568" marker-end="url(#arrow)"></line>
+  <text class="legend" x="86" y="573">箭頭從主詞指向受詞，每個方向各一支，標的是那個方向的述詞（例：Implementation uses Technique）</text>
 
-  <circle class="node node-doc" cx="935" cy="490" r="70"></circle>
-  <text class="node-label label-doc" x="935" y="496">conversation</text>
+  <path class="edge" d="M 40 590 C 40 606, 60 606, 60 590" marker-end="url(#arrow)"></path>
+  <text class="legend" x="86" y="603">指回自己的箭頭：同一個類別裡兩筆紀錄之間的關聯（Documentation 目前沒有這種述詞）</text>
 
-  <!-- ===== Technique box ===== -->
-  <rect class="box-tech" x="110" y="840" width="540" height="760" rx="26" stroke-width="3"></rect>
-  <text class="title-text title-tech" x="380" y="886">Technique</text>
-
-  <path class="edge" stroke-dasharray="4 4" d="M 584 884 C 584 858, 616 858, 616 884" marker-end="url(#arrowMuted2)"></path>
-  <text class="tag-small" x="640" y="900" text-anchor="end">entity_relations</text>
-
-  <text class="field-head" x="380" y="910">FIELDS</text>
-  <text class="field-list" x="380" y="932">type · title · version · note</text>
-
-  <circle class="node node-tech" cx="270" cy="1050" r="70"></circle>
-  <text class="node-label label-tech" x="270" y="1056">language</text>
-
-  <circle class="node node-tech" cx="490" cy="1050" r="70"></circle>
-  <text class="node-label label-tech" x="490" y="1056">environment</text>
-
-  <circle class="node node-tech" cx="270" cy="1270" r="70"></circle>
-  <text class="node-label label-tech" x="270" y="1276">packagetool</text>
-
-  <circle class="node node-tech" cx="490" cy="1270" r="70"></circle>
-  <text class="node-label label-tech" x="490" y="1276">framework</text>
-
-  <circle class="node node-tech" cx="380" cy="1490" r="70"></circle>
-  <text class="node-label label-tech" x="380" y="1496">assistant</text>
-
-  <!-- ===== Implementation box ===== -->
-  <rect class="box-impl" x="1000" y="840" width="540" height="580" rx="26" stroke-width="3"></rect>
-  <text class="title-text title-impl" x="1270" y="886">Implementation</text>
-
-  <path class="edge" stroke-dasharray="4 4" d="M 1474 884 C 1474 858, 1506 858, 1506 884" marker-end="url(#arrowMuted2)"></path>
-  <text class="tag-small" x="1530" y="900" text-anchor="end">entity_relations</text>
-
-  <text class="field-head" x="1270" y="910">FIELDS</text>
-  <text class="field-list" x="1270" y="932">type · title · sub_title</text>
-  <text class="field-list" x="1270" y="954">description · url</text>
-  <text class="field-list" x="1270" y="976">git_repo_id · is_visible · maintain_status</text>
-
-  <circle class="node node-impl" cx="1160" cy="1090" r="70"></circle>
-  <text class="node-label label-impl" x="1160" y="1096">work</text>
-
-  <circle class="node node-impl" cx="1380" cy="1090" r="70"></circle>
-  <text class="node-label label-impl" x="1380" y="1096">project</text>
-
-  <circle class="node node-impl" cx="1160" cy="1310" r="70"></circle>
-  <text class="node-label label-impl" x="1160" y="1316">problem</text>
-
-  <circle class="node node-impl" cx="1380" cy="1310" r="70"></circle>
-  <text class="node-label label-impl" x="1380" y="1316">picture</text>
-
-  <!-- ===== legend ===== -->
-  <line x1="110" y1="1650" x2="170" y2="1650" class="edge"></line>
-  <text class="legend" x="182" y="1655">直接產出／執行（specs、documents、uses…）</text>
-
-  <line x1="110" y1="1685" x2="170" y2="1685" class="edge-assist"></line>
-  <text class="legend" x="182" y="1690">AI 僅提供建議（assists／assisted-by）</text>
-
-  <path class="edge" stroke-dasharray="4 4" d="M 124 1710 C 124 1694, 156 1694, 156 1710" marker-end="url(#arrowMuted2)"></path>
-  <text class="legend" x="182" y="1720">entity_relations（同型態：requires、isVersionOf…）</text>
-
-  <line x1="110" y1="1752" x2="166" y2="1752" class="edge" marker-end="url(#arrowMuted2)"></line>
-  <text class="legend" x="182" y="1757">箭頭從主詞指向受詞，每個方向各一支，標的是那個方向的述詞（例：實作 uses 技術）</text>
+  <text class="legend" x="30" y="632">圖上只畫基礎類別與基礎關聯；子類與其他述詞列在 README 的表格。</text>
 </svg>
