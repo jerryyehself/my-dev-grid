@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 650" width="830" height="650" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 838 650" width="838" height="650" role="img">
   <!-- 概念圖：只畫三個基礎類別，加上類別之間的基礎關聯，每條線標一個動詞（述詞）。
        子類（Scope）與述詞子類型不畫在圖上，列在 README 的「Scope」「Relation」兩節的表格。
        依據：origin/develop（7c678d5），2026-11-24。基礎關聯取自 RelationSeeder 每組類號的第一筆
        （子類號 00）：specs／specifiedBy、documents／documentedBy、uses／usedBy、
        requires／isRequiredBy、descendantOf／ancestorOf。
-       字級：viewBox 寬 830，GitHub 顯示寬度約 830px，所以 SVG 字級就是顯示字級（最小 13px）。
+       字級：viewBox 寬 838，GitHub 顯示寬度約 838px，所以 SVG 字級就是顯示字級（最小 13px）。
        色票：前端 variables.css 的藏青第二版，淺色與深色各一組（深色用 prefers-color-scheme）。 -->
   <title>概念圖：Documentation、Technique、Implementation 三個基礎類別與它們之間的基礎關聯</title>
   <desc>三個基礎類別兩兩之間各有一對方向相反的箭頭，每支箭頭標示該方向的述詞。Technique 與 Implementation 各有兩支指回自己的迴圈箭頭，代表同一類別裡兩筆紀錄之間的關聯。</desc>
@@ -36,7 +36,9 @@
     </marker>
   </defs>
 
-  <rect class="bg" width="830" height="650"></rect>
+  <rect class="bg" width="838" height="650"></rect>
+
+  <g transform="translate(4 0)">
 
   <!-- ===== 箭頭（畫在方塊底下；每個方向各一支，標那個方向的述詞） ===== -->
 
@@ -91,4 +93,5 @@
   <text class="legend" x="86" y="603">指回自己的箭頭：同一個類別裡兩筆紀錄之間的關聯（Documentation 目前沒有這種述詞）</text>
 
   <text class="legend" x="30" y="632">圖上只畫基礎類別與基礎關聯；子類與其他述詞列在 README 的表格。</text>
+  </g>
 </svg>

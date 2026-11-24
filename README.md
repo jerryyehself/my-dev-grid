@@ -6,7 +6,9 @@
 
 借鑑Linked Data三元組的觀念，將做side project或學習特定程式的過程記錄下來。
 
-![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_mechanism.svg?raw=true "本體機制圖：Scope 階層、Relation 三元組、唯讀鎖定規則")
+![機制圖：概念圖背後的運作方式，分三塊。一、類別透過指向上層類別的箭頭形成階層，每個類別有一個由類號與子類號組成的參照碼。二、述詞指向主詞類別與受詞類別，每個述詞有一個反向述詞（雙向各一支箭頭），也可以隸屬於上層述詞成為子述詞。三、邊連接兩筆紀錄，分成跨基礎類別的邊與同一基礎類別內的邊，兩種都帶述詞，同一對紀錄可以同時帶好幾個述詞](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_mechanism.svg?raw=true)
+
+這張圖是下面概念圖的運作方式，只畫很少變動的部分：類別怎麼分層、述詞怎麼組成、邊怎麼連紀錄；資料表與欄位不畫在圖上。
 
 ![概念圖：Documentation（文件）、Technique（使用技術）、Implementation（實際執行）三個基礎類別，兩兩之間各有一對方向相反的箭頭，每支箭頭標示該方向的述詞：Documentation specs Technique、Technique specifiedBy Documentation，Documentation documents Implementation、Implementation documentedBy Documentation，Implementation uses Technique、Technique usedBy Implementation；Technique 另有 requires／isRequiredBy、Implementation 另有 descendantOf／ancestorOf 兩支指回自己的箭頭；子類與其他述詞列在下面 Scope、Relation 兩節的表格](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_concept.svg?raw=true)
 
@@ -64,6 +66,8 @@
 | `isBasedOnProject`／`isBasisForProject` | 實際執行 ↔ 實際執行（`descendantOf`／`ancestorOf`） | 建置產物與它的來源專案；跟 `descendantOf` 不同，後者是同一個譜系的前後代（含 fork） |
 
 文件 ↔ 文件目前沒有任何述詞，所以概念圖上 Documentation 沒有指回自己的箭頭。
+
+述詞一旦被任何一筆邊用到（反向述詞被用到也算），主詞、受詞、名稱、類號、子類號與上層述詞就鎖定為唯讀；自己被邊用到的述詞也不能刪除，要改標為棄用。
 
 ### 期望目標
 

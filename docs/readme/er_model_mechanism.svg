@@ -1,81 +1,154 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 760" width="1650" height="760" role="img" aria-label="Scope 表以 parent_class 自我參照形成階層並產生 ReferenceCode。Relation 表以 subject_id／object_id 指向兩個 Scope、name 是謂語、reverse_id 指向反向那筆記錄；一旦被任何紀錄層級的邊引用，name／class_number／call_number／parent_class 就鎖定為唯讀，只剩 note 可編輯。紀錄層級有兩種邊：documentation_technique、documentation_implementation、technique_implementation 三張跨類別樞紐表，各自帶 relation_id 外鍵與（pair, relation_id）唯一鍵，讓同一對紀錄可以同時存在好幾筆不同語意的邊；entity_relations 一張表則用 entity_type 欄位處理同型態互指（Documentation-Documentation、Technique-Technique、Implementation-Implementation），資料庫層沒有外鍵，完整性在 Model 層檢查，一樣掛 relation_id。">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 838 840" width="838" height="840" role="img">
+  <!-- 機制圖：概念圖的邏輯層做法，只畫很少變動的東西。不畫資料表名、欄位名、唯一鍵、外鍵。
+       三塊：分類階層與參照碼、述詞（主詞－述詞－受詞，反向，子述詞）、兩種邊（跨基礎類別、同一基礎類別內）。
+       「述詞被引用後鎖定」不畫在圖上，寫在 README 的文字裡。
+       依據：origin/develop（7c678d5），2026-11-24。
+       字級：viewBox 寬 838，GitHub 顯示寬度約 838px，所以 SVG 字級就是顯示字級（最小 13.5px）。
+       色票：前端 variables.css 的藏青第二版，淺色與深色各一組（深色用 prefers-color-scheme），跟概念圖一致。 -->
+  <title>機制圖：分類階層與參照碼、述詞（主詞、受詞、反向、子述詞）、兩種邊（跨基礎類別與同一基礎類別內）</title>
+  <desc>第一塊：類別以指向上層類別的箭頭形成階層，每個類別有一個由類號與子類號組成的參照碼。第二塊：述詞指向主詞類別與受詞類別，有一個反向述詞（雙向各一支箭頭），也可以指向上層述詞形成子述詞。第三塊：邊連接兩筆紀錄，分成跨基礎類別的邊與同一基礎類別內的邊，兩種都帶述詞，同一對紀錄可以同時帶好幾個述詞。</desc>
   <style>
-    text { font-family: Georgia, "Noto Serif TC", serif; }
-    .box-meta { fill: #fcfaf2; stroke: #b45309; }
-    .title-text { font-family: Georgia, "Noto Serif TC", serif; font-weight: 700; font-size: 27px; text-anchor: middle; fill: #451a03; }
-    .meta-text { font-family: Helvetica, Arial, "Noto Sans TC", sans-serif; font-size: 16px; fill: #78350f; }
-    .meta-mono { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 15.5px; fill: #78350f; }
-    .edge { fill: none; stroke: #b45309; stroke-width: 2.5; }
-    .edge-label { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 17px; font-weight: 500; text-anchor: middle; fill: #451a03; }
+    .bg { fill: #f6f5f2; }
+    .panel { fill: #eaeff8; stroke: #c9d0dc; stroke-width: 1.5; }
+    .divider { stroke: #c9d0dc; stroke-width: 1.5; }
+    .panel-title { font-family: Georgia, "Noto Serif TC", serif; font-weight: 700; font-size: 18px; fill: #922e39; }
+    .sub-title { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-weight: 700; font-size: 15px; fill: #202839; text-anchor: middle; }
+    .box { fill: #162541; stroke: none; }
+    .box-doc  { fill: #b34f57; }
+    .box-tech { fill: #007d7d; }
+    .box-impl { fill: #7264b3; }
+    .box-title { font-family: Georgia, "Noto Serif TC", serif; font-weight: 700; font-size: 19px; text-anchor: middle; fill: #ffffff; }
+    .box-title-sm { font-family: Georgia, "Noto Serif TC", serif; font-weight: 700; font-size: 15px; text-anchor: middle; fill: #ffffff; }
+    .box-sub { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 14px; text-anchor: middle; fill: #ffffff; }
+    .edge { fill: none; stroke: #6d7686; stroke-width: 2.5; }
+    .arrow-head { fill: #6d7686; }
+    .verb { font-family: "SFMono-Regular", Consolas, Menlo, "Liberation Mono", monospace; font-size: 15px; font-weight: 500; fill: #202839; stroke: #eaeff8; stroke-width: 5; paint-order: stroke; stroke-linejoin: round; }
+    .zh { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 15px; font-weight: 500; fill: #202839; stroke: #eaeff8; stroke-width: 5; paint-order: stroke; stroke-linejoin: round; }
+    .mid { text-anchor: middle; }
+    .end { text-anchor: end; }
+    .note { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 14px; fill: #3e4758; }
+    .legend { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 13.5px; fill: #3e4758; }
+    .legend-line { fill: none; stroke: #6d7686; stroke-width: 2.5; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1529; }
+      .panel { fill: #1e2c44; stroke: #3a4b69; }
+      .divider { stroke: #3a4b69; }
+      .panel-title { fill: #d7ac66; }
+      .sub-title { fill: #e8edf6; }
+      .box { fill: #0d1529; stroke: #b38637; stroke-width: 2; }
+      .box-doc  { fill: #b34f57; stroke: none; }
+      .box-tech { fill: #007d7d; stroke: none; }
+      .box-impl { fill: #7264b3; stroke: none; }
+      .edge, .legend-line { stroke: #8a93a4; }
+      .arrow-head { fill: #8a93a4; }
+      .verb, .zh { fill: #e8edf6; stroke: #1e2c44; }
+      .note { fill: #c8ced9; }
+      .legend { fill: #c8ced9; }
+    }
   </style>
 
-  <rect width="1650" height="760" fill="#fcfaf2"></rect>
-
   <defs>
-    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
-      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"></path>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto">
+      <path class="arrow-head" d="M0,0 L10,5 L0,10 z"></path>
     </marker>
   </defs>
 
-  <!-- Scope card -->
-  <rect class="box-meta" x="40" y="30" width="500" height="360" rx="18" stroke-width="2.5"></rect>
-  <text class="title-text" x="290" y="70">Scope</text>
-  <text class="meta-text" x="290" y="94" text-anchor="middle" fill="#b45309">分類節點・ReferenceCode</text>
-  <text class="meta-mono" x="70" y="134">class_number</text>
-  <text class="meta-mono" x="70" y="160">call_number</text>
-  <text class="meta-mono" x="70" y="186">parent_class ──┐</text>
-  <text class="meta-mono" x="70" y="212">name / comment / note</text>
-  <path class="edge" d="M 420 186 C 480 186, 480 246, 420 246" marker-end="url(#arrowMuted)"></path>
-  <text class="meta-text" x="70" y="284" fill="#b45309">自我參照 → 形成分類階層</text>
-  <text class="meta-mono" x="70" y="346" fill="#b45309">ReferenceCode = TYPE: FullCallNumber name</text>
-  <text class="meta-mono" x="70" y="368" fill="#b45309" style="font-size:13.5px">（class_number+call_number 直接相接，無分隔符）</text>
+  <rect class="bg" width="838" height="840"></rect>
 
-  <!-- Relation card -->
-  <rect class="box-meta" x="580" y="30" width="1030" height="360" rx="18" stroke-width="2.5"></rect>
-  <text class="title-text" x="1095" y="70">Relation</text>
-  <text class="meta-text" x="1095" y="94" text-anchor="middle" fill="#b45309">Scope ↔ Scope 的 RDF 三元組</text>
+  <!-- ===== 一、分類 ===== -->
+  <rect class="panel" x="20" y="20" width="798" height="195" rx="14"></rect>
+  <text class="panel-title" x="40" y="52">一、分類：類別分出子類別，形成階層；每個類別有參照碼</text>
 
-  <rect x="620" y="126" width="140" height="50" rx="10" class="box-meta"></rect>
-  <text class="meta-mono" x="690" y="157" text-anchor="middle">subject_id</text>
-  <line class="edge" x1="760" y1="151" x2="950" y2="151" marker-end="url(#arrowMuted)"></line>
-  <text class="edge-label" x="855" y="140">name（謂語）</text>
-  <rect x="950" y="126" width="140" height="50" rx="10" class="box-meta"></rect>
-  <text class="meta-mono" x="1020" y="157" text-anchor="middle">object_id</text>
+  <rect class="box" x="60" y="100" width="190" height="60" rx="12"></rect>
+  <text class="box-title" x="155" y="137">類別</text>
+  <path class="edge" d="M 105 100 C 105 62, 165 62, 165 100" marker-end="url(#arrow)"></path>
+  <text class="zh" x="182" y="84">隸屬於上層類別</text>
 
-  <text class="meta-mono" x="620" y="222">class_number / call_number</text>
-  <text class="meta-mono" x="620" y="248">parent_class ── 謂語也能分子類</text>
-  <text class="meta-mono" x="620" y="274">reverse_id ──┐</text>
-  <path class="edge" d="M 880 266 C 950 266, 950 306, 880 306" marker-end="url(#arrowMuted)"></path>
-  <text class="meta-text" x="620" y="340" fill="#b45309">reverse_id 指向反向那筆（如 uses ↔ used）</text>
+  <path class="edge" d="M 250 130 L 400 130" marker-end="url(#arrow)"></path>
+  <text class="zh mid" x="325" y="120">有一個</text>
 
-  <!-- lock rule -->
-  <rect x="1150" y="120" width="430" height="250" rx="14" class="box-meta" stroke-dasharray="4 4"></rect>
-  <text class="meta-text" x="1365" y="152" text-anchor="middle" fill="#451a03" style="font-family:Georgia,serif;font-weight:600;font-size:18px">🔒 一旦被引用 → 唯讀鎖定</text>
-  <text class="meta-mono" x="1174" y="188">name / class_number /</text>
-  <text class="meta-mono" x="1174" y="212">call_number / parent_class</text>
-  <text class="meta-text" x="1174" y="244" fill="#b45309">→ 鎖定，只有 note 可編輯</text>
-  <text class="meta-text" x="1174" y="284" fill="#b45309">引用來源：任一筆 pivot 或</text>
-  <text class="meta-text" x="1174" y="306" fill="#b45309">entity_relations</text>
-  <text class="meta-text" x="1174" y="338" fill="#b45309">→ 只能新增子類謂語或整筆刪除</text>
+  <rect class="box" x="400" y="100" width="240" height="60" rx="12"></rect>
+  <text class="box-title" x="520" y="127">參照碼</text>
+  <text class="box-sub" x="520" y="148">類號 ＋ 子類號</text>
 
-  <!-- Cross-class pivot card -->
-  <rect class="box-meta" x="40" y="420" width="760" height="310" rx="18" stroke-width="2.5"></rect>
-  <text class="title-text" style="font-size:23px" x="420" y="460">跨類別的邊</text>
-  <text class="meta-mono" x="70" y="494">documentation_technique</text>
-  <text class="meta-mono" x="70" y="520">documentation_implementation</text>
-  <text class="meta-mono" x="70" y="546">technique_implementation</text>
-  <text class="meta-text" x="70" y="584" fill="#78350f">+ relation_id → relations.id</text>
-  <text class="meta-text" x="70" y="610" fill="#78350f">unique(兩個實體 id, relation_id)</text>
-  <text class="meta-text" x="70" y="646" fill="#b45309">→ 同一對紀錄可掛多筆不同謂語的邊</text>
-  <text class="meta-text" x="70" y="672" fill="#b45309">（例如同時 uses 又 assists）</text>
+  <text class="note" x="40" y="193">最上層是三個基礎類別（參照碼 0000、1000、2000），子類別沿著上層往下細分。</text>
 
-  <!-- entity_relations card -->
-  <rect class="box-meta" x="840" y="420" width="770" height="310" rx="18" stroke-width="2.5" stroke-dasharray="4 4"></rect>
-  <text class="title-text" style="font-size:23px" x="1225" y="460">同型態的邊</text>
-  <text class="meta-mono" x="870" y="494">entity_relations</text>
-  <text class="meta-text" x="870" y="524" fill="#78350f">entity_type + subject_id / object_id</text>
-  <text class="meta-text" x="870" y="550" fill="#78350f">（DB 無外鍵，Model 層驗證）+ relation_id</text>
-  <text class="meta-text" x="870" y="588" fill="#b45309">→ Documentation／Technique／</text>
-  <text class="meta-text" x="870" y="614" fill="#b45309">Implementation 各自對同型態建立關聯</text>
-  <text class="meta-text" x="870" y="650" fill="#b45309">（預留機制，尚未 seed 具體謂語）</text>
+  <!-- ===== 二、述詞 ===== -->
+  <rect class="panel" x="20" y="235" width="798" height="290" rx="14"></rect>
+  <text class="panel-title" x="40" y="267">二、述詞：主詞、述詞、受詞；每個述詞有反向，也可以有子述詞</text>
+
+  <!-- 述詞 → 主詞類別、受詞類別 -->
+  <path class="edge" d="M 339 360 L 230 360" marker-end="url(#arrow)"></path>
+  <text class="zh mid" x="284" y="350">主詞</text>
+  <path class="edge" d="M 499 360 L 608 360" marker-end="url(#arrow)"></path>
+  <text class="zh mid" x="553" y="350">受詞</text>
+
+  <!-- 述詞指向上層述詞 -->
+  <path class="edge" d="M 380 330 C 380 292, 460 292, 460 330" marker-end="url(#arrow)"></path>
+  <text class="zh" x="476" y="314">隸屬於上層述詞</text>
+
+  <!-- 述詞 ⇄ 反向述詞：每個方向各一支 -->
+  <path class="edge" d="M 380 390 L 380 440" marker-end="url(#arrow)"></path>
+  <text class="zh end" x="370" y="420">反向是</text>
+  <path class="edge" d="M 460 440 L 460 390" marker-end="url(#arrow)"></path>
+  <text class="zh" x="470" y="420">反向是</text>
+
+  <rect class="box" x="50" y="330" width="180" height="60" rx="12"></rect>
+  <text class="box-title" x="140" y="358">主詞類別</text>
+  <text class="box-sub" x="140" y="379">例：實際執行</text>
+
+  <rect class="box" x="339" y="330" width="160" height="60" rx="12"></rect>
+  <text class="box-title" x="419" y="358">述詞</text>
+  <text class="box-sub" x="419" y="379">例：uses</text>
+
+  <rect class="box" x="608" y="330" width="180" height="60" rx="12"></rect>
+  <text class="box-title" x="698" y="358">受詞類別</text>
+  <text class="box-sub" x="698" y="379">例：使用技術</text>
+
+  <rect class="box" x="339" y="440" width="160" height="60" rx="12"></rect>
+  <text class="box-title" x="419" y="468">反向述詞</text>
+  <text class="box-sub" x="419" y="489">例：usedBy</text>
+
+  <!-- ===== 三、邊 ===== -->
+  <rect class="panel" x="20" y="545" width="798" height="240" rx="14"></rect>
+  <text class="panel-title" x="40" y="577">三、邊：連接兩筆紀錄，兩種邊都帶述詞</text>
+  <line class="divider" x1="419" y1="598" x2="419" y2="738"></line>
+
+  <text class="sub-title" x="225" y="617">跨基礎類別的邊</text>
+  <text class="sub-title" x="619" y="617">同一基礎類別內的邊</text>
+
+  <!-- 跨基礎類別：實際執行的紀錄 → 使用技術的紀錄，同一對掛兩個述詞 -->
+  <path class="edge" d="M 150 655 L 300 655" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="225" y="646">uses</text>
+  <path class="edge" d="M 150 685 L 300 685" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="225" y="676">assisted-by</text>
+
+  <rect class="box box-impl" x="50" y="632" width="100" height="72" rx="12"></rect>
+  <text class="box-title-sm" x="100" y="661">實際執行</text>
+  <text class="box-sub" x="100" y="684">的一筆紀錄</text>
+  <rect class="box box-tech" x="300" y="632" width="100" height="72" rx="12"></rect>
+  <text class="box-title-sm" x="350" y="661">使用技術</text>
+  <text class="box-sub" x="350" y="684">的一筆紀錄</text>
+
+  <!-- 同一基礎類別內：使用技術的兩筆紀錄，同一對掛兩個述詞 -->
+  <path class="edge" d="M 546 655 L 692 655" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="619" y="646">requires</text>
+  <path class="edge" d="M 546 685 L 692 685" marker-end="url(#arrow)"></path>
+  <text class="verb mid" x="619" y="676">isVersionOf</text>
+
+  <rect class="box box-tech" x="446" y="632" width="100" height="72" rx="12"></rect>
+  <text class="box-title-sm" x="496" y="661">使用技術</text>
+  <text class="box-sub" x="496" y="684">的一筆紀錄</text>
+  <rect class="box box-tech" x="692" y="632" width="100" height="72" rx="12"></rect>
+  <text class="box-title-sm" x="742" y="661">使用技術</text>
+  <text class="box-sub" x="742" y="684">的另一筆紀錄</text>
+
+  <text class="note mid" x="225" y="729">兩端的紀錄分屬不同基礎類別</text>
+  <text class="note mid" x="619" y="729">兩端的紀錄屬於同一個基礎類別</text>
+
+  <text class="note" x="40" y="765">同一對紀錄可以同時帶好幾個述詞（兩邊各畫了兩個），每個述詞各是一條邊。</text>
+
+  <!-- ===== 圖例 ===== -->
+  <line class="legend-line" x1="20" y1="808" x2="60" y2="808" marker-end="url(#arrow)"></line>
+  <text class="legend" x="74" y="813">箭頭由起點指向終點，旁邊的字說明這一步的關係；子類別、子述詞與例子見 README 的表格。</text>
 </svg>
