@@ -105,7 +105,8 @@ final class AdminAudit
     /**
      * 把一筆技術合併進另一筆（`TechniqueMerger`）。停用本身另有 `update` 的紀錄；這一筆記下連結怎麼搬。
      *
-     * 刪掉的連結記整列的值（id、兩端、述詞、時間），改寫過的記原本的值，要還原時照這筆寫回去：合併沒有備份表，
+     * 刪掉的連結記整列的值（id、兩端、述詞、時間），改寫過的記原本的值（留下那列的 created_at、manually_set_at，
+     * 改接的邊原本的兩端），要還原時照這筆寫回去：合併沒有備份表，
      * 這是唯一的紀錄。連結列只有 id 與時間，沒有內文，不會撐爆一行日誌（見類別說明）。
      *
      * @param  array{moved: array<string, list<int>>, removed: array<string, list<array<string, mixed>>>, updated: array<string, list<array<string, mixed>>>, label_id: int|null}  $summary

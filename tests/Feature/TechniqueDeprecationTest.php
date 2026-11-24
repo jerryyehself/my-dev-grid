@@ -10,10 +10,12 @@ use App\Models\Relation;
 use App\Models\ResLabel;
 use App\Models\Scope;
 use App\Models\Technique;
+use App\Services\TechniqueMerger;
 use Database\Seeders\GitHubReposSnapshotSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 use Tests\Concerns\CapturesSecurityEvents;
@@ -172,6 +174,118 @@ class TechniqueDeprecationTest extends TestCase
         $this->assertSame([$vue->id], $post->techniques()->pluck('techniques.id')->all());
         // 正式名「Vue 3」跟 Vue 不同，寫成隱藏別名
         $this->assertSame(['Vue 3'], ResLabel::where('res_id', $vue->id)->pluck('label')->all());
+    }
+
+    private const EARLY = '2026-01-01 00:00:00';
+
+    private const LATE = '2026-10-01 00:00:00';
+
+    #[TestDox('刪掉重複的實作連結時保留較早的 created_at，稽核紀錄記下留下那列原本的值')]
+    public function test_merge_keeps_the_earlier_created_at_of_implementation_links(): void
+    {
+        DB::table('technique_implementation')->where('technique_id', $this->procfile->id)->update(['created_at' => self::EARLY]);
+        $kept = DB::table('technique_implementation')->where(['technique_id' => $this->heroku->id, 'implementation_id' => $this->learningLibrary->id])->sole();
+        DB::table('technique_implementation')->where('id', $kept->id)->update(['created_at' => self::LATE]);
+        $this->actingAsOwner();
+        $this->captureLogs();
+
+        $this->deprecation($this->procfile, ['deprecated' => true, 'replaced_by_id' => $this->heroku->id])->assertOk();
+
+        $this->assertSame(self::EARLY, DB::table('technique_implementation')->where('id', $kept->id)->value('created_at'));
+        $this->assertSame(['technique_implementation' => [['id' => (int) $kept->id, 'created_at' => self::LATE]]], $this->mergeEvent()['updated_links']);
+    }
+
+    /** @return iterable<string, array{string|null, string|null, string|null}> */
+    public static function createdAtPairs(): iterable
+    {
+        // [刪掉那列, 留下那列, 合併後留下那列]
+        yield '刪掉的比較早' => [self::EARLY, self::LATE, self::EARLY];
+        yield '留下的比較早：不動' => [self::LATE, self::EARLY, self::EARLY];
+        yield '一樣早：不動' => [self::EARLY, self::EARLY, self::EARLY];
+        yield '刪掉的是開始記錄之前就有的（null）' => [null, self::LATE, null];
+        yield '留下的是 null：已經是最早，不動' => [self::EARLY, null, null];
+    }
+
+    #[DataProvider('createdAtPairs')]
+    #[TestDox('刪掉重複的文件連結時保留較早的 created_at，null 算最早')]
+    public function test_merge_keeps_the_earlier_created_at_of_documentation_links(?string $removedAt, ?string $keptAt, ?string $expected): void
+    {
+        $post = Documentation::factory()->create(['type' => Scope::where('name', 'post')->value('id')]);
+        $about = $this->relationId('about');
+        $post->techniques()->attach([$this->procfile->id => ['relation_id' => $about], $this->heroku->id => ['relation_id' => $about]]);
+        DB::table('documentation_technique')->where(['documentation_id' => $post->id, 'technique_id' => $this->procfile->id])->update(['created_at' => $removedAt]);
+        $keptId = DB::table('documentation_technique')->where(['documentation_id' => $post->id, 'technique_id' => $this->heroku->id])->value('id');
+        DB::table('documentation_technique')->where('id', $keptId)->update(['created_at' => $keptAt]);
+        $this->actingAsOwner();
+        $this->captureLogs();
+
+        $this->deprecation($this->procfile, ['deprecated' => true, 'replaced_by_id' => $this->heroku->id])->assertOk();
+
+        $this->assertSame([$this->heroku->id], $post->techniques()->pluck('techniques.id')->all());
+        $this->assertSame($expected, DB::table('documentation_technique')->where('id', $keptId)->value('created_at'));
+        $updated = $this->mergeEvent()['updated_links']['documentation_technique'] ?? [];
+        $this->assertSame($expected === $keptAt ? [] : [['id' => (int) $keptId, 'created_at' => $keptAt]], $updated);
+    }
+
+    #[TestDox('刪掉重複的技術之間的邊時保留較早的 created_at')]
+    public function test_merge_keeps_the_earlier_created_at_of_entity_relations(): void
+    {
+        $requires = $this->relationId('requires');
+        $git = Technique::create(['type' => Scope::where('name', 'environment')->value('id'), 'title' => 'Git']);
+        $removed = EntityRelation::create(['entity_type' => 'technique', 'subject_id' => $this->procfile->id, 'object_id' => $git->id, 'relation_id' => $requires]);
+        $kept = EntityRelation::create(['entity_type' => 'technique', 'subject_id' => $this->heroku->id, 'object_id' => $git->id, 'relation_id' => $requires]);
+        DB::table('entity_relations')->where('id', $removed->id)->update(['created_at' => self::EARLY]);
+        DB::table('entity_relations')->where('id', $kept->id)->update(['created_at' => self::LATE]);
+        $this->actingAsOwner();
+        $this->captureLogs();
+
+        $this->deprecation($this->procfile, ['deprecated' => true, 'replaced_by_id' => $this->heroku->id])->assertOk();
+
+        $this->assertNull(EntityRelation::find($removed->id));
+        $this->assertSame(self::EARLY, DB::table('entity_relations')->where('id', $kept->id)->value('created_at'));
+        $this->assertContains(['id' => $kept->id, 'created_at' => self::LATE], $this->mergeEvent()['updated_links']['entity_relations']);
+    }
+
+    #[TestDox('改接的技術之間的邊，稽核紀錄記下原本的主詞與受詞；相關改接後兩端對調也還原得回來')]
+    public function test_moved_entity_relations_record_their_original_ends(): void
+    {
+        $related = $this->relationId('related');
+        $environment = Scope::where('name', 'environment')->value('id');
+        // id 由小到大：Heroku（快照同步建的）< Dokku < 舊的那筆。相關照 id 小的當主詞存成 (Dokku, 舊的)；
+        // 合併後另一端換成 Heroku，Heroku 的 id 比 Dokku 小，兩端對調成 (Heroku, Dokku)
+        $dokku = Technique::create(['type' => $environment, 'title' => 'Dokku']);
+        $old = Technique::create(['type' => $environment, 'title' => 'heroku-buildpack']);
+        $edge = EntityRelation::create(['entity_type' => 'technique', 'subject_id' => $dokku->id, 'object_id' => $old->id, 'relation_id' => $related]);
+        $this->assertLessThan($dokku->id, $this->heroku->id);
+        $this->actingAsOwner();
+        $this->captureLogs();
+
+        $this->deprecation($old, ['deprecated' => true, 'replaced_by_id' => $this->heroku->id])->assertOk();
+
+        $edge->refresh();
+        $this->assertSame([$this->heroku->id, $dokku->id], [(int) $edge->subject_id, (int) $edge->object_id]);
+        $context = $this->mergeEvent();
+        $this->assertSame([$edge->id], $context['moved_links']['entity_relations']);
+        $this->assertSame([['id' => $edge->id, 'subject_id' => $dokku->id, 'object_id' => $old->id]], $context['updated_links']['entity_relations']);
+    }
+
+    #[TestDox('驗證之後、合併之前改用對象被停用了（同時送出 A→B 與 B→C）：鎖住重讀後擋下，什麼都不改')]
+    public function test_merge_rechecks_the_replacement_inside_the_transaction(): void
+    {
+        $staleHeroku = Technique::findOrFail($this->heroku->id);
+        DB::table('techniques')->where('id', $this->heroku->id)->update(['deprecated_at' => now()]);
+        $this->captureLogs();
+
+        try {
+            app(TechniqueMerger::class)->merge($this->procfile, $staleHeroku);
+            $this->fail('改用對象已停用，應該擋下');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('replaced_by_id', $e->errors());
+        }
+
+        $this->assertNull($this->procfile->fresh()->deprecated_at);
+        $this->assertCount(1, $this->implementationLinks($this->procfile));
+        $this->assertSame(0, ResLabel::count());
     }
 
     #[TestDox('後台指定過的重複連結：刪掉舊的那列時，把指定時間帶到留下來的那列')]
