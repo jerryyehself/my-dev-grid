@@ -145,6 +145,7 @@ class GuestApiSweepTest extends TestCase
             'PUT api/techniques/{technique}' => self::auth(),
             'PATCH api/techniques/{technique}' => self::auth(),
             'DELETE api/techniques/{technique}' => self::auth(),
+            'PATCH api/techniques/{technique}/deprecation' => self::auth('停用、合併與取消停用，沒登入一律 401。'),
 
             // 實作
             'GET api/implementations' => self::publicRead('設為不公開的實作只給登入的人看，帶 type 篩選也一樣。', ['type={scope}']),

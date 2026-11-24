@@ -61,12 +61,6 @@ parameters:
 			path: app/Http/Controllers/GraphController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Technique\:\:\$label\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/GraphController.php
-
-		-
 			message: '#^Match expression does not handle remaining value\: string$#'
 			identifier: match.unhandled
 			count: 1
@@ -217,12 +211,6 @@ parameters:
 			path: app/Http/Controllers/ScopeController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Technique\:\:\$label\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/TechniqueController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:visibleToViewer\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -238,12 +226,6 @@ parameters:
 			message: '#^Relation ''implementations'' is not found in App\\Models\\Technique model\.$#'
 			identifier: larastan.relationExistence
 			count: 3
-			path: app/Http/Controllers/TechniqueController.php
-
-		-
-			message: '#^Relation ''scope'' is not found in App\\Models\\Technique model\.$#'
-			identifier: larastan.relationExistence
-			count: 4
 			path: app/Http/Controllers/TechniqueController.php
 
 		-

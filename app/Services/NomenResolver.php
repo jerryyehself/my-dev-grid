@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Implementation;
 use App\Models\Nomen;
+use App\Models\ResLabel;
 use App\Models\Scope;
 use App\Models\Technique;
 use Illuminate\Support\Collection;
@@ -17,12 +18,18 @@ use Illuminate\Support\Collection;
  *
  * 變體規則依序試，第一個對上的就用，`resolution` 記下用了哪一條：
  * - `exact`：正規化後的鍵跟節點的顯示名稱（`Technique::labelFrom()`、專案 `title`）完全相等。
+ * - `label`：正規化後的鍵跟詞表的別名（`res_labels.normalized`，alt 與 hidden 都算）完全相等。別名是站主
+ *   明白宣告的「這個 res 也叫這個名字」，所以跟 `crosswalk` 一樣不受來源的分類限制。同一個別名掛在兩個
+ *   res 上（同形異義，例如兩種意思的 token）就是 `ambiguous`，交給 `preferContext()`。
  * - `variant:suffix`：去掉或補上 `js`／`css` 字尾（`vuejs`→Vue、`tailwind`→Tailwind CSS）。對應 LRM 的
  *   R17（同一個 res 的另一種寫法）。字根至少 3 個字元。
  * - `part:version`：拆出結尾的版本號（`vue3`→Vue 3）。對應 LRM 的 R16（版本是名稱的一部分，指的是
  *   另一個 res）。只在整個鍵對不到節點、而且字根對得到語言／框架／套件工具的節點時才拆，`isbn3`、
  *   `html5-qrcode` 這類套件名不會被拆。
  * - `crosswalk`：規則推不出來的跨命名系統對照（Linguist 的 Procfile→Heroku）。
+ *
+ * 對到已停用的技術時，沿「改用」換成仍在使用的那一筆（`Technique::inUse()`）；停用而沒有改用對象的不當候選，
+ * 這條規則就當成沒對上，往下一條試。合併過的技術因此不會再被對到，它的舊名經改用對象接上。
  *
  * 套件清單的名稱不走上面的規則：套件名先照 `config/package_technologies.php`（`PackageTechniqueMap`）
  * 換成技術名稱，再跟節點的顯示名稱完全比對，`resolution` 記成 `package_map`。跟同步寫邊用同一張表，
@@ -33,16 +40,17 @@ final class NomenResolver
     /**
      * 每種來源：[能對到哪種節點, 限定的分類（null 是不限）, 可以用的變體規則]。
      *
-     * GitHub 語言只能對到 `language`，Linguist 的誤判（例如 Hack）才不會碰到同名的其他節點。
+     * GitHub 語言只能對到 `language`，Linguist 的誤判（例如 Hack）才不會碰到同名的其他節點；別名（`label`）
+     * 例外，理由見類別說明。
      * topic 不限分類，但在影子模式裡不主張任何述詞，只用來確認身分（見 `NomenRecorder`）。
      * 套件不限分類：對照表已經寫明每個套件是哪個技術，套件名本身不拿來套變體規則。
      */
     private const SOURCES = [
-        Nomen::SOURCE_GITHUB_LANGUAGE => [Nomen::RES_TECHNIQUE, ['language'], ['crosswalk']],
-        Nomen::SOURCE_GITHUB_TOPIC => [Nomen::RES_TECHNIQUE, null, ['suffix', 'version', 'crosswalk']],
+        Nomen::SOURCE_GITHUB_LANGUAGE => [Nomen::RES_TECHNIQUE, ['language'], ['label', 'crosswalk']],
+        Nomen::SOURCE_GITHUB_TOPIC => [Nomen::RES_TECHNIQUE, null, ['label', 'suffix', 'version', 'crosswalk']],
         Nomen::SOURCE_PACKAGE => [Nomen::RES_TECHNIQUE, null, []],
-        Nomen::SOURCE_ABOUT_TECHNIQUES => [Nomen::RES_TECHNIQUE, null, ['suffix', 'version']],
-        Nomen::SOURCE_ABOUT_PROJECTS => [Nomen::RES_IMPLEMENTATION, ['project'], []],
+        Nomen::SOURCE_ABOUT_TECHNIQUES => [Nomen::RES_TECHNIQUE, null, ['label', 'suffix', 'version']],
+        Nomen::SOURCE_ABOUT_PROJECTS => [Nomen::RES_IMPLEMENTATION, ['project'], ['label']],
     ];
 
     /** 同一次同步一起寫入的來源：判斷「最新一次看到」時要一起看。 */
@@ -116,11 +124,12 @@ final class NomenResolver
         }
 
         $targets = $this->targets();
+        $labels = $this->labels();
         $results = [];
         $ambiguous = [];
 
         foreach ($rows as $row) {
-            [$resType, $candidates, $rule] = $this->match($row, $targets);
+            [$resType, $candidates, $rule] = $this->match($row, $targets, $labels);
 
             if (count($candidates) === 1) {
                 $results[$row->id] = [$resType, $candidates[0]['id'], $rule];
@@ -132,7 +141,7 @@ final class NomenResolver
             }
         }
 
-        $this->preferContext($rows, $results, $ambiguous);
+        $this->preferContext($rows, $results, $ambiguous, SemanticRelations::fromDatabase());
 
         $current = self::current($rows)->keyBy('id');
         $this->applyLanguageThreshold($current, $results);
@@ -148,9 +157,10 @@ final class NomenResolver
     }
 
     /**
-     * 站上能被對到的節點，依種類分。每個節點帶比對鍵與它所屬分類。
+     * 站上能被對到的節點，依種類分。每個節點帶比對鍵、它所屬分類，以及對到它時實際要用的節點 id（`use_id`）：
+     * 仍在使用的是自己，已停用的是沿「改用」找到的那一筆，找不到是 null（不當候選）。
      *
-     * @return array<string, list<array{id: int, key: string, title_key: string, version: string|null, scopes: list<string>}>>
+     * @return array<string, list<array{id: int, key: string, title_key: string, version: string|null, scopes: list<string>, use_id: int|null}>>
      */
     private function targets(): array
     {
@@ -162,13 +172,16 @@ final class NomenResolver
             fn (int $id) => $ancestry->matches($type === null ? null : (int) $type, $id),
         ));
 
+        $techniques = Technique::all(['id', 'type', 'title', 'version', 'deprecated_at', 'replaced_by_id'])->keyBy('id');
+
         return [
-            Nomen::RES_TECHNIQUE => Technique::all(['id', 'type', 'title', 'version'])->map(fn (Technique $t) => [
+            Nomen::RES_TECHNIQUE => $techniques->values()->map(fn (Technique $t) => [
                 'id' => $t->id,
                 'key' => self::normalize($t->label),
                 'title_key' => self::normalize($t->title),
                 'version' => filled($t->version) ? (string) $t->version : null,
                 'scopes' => $scopesOf($t->type),
+                'use_id' => $t->inUse(fn (int $id) => $techniques->get($id))?->id,
             ])->all(),
             Nomen::RES_IMPLEMENTATION => Implementation::all(['id', 'type', 'title'])->map(fn (Implementation $i) => [
                 'id' => $i->id,
@@ -176,15 +189,33 @@ final class NomenResolver
                 'title_key' => self::normalize((string) $i->title),
                 'version' => null,
                 'scopes' => $scopesOf($i->type),
+                'use_id' => $i->id,
             ])->all(),
         ];
     }
 
     /**
-     * @param  array<string, list<array<string, mixed>>>  $targets
-     * @return array{0: string|null, 1: list<array<string, mixed>>, 2: string|null} [節點種類, 候選節點, 規則]
+     * 詞表的別名，依節點種類分：正規化後的鍵 => 掛著這個別名的節點 id。指到不存在或已軟刪除節點的列，
+     * 在 `match()` 找不到對應的節點，自然不算。
+     *
+     * @return array<string, array<string, list<int>>>
      */
-    private function match(Nomen $row, array $targets): array
+    private function labels(): array
+    {
+        $labels = [];
+        foreach (ResLabel::all(['res_type', 'res_id', 'normalized']) as $label) {
+            $labels[$label->res_type][$label->normalized][] = (int) $label->res_id;
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @param  array<string, list<array<string, mixed>>>  $targets
+     * @param  array<string, array<string, list<int>>>  $labels
+     * @return array{0: string|null, 1: list<array{id: int}>, 2: string|null} [節點種類, 候選節點, 規則]
+     */
+    private function match(Nomen $row, array $targets, array $labels): array
     {
         if (! isset(self::SOURCES[$row->source])) {
             return [null, [], null];
@@ -196,7 +227,7 @@ final class NomenResolver
             fn (array $t) => $allowedScopes === null || array_intersect($allowedScopes, $t['scopes']) !== [],
         ));
         $key = $row->normalized;
-        $byKey = fn (string $k) => array_values(array_filter($pool, fn (array $t) => $t['key'] === $k));
+        $byKey = fn (string $k) => self::inUse(array_filter($pool, fn (array $t) => $t['key'] === $k));
 
         if ($row->source === Nomen::SOURCE_PACKAGE) {
             $technique = PackageTechniqueMap::techniqueFor((string) $row->scheme, $row->string);
@@ -206,6 +237,14 @@ final class NomenResolver
 
         if (($found = $byKey($key)) !== []) {
             return [$resType, $found, 'exact'];
+        }
+
+        if (in_array('label', $rules, true) && isset($labels[$resType][$key])) {
+            $ids = $labels[$resType][$key];
+            $found = self::inUse(array_filter($targets[$resType], fn (array $t) => in_array($t['id'], $ids, true)));
+            if ($found !== []) {
+                return [$resType, $found, 'label'];
+            }
         }
 
         if (in_array('suffix', $rules, true)) {
@@ -227,16 +266,18 @@ final class NomenResolver
             $bases = array_filter($pool, fn (array $t) => $t['key'] === $m[1] && $t['version'] === null
                 && array_intersect(self::VERSION_ROOT_SCOPES, $t['scopes']) !== []);
             if ($bases !== []) {
-                $versioned = array_values(array_filter($pool, fn (array $t) => $t['title_key'] === $m[1] && $t['version'] === $m[2]));
-
-                return [$resType, $versioned !== [] ? $versioned : array_values($bases), 'part:version'];
+                $versioned = self::inUse(array_filter($pool, fn (array $t) => $t['title_key'] === $m[1] && $t['version'] === $m[2]));
+                $found = $versioned !== [] ? $versioned : self::inUse($bases);
+                if ($found !== []) {
+                    return [$resType, $found, 'part:version'];
+                }
             }
         }
 
         // 對照表本來就是跨命名系統、跨分類的（Linguist 的「語言」Procfile 指的是套件工具 Heroku），
         // 所以不受來源的分類限制，查同一種節點的全部
         if (in_array('crosswalk', $rules, true) && isset(self::CROSSWALK[$key])) {
-            $found = array_values(array_filter($targets[$resType], fn (array $t) => $t['key'] === self::CROSSWALK[$key]));
+            $found = self::inUse(array_filter($targets[$resType], fn (array $t) => $t['key'] === self::CROSSWALK[$key]));
             if ($found !== []) {
                 return [$resType, $found, 'crosswalk'];
             }
@@ -246,25 +287,60 @@ final class NomenResolver
     }
 
     /**
-     * 對上不只一個節點時，選同一個作品裡其他名稱已經對到的那一個；還是分不出來就維持 `ambiguous`。
+     * 把對上的節點換成實際要用的那一筆（停用的換成改用對象，換不到的拿掉），同一筆只留一次。
+     *
+     * @param  array<array-key, array<string, mixed>>  $found
+     * @return list<array{id: int}>
+     */
+    private static function inUse(array $found): array
+    {
+        $ids = array_unique(array_filter(array_column($found, 'use_id'), fn ($id) => $id !== null));
+
+        return array_values(array_map(fn (int $id) => ['id' => $id], $ids));
+    }
+
+    /**
+     * 對上不只一個節點時，依同一個作品裡的其他名稱選一個；還是分不出來就維持 `ambiguous`。依序試兩條：
+     *
+     * 1. 其他名稱已經對到其中一個候選，就選那一個。
+     * 2. 其他名稱對到的技術，是恰好一個候選的上位、下位或相關（直接相連，見 `SemanticRelations::neighbours()`），
+     *    就選那一個。例如文章同時寫了 token 與 Sanctum，「token（驗證）」跟 Sanctum 相關，「token（LLM）」沒有。
+     *    不只一個候選有鄰居出現時分不出來。只看技術：專案之間沒有這兩種邊。
+     *
+     * 兩條都只看已經確定對到一個節點的名稱，不看同樣是 `ambiguous` 的。
      *
      * @param  Collection<int, Nomen>  $rows
      * @param  array<int, array{0: string|null, 1: int|null, 2: string}>  $results
      * @param  array<int, array{0: string, 1: list<int>, 2: string}>  $ambiguous
      */
-    private function preferContext(Collection $rows, array &$results, array $ambiguous): void
+    private function preferContext(Collection $rows, array &$results, array $ambiguous, SemanticRelations $semantic): void
     {
         $byId = $rows->keyBy('id');
 
         foreach ($ambiguous as $id => [$resType, $candidateIds, $rule]) {
             $row = $byId[$id];
-            $seen = $rows->filter(fn (Nomen $other) => $other->id !== $id
+            $resolvedInWork = $rows->filter(fn (Nomen $other) => $other->id !== $id
                 && $other->context_type === $row->context_type && $other->context_id === $row->context_id
-                && $results[$other->id][0] === $resType && in_array($results[$other->id][1], $candidateIds, true))
-                ->map(fn (Nomen $other) => $results[$other->id][1])->unique()->values();
+                && $results[$other->id][0] === $resType && $results[$other->id][1] !== null)
+                ->map(fn (Nomen $other) => $results[$other->id][1])->unique()->values()->all();
 
-            if ($seen->count() === 1) {
-                $results[$id] = [$resType, $seen->first(), $rule];
+            $seen = array_values(array_intersect($resolvedInWork, $candidateIds));
+            if (count($seen) === 1) {
+                $results[$id] = [$resType, $seen[0], $rule];
+
+                continue;
+            }
+
+            if ($resType !== Nomen::RES_TECHNIQUE || $seen !== []) {
+                continue;
+            }
+
+            $withNeighbour = array_values(array_filter(
+                $candidateIds,
+                fn (int $candidate) => array_intersect($resolvedInWork, $semantic->neighbours($candidate)) !== [],
+            ));
+            if (count($withNeighbour) === 1) {
+                $results[$id] = [$resType, $withNeighbour[0], $rule];
             }
         }
     }

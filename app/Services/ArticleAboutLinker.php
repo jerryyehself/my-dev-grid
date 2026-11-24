@@ -27,6 +27,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * 名稱比對不分大小寫：技術比對顯示名稱（`Technique::labelFrom()`，有版本是「Vue 3」，沒有是「Vue」），
  * 專案比對 `title`。技術與專案都沒有 slug 欄位，所以只認名稱。
  *
+ * 對到已停用的技術時，沿「改用」連到仍在使用的那一筆（`Technique::inUse()`），合併掉的舊名照樣連得上；
+ * 停用而找不到可用改用對象的不當候選，名稱只對到這種技術時回警告、不建立連結。
+ *
  * 連結前檢查兩端的分類符合述詞的主詞與受詞（跟 `RelationFitsLinkedScopes` 同一條規則）：
  * 後台編輯器存檔時會逐筆重新驗證現有連結，這裡寫進不符的連結，會讓那篇文章在後台存不了檔。
  */
@@ -77,9 +80,12 @@ final class ArticleAboutLinker
 
             $attach = [];
             foreach ($names as $name) {
-                $matches = $candidates[mb_strtolower($name)] ?? [];
+                $named = $candidates[mb_strtolower($name)] ?? [];
+                $matches = $kind === 'technique' ? $this->techniquesInUse($named) : $named;
 
-                if ($matches === []) {
+                if ($named !== [] && $matches === []) {
+                    $warnings[] = self::warning('about_deprecated', "{$field} 的「{$name}」對到的{$noun}已停用，而且沒有可用的改用對象，沒有建立連結。");
+                } elseif ($matches === []) {
                     $warnings[] = self::warning('about_not_found', "{$field} 的「{$name}」找不到對應的{$noun}，沒有建立連結。");
                 } elseif (count($matches) > 1) {
                     $warnings[] = self::warning('about_ambiguous', "{$field} 的「{$name}」對上不只一筆{$noun}，沒有建立連結。");
@@ -109,7 +115,7 @@ final class ArticleAboutLinker
      */
     private function candidates(string $kind): array
     {
-        $models = $kind === 'technique' ? Technique::all(['id', 'type', 'title', 'version']) : Implementation::all(['id', 'type', 'title']);
+        $models = $kind === 'technique' ? Technique::all(['id', 'type', 'title', 'version', 'deprecated_at', 'replaced_by_id']) : Implementation::all(['id', 'type', 'title']);
 
         $byName = [];
         foreach ($models as $model) {
@@ -118,6 +124,25 @@ final class ArticleAboutLinker
         }
 
         return $byName;
+    }
+
+    /**
+     * 同名的技術換成實際要連的那一筆：停用的換成改用對象，換不到的拿掉，同一筆只留一次。
+     *
+     * @param  list<Model>  $techniques
+     * @return list<Model>
+     */
+    private function techniquesInUse(array $techniques): array
+    {
+        $inUse = [];
+        foreach ($techniques as $technique) {
+            $target = $technique instanceof Technique ? $technique->inUse() : null;
+            if ($target !== null) {
+                $inUse[$target->id] = $target;
+            }
+        }
+
+        return array_values($inUse);
     }
 
     private function type(Model $model): ?int

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Technique;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -12,12 +13,21 @@ class TechniqueResource extends JsonResource
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
+        /** @var Technique $technique */
+        $technique = $this->resource;
+
         return [
             'id' => $this->id,
             'type' => $this->type,
             'title' => $this->title,
             'version' => $this->version,
             'note' => $this->note,
+            /** 是否已停用。停用的技術不會被刪除；有改用對象時，同步與匯入文章改連到改用對象。 */
+            'deprecated' => $technique->isDeprecated(),
+            /** 停用的時間（`Y-m-d H:i:s`）；仍在使用時為 null。 */
+            'deprecated_at' => $technique->deprecated_at?->format('Y-m-d H:i:s'),
+            /** 停用後改用的技術 id；沒有指定或仍在使用時為 null。 */
+            'replaced_by_id' => $technique->replaced_by_id,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
             'relation_id' => $this->when(isset($this->pivot), fn () => $this->pivot->relation_id),

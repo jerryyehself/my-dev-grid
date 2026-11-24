@@ -14,7 +14,8 @@ use InvalidArgumentException;
  * 這裡是人工維護的名稱。同一個字串可以是不同 res 的別名（同形異義），同一個 res 不能把同一個
  * 字串存兩次。為什麼這樣設計見 migration `2026_11_24_000000_create_res_labels_table.php`。
  *
- * 目前只有結構，還沒有任何程式讀寫它：比對規則、後台編輯都是之後的事。
+ * 讀的地方：`NomenResolver` 的 `label` 規則、同步認技術（`SaveReposDataService::find_or_create_technique()`）。
+ * 寫的地方：合併技術時把舊正式名寫成隱藏別名（`TechniqueMerger`）。還沒有後台編輯別名的 API，也不出現在任何 API 回應裡。
  */
 class ResLabel extends Model
 {
