@@ -34,7 +34,6 @@ class CreateArticleUnitsTableMigrationTest extends TestCase
             'heading' => '標題',
             'content' => '內容',
             'content_hash' => str_repeat('0', 64),
-            'position' => 1,
             'removed_at' => null,
             'created_at' => '2026-11-23 00:00:00',
             'updated_at' => '2026-11-23 00:00:00',
@@ -48,7 +47,7 @@ class CreateArticleUnitsTableMigrationTest extends TestCase
         DB::table('article_units')->insert(self::row($article->id));
 
         $this->expectException(UniqueConstraintViolationException::class);
-        DB::table('article_units')->insert(self::row($article->id, ['position' => 2]));
+        DB::table('article_units')->insert(self::row($article->id, ['heading' => '另一個標題']));
     }
 
     #[TestDox('不同文章可以用同一個 unit_id，同一篇文章可以有好幾個還沒有 ID 的單位')]
@@ -68,7 +67,7 @@ class CreateArticleUnitsTableMigrationTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function requiredColumns(): iterable
     {
-        foreach (['article_id', 'role', 'content', 'content_hash', 'position'] as $column) {
+        foreach (['article_id', 'role', 'content', 'content_hash'] as $column) {
             yield $column => [$column];
         }
     }
@@ -123,7 +122,7 @@ class CreateArticleUnitsTableMigrationTest extends TestCase
         $migration->up();
         $this->assertTrue(Schema::hasTable('article_units'));
         $this->assertSame(
-            ['article_id', 'content', 'content_hash', 'created_at', 'heading', 'id', 'level', 'parent_id', 'position', 'removed_at', 'role', 'unit_id', 'updated_at'],
+            ['article_id', 'content', 'content_hash', 'created_at', 'heading', 'id', 'level', 'parent_id', 'removed_at', 'role', 'unit_id', 'updated_at'],
             collect(Schema::getColumnListing('article_units'))->sort()->values()->all(),
         );
     }

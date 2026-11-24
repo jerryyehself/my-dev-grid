@@ -29,6 +29,8 @@ use LogicException;
  *
  * 這次沒出現的舊單位不刪，填 `removed_at`（已經填過的不再改時間）。
  *
+ * 不存單位在文章裡的順序：順序的唯一來源是原稿，要照順序列出時重新切一次原稿。
+ *
  * `content_hash` 是標題、腳註搬走之後的內容、附給這個單位的腳註定義三者的雜湊（`contentHash()`），
  * ID 寫法（`{#id}`）不算在內。腳註跟著歸屬算：改了某個腳註的文字，變的是引用它的單位，
  * 定義原本所在的單位（通常是文末的「來源」節）不變。沒有附腳註的單位跟只算標題與內容的結果相同。
@@ -64,7 +66,7 @@ final class ArticleUnitSync
         $units = $split['units'];
 
         /** @var Collection<int, ArticleUnit> $existing */
-        $existing = ArticleUnit::where('article_id', $article->id)->orderBy('position')->orderBy('id')->get();
+        $existing = ArticleUnit::where('article_id', $article->id)->orderBy('id')->get();
 
         $matches = $this->match($units, $existing);
 
@@ -98,7 +100,6 @@ final class ArticleUnitSync
                 'is_container' => $unit['is_container'],
                 'footnotes' => $unit['footnotes'] === [] ? null : $unit['footnotes'],
                 'chunks' => $unit['chunks'],
-                'position' => $index,
                 'removed_at' => null,
             ]);
             $row->save();
@@ -202,9 +203,9 @@ final class ArticleUnitSync
             }
         }
 
-        // 候選：還沒有 ID 的舊單位，還在的排前面，再依上次的位置
+        // 候選：還沒有 ID 的舊單位，還在的排前面，再依建立的先後（列的 id）
         $candidates = $existing->whereNull('unit_id')
-            ->sortBy(fn (ArticleUnit $row) => [$row->removed_at === null ? 0 : 1, $row->position, $row->id])
+            ->sortBy(fn (ArticleUnit $row) => [$row->removed_at === null ? 0 : 1, $row->id])
             ->values()
             ->all();
 
@@ -250,7 +251,7 @@ final class ArticleUnitSync
     /**
      * 第 3 步：跟剩下的候選比內容相似度，不低於門檻的配對全部列出來，分數由高到低配，
      * 每個新單位、每個候選最多用一次。同分時先配排在前面的新單位，再取排在前面的候選
-     * （還在的優先，再依上次的位置）。
+     * （還在的優先，再依建立的先後）。
      *
      * 不照文件順序一個一個挑：兩段彼此相似的節同時換標題時，排在前面的那節會先搶走另一節的列。
      *

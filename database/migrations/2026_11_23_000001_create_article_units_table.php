@@ -40,7 +40,6 @@ return new class extends Migration
             $table->text('heading')->nullable()->comment('標題文字（已去掉 {#id}）；導言是空值');
             $table->text('content')->comment('單位的 Markdown 內容，不含標題行');
             $table->char('content_hash', 64)->comment('標題與內容的 SHA-256（hex），只用來偵測內容有沒有變');
-            $table->unsignedInteger('position')->comment('在文章裡的順序（0 起算）；被移除的單位停在最後一次出現的位置');
             $table->timestamp('removed_at')->nullable()->comment('原稿裡不再出現的時間；還在的是空值');
             $table->timestamps();
 

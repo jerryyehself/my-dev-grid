@@ -32,7 +32,7 @@ return new class extends Migration
             $table->boolean('is_container')->default(false)
                 ->comment('H2 底下有 H3、自己幾乎沒有內容：只當容器，不當取用單位');
             $table->json('footnotes')->nullable()
-                ->comment('歸給這個單位的腳註定義（標籤、原文、原本所在單位與行號）；沒有是空值');
+                ->comment('歸給這個單位的腳註定義（標籤、原文與原本的行號）；沒有是空值');
             $table->json('chunks')->nullable()
                 ->comment('內容太長時切出的取用子片段（ID 是 unit_id~N）；沒切是空值');
         });

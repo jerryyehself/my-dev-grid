@@ -22,7 +22,8 @@ namespace App\Services;
  *
  * 腳註（判斷方式見 `ArticleFootnotes`）：
  * - 有被引用的定義從所在單位的 `content` 拿掉，放進引用它的單位的 `footnotes`（取用時接在單位後面），
- *   同時記下原本的位置：`defined_in` 是原本所在單位在清單裡的位置，`start_line`／`end_line` 是行號。
+ *   同時記下定義原本的行號（`start_line`／`end_line`）。不記定義原本所在的單位：沒有地方讀，
+ *   而且那個單位在清單裡的位置、有沒有 ID 都會變，記了就得跟著重寫。
  *   定義放在哪裡沒有語意（Pandoc 手冊："need not be placed at the end of the document"），
  *   放在文末時跟引用句隔得很遠，切段後就跟引用它的那一節分開了。
  * - 同一個標籤被好幾個單位引用時，每個單位都附一份；同一個單位裡引用好幾次只附一份。
@@ -50,8 +51,8 @@ namespace App\Services;
  * 單位沒有內容時 `end_line` 是 `start_line - 1`。
  *
  * @phpstan-type Section array{unit_id: string|null, parent_id: string|null, parent_index: int|null, heading: string|null, role: string, level: int|null, start_line: int, end_line: int}
- * @phpstan-type Definition array{label: string, key: string, start_line: int, end_line: int, content: string, defined_in: int}
- * @phpstan-type Footnote array{label: string, content: string, defined_in: int, start_line: int, end_line: int}
+ * @phpstan-type Definition array{label: string, key: string, start_line: int, end_line: int, content: string}
+ * @phpstan-type Footnote array{label: string, content: string, start_line: int, end_line: int}
  * @phpstan-type Chunk array{id: string|null, content: string, footnotes: list<string>}
  * @phpstan-type Unit array{unit_id: string|null, parent_id: string|null, parent_index: int|null, heading: string|null, role: string, level: int|null, start_line: int, end_line: int, source: string, content: string, footnotes: list<Footnote>, is_container: bool, chunks: list<Chunk>|null}
  */
@@ -292,7 +293,7 @@ final class ArticleUnitSplitter
             for ($line = $definition['start_line']; $line <= $definition['end_line']; $line++) {
                 $definitionLines[$line] = true;
             }
-            $definitions[$definition['key']] ??= $definition + ['defined_in' => $this->sectionAt($sections, $definition['start_line'])];
+            $definitions[$definition['key']] ??= $definition;
         }
 
         $nested = array_map(fn (array $definition) => ArticleFootnotes::referencesInDefinition($definition['content']), $definitions);
@@ -349,23 +350,6 @@ final class ArticleUnitSplitter
     }
 
     /**
-     * 某一行屬於第幾個單位（標題行算進它自己的單位）。
-     *
-     * @param  list<Section>  $sections
-     */
-    private function sectionAt(array $sections, int $line): int
-    {
-        $found = 0;
-        foreach ($sections as $index => $section) {
-            if ($line >= $section['start_line'] - 1) {
-                $found = $index;
-            }
-        }
-
-        return $found;
-    }
-
-    /**
      * @param  Definition  $definition
      * @return Footnote
      */
@@ -374,7 +358,6 @@ final class ArticleUnitSplitter
         return [
             'label' => $definition['label'],
             'content' => $definition['content'],
-            'defined_in' => $definition['defined_in'],
             'start_line' => $definition['start_line'],
             'end_line' => $definition['end_line'],
         ];
