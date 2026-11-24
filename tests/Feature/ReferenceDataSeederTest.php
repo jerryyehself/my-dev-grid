@@ -49,8 +49,8 @@ class ReferenceDataSeederTest extends TestCase
 
         $this->deploySeed();
 
-        $this->assertSame(17, Scope::count());
-        $this->assertSame(31, Relation::count());
+        $this->assertSame(18, Scope::count());
+        $this->assertSame(34, Relation::count());
         // 不建帳號、不碰內容資料；唯一的技術節點是預設的 Claude Code
         $this->assertSame(0, User::count());
         $this->assertSame(0, Documentation::count());
@@ -65,11 +65,11 @@ class ReferenceDataSeederTest extends TestCase
         $this->deploySeed();
         $this->deploySeed();
 
-        $this->assertSame(17, Scope::count());
-        $this->assertSame(31, Relation::count());
+        $this->assertSame(18, Scope::count());
+        $this->assertSame(34, Relation::count());
         $this->assertSame(1, Technique::count());
-        $this->assertSame(17, Scope::withTrashed()->distinct()->count('name'));
-        $this->assertSame(31, Relation::withTrashed()->distinct()->count('name'));
+        $this->assertSame(18, Scope::withTrashed()->distinct()->count('name'));
+        $this->assertSame(34, Relation::withTrashed()->distinct()->count('name'));
     }
 
     #[TestDox('重跑部署 seed 不蓋掉後台改過的內容')]
@@ -135,7 +135,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame('dcterms', $isVersionOf->source_vocabulary);
         // 原本就在的不動
         $this->assertSame($existingIds, Relation::whereNotIn('name', ['isVersionOf', 'hasVersion'])->orderBy('id')->pluck('id', 'name')->all());
-        $this->assertSame(31, Relation::count());
+        $this->assertSame(34, Relation::count());
     }
 
     #[TestDox('外部參考用的分類、兩組述詞與 Claude Code 技術節點會補進已有資料的資料庫')]
@@ -199,6 +199,78 @@ class ReferenceDataSeederTest extends TestCase
         $this->assertSame($numbers->count(), $numbers->unique()->count());
         $scopeNumbers = Scope::all()->map(fn (Scope $scope) => $scope->class_number.$scope->call_number);
         $this->assertSame($scopeNumbers->count(), $scopeNumbers->unique()->count());
+    }
+
+    #[TestDox('詞表的 concept 分類與 broader／narrower／related 述詞，位置、類號與反向是設計的樣子')]
+    public function test_vocabulary_reference_data_has_the_designed_numbers()
+    {
+        $this->deploySeed();
+
+        $concept = Scope::where('name', 'concept')->firstOrFail();
+        $this->assertSame(Scope::where('name', 'Technique')->value('id'), $concept->parent_class);
+        $this->assertSame('1060', $concept->class_number.$concept->call_number);
+
+        // 名稱 => [類號＋子類號, 反向]；主詞、受詞都是 Technique，概念詞也在 techniques 表
+        $expected = [
+            'broader' => ['1140', 'narrower'],
+            'narrower' => ['1150', 'broader'],
+            'related' => ['1160', 'related'],
+        ];
+        foreach ($expected as $name => [$number, $reverse]) {
+            $relation = Relation::where('name', $name)->firstOrFail();
+            $this->assertSame($number, $relation->class_number.$relation->call_number, "{$name} 的類號");
+            $this->assertSame('Technique', Scope::find($relation->subject_id)->name, "{$name} 的主詞");
+            $this->assertSame('Technique', Scope::find($relation->object_id)->name, "{$name} 的受詞");
+            $this->assertSame($reverse, Relation::find($relation->reverse_id)->name, "{$name} 的反向");
+            $this->assertSame('skos', $relation->source_vocabulary);
+            $this->assertNull($relation->parent_class, "{$name} 不掛在其他述詞底下");
+        }
+    }
+
+    #[TestDox('詞表的 concept 分類與三條述詞會補進已有資料的資料庫，原本的不動')]
+    public function test_deploy_seed_adds_vocabulary_reference_data_to_an_existing_database()
+    {
+        // 模擬這批預設資料加進 seeder 之前就存在的資料庫：先種一次，再把這批新的資料整批實體刪掉
+        $this->deploySeed();
+        $newRelations = ['broader', 'narrower', 'related'];
+        Relation::whereIn('name', $newRelations)->update(['reverse_id' => null]);
+        Relation::whereIn('name', $newRelations)->forceDelete();
+        Scope::where('name', 'concept')->forceDelete();
+        $existingScopeIds = Scope::orderBy('id')->pluck('id', 'name')->all();
+        $existingRelationIds = Relation::orderBy('id')->pluck('id', 'name')->all();
+        $existingReverseIds = Relation::orderBy('id')->pluck('reverse_id', 'name')->all();
+
+        $this->deploySeed();
+
+        $this->assertSame(Scope::where('name', 'Technique')->value('id'), Scope::where('name', 'concept')->value('parent_class'));
+        $broader = Relation::where('name', 'broader')->firstOrFail();
+        $narrower = Relation::where('name', 'narrower')->firstOrFail();
+        $related = Relation::where('name', 'related')->firstOrFail();
+        $this->assertSame($narrower->id, $broader->reverse_id);
+        $this->assertSame($broader->id, $narrower->reverse_id);
+        $this->assertSame($related->id, $related->reverse_id);
+        // 原本就在的不動，包括反向配對
+        $this->assertSame($existingScopeIds, Scope::where('name', '!=', 'concept')->orderBy('id')->pluck('id', 'name')->all());
+        $this->assertSame($existingRelationIds, Relation::whereNotIn('name', $newRelations)->orderBy('id')->pluck('id', 'name')->all());
+        $this->assertSame($existingReverseIds, Relation::whereNotIn('name', $newRelations)->orderBy('id')->pluck('reverse_id', 'name')->all());
+        $this->assertSame(18, Scope::count());
+        $this->assertSame(34, Relation::count());
+    }
+
+    #[TestDox('重跑部署 seed 不把後台取消的 broader／related 反向關係配回去，也不把後台改過的 concept 說明蓋掉')]
+    public function test_deploy_seed_respects_admin_changes_to_vocabulary_reference_data()
+    {
+        $this->deploySeed();
+        Relation::where('name', 'broader')->first()->update(['reverse_id' => null]);
+        Relation::where('name', 'related')->first()->update(['reverse_id' => null]);
+        Scope::where('name', 'concept')->first()->update(['comment' => '後台改過的 concept 說明']);
+
+        $this->deploySeed();
+
+        foreach (['broader', 'narrower', 'related'] as $name) {
+            $this->assertNull(Relation::where('name', $name)->value('reverse_id'), "{$name} 的反向關係被重新配回去了");
+        }
+        $this->assertSame('後台改過的 concept 說明', Scope::where('name', 'concept')->value('comment'));
     }
 
     #[TestDox('分類說明不超過資料表欄位的長度')]
