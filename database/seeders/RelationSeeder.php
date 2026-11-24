@@ -186,18 +186,21 @@ class RelationSeeder extends Seeder
 
         // 2026-09-11 使用者確認：兩個 repo 共同組成同一個產品（例如前後端
         // 拆分），彼此獨立但相伴而生，不是誰包含誰的 whole-part。外部詞彙取 RDA 的
-        // 「is complemented by work」（P10103）：兩個 work 配成一組、沒有哪一個是主要的，
-        // 跟「對等、相伴」的語意相符。對稱關係，reverse_id 指向自己。
-        // 已存在的資料庫由 2026_11_24_000002_map_implementation_relations_to_rda_and_bibframe.php 改值。
+        // 「is accompanied by manifestation」（P30027，rdam）：本站的作品（Implementation）是
+        // 實體／實際存在的那一層，不是抽象的 Work 層，所以對 Manifestation 層的屬性，
+        // 不用 rdaw 的 P10103。RDA 沒宣告 P30027 對稱也沒給反向屬性，這是近似對照。
+        // 對稱關係，reverse_id 指向自己。
+        // 已存在的資料庫由 2026_11_24_000002_map_implementation_relations_to_rda_and_bibframe.php
+        // 與 2026_11_24_000003_remap_accompanies_to_rda_manifestation_property.php 依序改值。
         $accompanies = $this->relation([
             'subject_id' => $implementation->id,
             'object_id' => $implementation->id,
             'class_number' => '22',
             'call_number' => '20',
             'name' => 'accompanies',
-            'note' => 'RDA P10103 (is complemented by work), http://rdaregistry.info/Elements/w/P10103 — "Relates a work to a work that is paired with a related work without either work being considered to be predominant." 對稱關係：兩個獨立但相伴而生、共同組成同一個產品的 repo（例如前後端拆分）。',
+            'note' => 'RDA P30027 (is accompanied by manifestation), http://rdaregistry.info/Elements/m/P30027 — "Relates a manifestation to a manifestation that is a part of the same manifestation as another part manifestation." 對稱關係：兩個獨立但相伴而生、共同組成同一個產品的 repo（例如前後端拆分）。RDA 沒有把 P30027 宣告成對稱，也沒有給反向屬性；本站的 accompanies 是對稱的，所以這是近似對照。',
             'source_vocabulary' => 'rda',
-            'source_term' => 'P10103',
+            'source_term' => 'P30027',
         ]);
         $this->pairReverse($accompanies, $accompanies);
 

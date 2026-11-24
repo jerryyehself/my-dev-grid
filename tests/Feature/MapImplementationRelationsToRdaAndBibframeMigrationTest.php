@@ -38,10 +38,21 @@ class MapImplementationRelationsToRdaAndBibframeMigrationTest extends TestCase
             ->all();
     }
 
+    /**
+     * 新資料庫跑 seeder 後三列的值：這支 migration 的 NEW，疊上之後 2026_11_24_000003 把
+     * accompanies 從 P10103 改成 P30027 的結果（seeder 種的是最終值）。
+     */
+    private function seeded(): array
+    {
+        $amendment = require database_path('migrations/2026_11_24_000003_remap_accompanies_to_rda_manifestation_property.php');
+
+        return ['accompanies' => $amendment::NEW] + $this->migration::NEW;
+    }
+
     #[TestDox('新資料庫跑 seeder 後三列就是新值')]
     public function test_fresh_seed_has_new_values(): void
     {
-        $this->assertEquals($this->migration::NEW, $this->current());
+        $this->assertEquals($this->seeded(), $this->current());
     }
 
     #[TestDox('舊資料庫（Tillett 舊值）跑 migration 後改成新值，id 與反向配對不動')]
@@ -87,7 +98,7 @@ class MapImplementationRelationsToRdaAndBibframeMigrationTest extends TestCase
         $this->migration->up();
         $this->migration->up();
 
-        $this->assertEquals($this->migration::NEW, $this->current());
+        $this->assertEquals($this->seeded(), $this->current());
         $this->assertEquals($updatedAt, Relation::whereIn('name', array_keys($this->migration::NEW))->pluck('updated_at', 'name')->all());
     }
 
