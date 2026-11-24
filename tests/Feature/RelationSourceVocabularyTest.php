@@ -60,7 +60,7 @@ class RelationSourceVocabularyTest extends TestCase
             'assisted-by（實作把 AI 當工具用＝usesTool，2026-09-30 從 dependsOn 修正）' => ['assisted-by', 'spdx', 'usesTool'],
             'descendantOf' => ['descendantOf', 'spdx', 'DESCENDANT_OF'],
             'ancestorOf' => ['ancestorOf', 'spdx', 'ANCESTOR_OF'],
-            'accompanies（RDA is complemented by work，2026-11-24 從 Tillett 分類名改）' => ['accompanies', 'rda', 'P10103'],
+            'accompanies（RDA is accompanied by manifestation，2026-11-24 從 Tillett 分類名改 P10103，再改 P30027）' => ['accompanies', 'rda', 'P30027'],
             'precedes（A precedes B ＝ A bf:succeededBy B）' => ['precedes', 'bibframe', 'succeededBy'],
             'succeeds（BIBFRAME 具名的反向詞條 precededBy）' => ['succeeds', 'bibframe', 'precededBy'],
             'about（文章講到某個技術，schema.org）' => ['about', 'schema', 'about'],
@@ -146,6 +146,10 @@ class RelationSourceVocabularyTest extends TestCase
         foreach ($mapped::NEW as $name => $values) {
             $sources[$name] = [$values['source_vocabulary'], $values['source_term']];
         }
+
+        // 同一天稍後 accompanies 又從 RDA P10103（Work）改成 P30027（Manifestation）
+        $remapped = require database_path('migrations/2026_11_24_000003_remap_accompanies_to_rda_manifestation_property.php');
+        $sources['accompanies'] = [$remapped::NEW['source_vocabulary'], $remapped::NEW['source_term']];
 
         foreach ($sources as $name => [$vocabulary, $term]) {
             $relation = Relation::where('name', $name)->first();
