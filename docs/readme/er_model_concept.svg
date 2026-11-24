@@ -5,7 +5,7 @@
        （子類號 00）：specs／specifiedBy、documents／documentedBy、uses／usedBy、
        requires／isRequiredBy、descendantOf／ancestorOf。
        字級：viewBox 寬 838，GitHub 顯示寬度約 838px，所以 SVG 字級就是顯示字級（最小 13px）。
-       色票：前端 variables.css 的藏青第二版，淺色與深色各一組（深色用 prefers-color-scheme）。 -->
+       色票：前端 variables.css 的藏青第二版淺色組；只留一組，背景用滿版色塊，GitHub 深色主題下也看得清楚。 -->
   <title>概念圖：Documentation、Technique、Implementation 三個基礎類別與它們之間的基礎關聯</title>
   <desc>三個基礎類別兩兩之間各有一對方向相反的箭頭，每支箭頭標示該方向的述詞。Technique 與 Implementation 各有兩支指回自己的迴圈箭頭，代表同一類別裡兩筆紀錄之間的關聯。</desc>
   <style>
@@ -21,13 +21,6 @@
     .mid { text-anchor: middle; }
     .end { text-anchor: end; }
     .legend { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 13.5px; fill: #3e4758; }
-    @media (prefers-color-scheme: dark) {
-      .bg { fill: #0d1529; }
-      .edge { stroke: #8a93a4; }
-      .arrow-head { fill: #8a93a4; }
-      .verb { fill: #e8edf6; stroke: #0d1529; }
-      .legend { fill: #c8ced9; }
-    }
   </style>
 
   <defs>

@@ -1,12 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 838 840" width="838" height="840" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 838 850" width="838" height="850" role="img">
   <!-- 機制圖：概念圖的邏輯層做法，只畫很少變動的東西。不畫資料表名、欄位名、唯一鍵、外鍵。
        三塊：分類階層與參照碼、述詞（主詞－述詞－受詞，反向，子述詞）、兩種邊（跨基礎類別、同一基礎類別內）。
        「述詞被引用後鎖定」不畫在圖上，寫在 README 的文字裡。
        依據：origin/develop（7c678d5），2026-11-24。
        字級：viewBox 寬 838，GitHub 顯示寬度約 838px，所以 SVG 字級就是顯示字級（最小 13.5px）。
-       色票：前端 variables.css 的藏青第二版，淺色與深色各一組（深色用 prefers-color-scheme），跟概念圖一致。 -->
+       色票：前端 variables.css 的藏青第二版淺色組，跟概念圖一致；只留一組，背景用滿版色塊，GitHub 深色主題下也看得清楚。
+       第二塊畫兩個三元組（實際執行 uses 使用技術、使用技術 usedBy 實際執行），述詞 uses／usedBy 是 RelationSeeder 的真實述詞對，兩者以「互為反向」連接。 -->
   <title>機制圖：分類階層與參照碼、述詞（主詞、受詞、反向、子述詞）、兩種邊（跨基礎類別與同一基礎類別內）</title>
-  <desc>第一塊：類別以指向上層類別的箭頭形成階層，每個類別有一個由類號與子類號組成的參照碼。第二塊：述詞指向主詞類別與受詞類別，有一個反向述詞（雙向各一支箭頭），也可以指向上層述詞形成子述詞。第三塊：邊連接兩筆紀錄，分成跨基礎類別的邊與同一基礎類別內的邊，兩種都帶述詞，同一對紀錄可以同時帶好幾個述詞。</desc>
+  <desc>第一塊：類別以指向上層類別的箭頭形成階層，每個類別有一個由類號與子類號組成的參照碼。第二塊：述詞連接主詞類別與受詞類別；畫兩個三元組（實際執行 uses 使用技術、使用技術 usedBy 實際執行），兩個述詞互為反向，主詞與受詞對調；述詞也可以指向上層述詞形成子述詞。第三塊：邊連接兩筆紀錄，分成跨基礎類別的邊與同一基礎類別內的邊，兩種都帶述詞，同一對紀錄可以同時帶好幾個述詞。</desc>
   <style>
     .bg { fill: #f6f5f2; }
     .panel { fill: #eaeff8; stroke: #c9d0dc; stroke-width: 1.5; }
@@ -24,36 +25,25 @@
     .arrow-head { fill: #6d7686; }
     .verb { font-family: "SFMono-Regular", Consolas, Menlo, "Liberation Mono", monospace; font-size: 15px; font-weight: 500; fill: #202839; stroke: #eaeff8; stroke-width: 5; paint-order: stroke; stroke-linejoin: round; }
     .zh { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 15px; font-weight: 500; fill: #202839; stroke: #eaeff8; stroke-width: 5; paint-order: stroke; stroke-linejoin: round; }
+    .pill { fill: #ffffff; stroke: #6d7686; stroke-width: 1.5; }
+    .pred { font-family: "SFMono-Regular", Consolas, Menlo, "Liberation Mono", monospace; font-size: 15px; font-weight: 700; fill: #202839; text-anchor: middle; }
     .mid { text-anchor: middle; }
     .end { text-anchor: end; }
     .note { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 14px; fill: #3e4758; }
     .legend { font-family: Helvetica, Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 13.5px; fill: #3e4758; }
     .legend-line { fill: none; stroke: #6d7686; stroke-width: 2.5; }
-    @media (prefers-color-scheme: dark) {
-      .bg { fill: #0d1529; }
-      .panel { fill: #1e2c44; stroke: #3a4b69; }
-      .divider { stroke: #3a4b69; }
-      .panel-title { fill: #d7ac66; }
-      .sub-title { fill: #e8edf6; }
-      .box { fill: #0d1529; stroke: #b38637; stroke-width: 2; }
-      .box-doc  { fill: #b34f57; stroke: none; }
-      .box-tech { fill: #007d7d; stroke: none; }
-      .box-impl { fill: #7264b3; stroke: none; }
-      .edge, .legend-line { stroke: #8a93a4; }
-      .arrow-head { fill: #8a93a4; }
-      .verb, .zh { fill: #e8edf6; stroke: #1e2c44; }
-      .note { fill: #c8ced9; }
-      .legend { fill: #c8ced9; }
-    }
   </style>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto">
       <path class="arrow-head" d="M0,0 L10,5 L0,10 z"></path>
     </marker>
+    <marker id="arrow-start" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse">
+      <path class="arrow-head" d="M0,0 L10,5 L0,10 z"></path>
+    </marker>
   </defs>
 
-  <rect class="bg" width="838" height="840"></rect>
+  <rect class="bg" width="838" height="850"></rect>
 
   <!-- ===== 一、分類 ===== -->
   <rect class="panel" x="20" y="20" width="798" height="195" rx="14"></rect>
@@ -74,41 +64,45 @@
   <text class="note" x="40" y="193">最上層是三個基礎類別（參照碼 0000、1000、2000），子類別沿著上層往下細分。</text>
 
   <!-- ===== 二、述詞 ===== -->
-  <rect class="panel" x="20" y="235" width="798" height="290" rx="14"></rect>
+  <rect class="panel" x="20" y="235" width="798" height="300" rx="14"></rect>
   <text class="panel-title" x="40" y="267">二、述詞：主詞、述詞、受詞；每個述詞有反向，也可以有子述詞</text>
 
-  <!-- 述詞 → 主詞類別、受詞類別 -->
-  <path class="edge" d="M 339 360 L 230 360" marker-end="url(#arrow)"></path>
-  <text class="zh mid" x="284" y="350">主詞</text>
-  <path class="edge" d="M 499 360 L 608 360" marker-end="url(#arrow)"></path>
-  <text class="zh mid" x="553" y="350">受詞</text>
+  <!-- 三元組一：實際執行 —uses→ 使用技術 -->
+  <path class="edge" d="M 230 345 L 359 345"></path>
+  <path class="edge" d="M 479 345 L 608 345" marker-end="url(#arrow)"></path>
+  <rect class="box box-impl" x="50" y="315" width="180" height="60" rx="12"></rect>
+  <text class="box-title" x="140" y="343">實際執行</text>
+  <text class="box-sub" x="140" y="364">主詞</text>
+  <rect class="pill" x="359" y="328" width="120" height="34" rx="17"></rect>
+  <text class="pred" x="419" y="350">uses</text>
+  <rect class="box box-tech" x="608" y="315" width="180" height="60" rx="12"></rect>
+  <text class="box-title" x="698" y="343">使用技術</text>
+  <text class="box-sub" x="698" y="364">受詞</text>
 
-  <!-- 述詞指向上層述詞 -->
-  <path class="edge" d="M 380 330 C 380 292, 460 292, 460 330" marker-end="url(#arrow)"></path>
-  <text class="zh" x="476" y="314">隸屬於上層述詞</text>
+  <!-- 述詞指向上層述詞（子述詞） -->
+  <path class="edge" d="M 395 328 C 395 288, 443 288, 443 326" marker-end="url(#arrow)"></path>
+  <text class="zh" x="462" y="308">隸屬於上層述詞</text>
 
-  <!-- 述詞 ⇄ 反向述詞：每個方向各一支 -->
-  <path class="edge" d="M 380 390 L 380 440" marker-end="url(#arrow)"></path>
-  <text class="zh end" x="370" y="420">反向是</text>
-  <path class="edge" d="M 460 440 L 460 390" marker-end="url(#arrow)"></path>
-  <text class="zh" x="470" y="420">反向是</text>
+  <!-- 互為反向：兩個述詞之間的雙向連接 -->
+  <path class="edge" d="M 419 362 L 419 438" marker-start="url(#arrow-start)" marker-end="url(#arrow)"></path>
+  <text class="zh" x="437" y="396">互為反向</text>
+  <text class="note" x="437" y="416">主詞與受詞對調</text>
 
-  <rect class="box" x="50" y="330" width="180" height="60" rx="12"></rect>
-  <text class="box-title" x="140" y="358">主詞類別</text>
-  <text class="box-sub" x="140" y="379">例：實際執行</text>
+  <!-- 三元組二：使用技術 —usedBy→ 實際執行 -->
+  <path class="edge" d="M 230 455 L 359 455"></path>
+  <path class="edge" d="M 479 455 L 608 455" marker-end="url(#arrow)"></path>
+  <rect class="box box-tech" x="50" y="425" width="180" height="60" rx="12"></rect>
+  <text class="box-title" x="140" y="453">使用技術</text>
+  <text class="box-sub" x="140" y="474">主詞</text>
+  <rect class="pill" x="359" y="438" width="120" height="34" rx="17"></rect>
+  <text class="pred" x="419" y="460">usedBy</text>
+  <rect class="box box-impl" x="608" y="425" width="180" height="60" rx="12"></rect>
+  <text class="box-title" x="698" y="453">實際執行</text>
+  <text class="box-sub" x="698" y="474">受詞</text>
 
-  <rect class="box" x="339" y="330" width="160" height="60" rx="12"></rect>
-  <text class="box-title" x="419" y="358">述詞</text>
-  <text class="box-sub" x="419" y="379">例：uses</text>
+  <text class="note" x="40" y="515">uses 的主詞是實際執行、受詞是使用技術；它的反向述詞 usedBy 把兩端對調。</text>
 
-  <rect class="box" x="608" y="330" width="180" height="60" rx="12"></rect>
-  <text class="box-title" x="698" y="358">受詞類別</text>
-  <text class="box-sub" x="698" y="379">例：使用技術</text>
-
-  <rect class="box" x="339" y="440" width="160" height="60" rx="12"></rect>
-  <text class="box-title" x="419" y="468">反向述詞</text>
-  <text class="box-sub" x="419" y="489">例：usedBy</text>
-
+  <g transform="translate(0 10)">
   <!-- ===== 三、邊 ===== -->
   <rect class="panel" x="20" y="545" width="798" height="240" rx="14"></rect>
   <text class="panel-title" x="40" y="577">三、邊：連接兩筆紀錄，兩種邊都帶述詞</text>
@@ -151,4 +145,5 @@
   <!-- ===== 圖例 ===== -->
   <line class="legend-line" x1="20" y1="808" x2="60" y2="808" marker-end="url(#arrow)"></line>
   <text class="legend" x="74" y="813">箭頭由起點指向終點，旁邊的字說明這一步的關係；子類別、子述詞與例子見 README 的表格。</text>
+  </g>
 </svg>
