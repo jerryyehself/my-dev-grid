@@ -483,42 +483,177 @@ class ArticleSourceImportTest extends TestCase
         $this->assertCount(2, $this->githubRequests('/compare/'));
     }
 
-    #[TestDox('歷史被改寫（兩個 commit 互不包含）時不擋更新')]
-    public function test_diverged_history_does_not_block_update(): void
+    #[TestDox('歷史被改寫（兩個 commit 互不包含）時回 409，帶站上記的 commit 確認後才更新')]
+    public function test_diverged_history_requires_confirmation(): void
     {
-        [$documentation, $v2, $c2] = $this->importedFromNewerCommit();
+        [$documentation, $v2, $c2, , $c3] = $this->importedFromNewerCommit();
         $this->overrideGitHub(fn (Request $request) => str_contains($request->url(), '/compare/')
             ? Http::response(['status' => 'diverged', 'ahead_by' => 1, 'behind_by' => 1])
             : null);
+        $this->captureLogs();
 
-        $this->import([$this->item('the-post', $v2, 'update')], $c2)->assertOk();
+        $this->assertUnverified($this->import([$this->item('the-post', $v2, 'update')], $c2), [0 => $c3]);
+        $this->assertSame("第三版內文。\n", $documentation->refresh()->body);
+        $this->assertSame($c3, $documentation->source_commit_sha);
+        $this->assertUnverifiedLogged([['documentation_id' => $documentation->id, 'relation' => 'diverged']]);
+        $this->assertNoSecurityEvent('authz_admin');
 
+        $this->import([$this->item('the-post', $v2, 'update', ['confirm_unverified_base' => $c3])], $c2)->assertOk();
         $this->assertSame("第二版內文。\n", $documentation->refresh()->body);
+        $this->assertSame($c2, $documentation->source_commit_sha);
     }
 
-    #[TestDox('站上記的 commit GitHub 已經查不到時不擋更新')]
-    public function test_imported_commit_unknown_to_github_does_not_block_update(): void
+    #[TestDox('站上記的 commit GitHub 已經查不到時回 409，帶那個 commit 確認後才更新')]
+    public function test_imported_commit_unknown_to_github_requires_confirmation(): void
     {
         [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $gone = str_repeat('2', 40);
+        $documentation->forceFill(['source_commit_sha' => $gone])->save();
         $this->actingAsOwner();
+        $this->captureLogs();
 
-        $this->import([$this->item('the-post', $content, 'update')], $commit)->assertOk();
+        $this->assertUnverified($this->import([$this->item('the-post', $content, 'update')], $commit), [0 => $gone]);
+        $this->assertSame("舊版內文。\n", $documentation->refresh()->body);
+        $this->assertCount(1, $this->githubRequests('/compare/'.$gone.'...'.$commit));
+        $this->assertUnverifiedLogged([['documentation_id' => $documentation->id, 'relation' => 'unknown']]);
 
+        $this->import([$this->item('the-post', $content, 'update', ['confirm_unverified_base' => $gone])], $commit)->assertOk();
         $this->assertSame("新版內文。\n", $documentation->refresh()->body);
-        $this->assertCount(1, $this->githubRequests('/compare/'.str_repeat('2', 40).'...'.$commit));
+        $this->assertSame($commit, $documentation->source_commit_sha);
     }
 
-    #[TestDox('站上記的 commit 不是 SHA 格式時不組進 GitHub 網址，也不擋更新')]
+    #[TestDox('站上記的 commit 不是 SHA 格式時不組進 GitHub 網址，回 409 且不能確認')]
     public function test_malformed_imported_commit_is_not_sent_to_github(): void
     {
         [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
         $documentation->forceFill(['source_commit_sha' => '../../main'])->save();
         $this->actingAsOwner();
+        $this->captureLogs();
 
-        $this->import([$this->item('the-post', $content, 'update')], $commit)->assertOk();
+        $response = $this->import([$this->item('the-post', $content, 'update')], $commit)
+            ->assertConflict()
+            ->assertJsonPath('reason', 'conflict');
+        $this->assertSame(['items.0.action'], array_keys($response->json('errors')));
+        // 帶不回來的值不列給用戶端
+        $response->assertJsonMissingPath('unverified_commits');
+        $this->assertUnverifiedLogged([['documentation_id' => $documentation->id, 'relation' => 'unknown']]);
+        // 任何 SHA 格式的確認都對不上
+        $this->import([$this->item('the-post', $content, 'update', ['confirm_unverified_base' => str_repeat('2', 40)])], $commit)
+            ->assertConflict()
+            ->assertJsonStructure(['errors' => ['items.0.action']]);
 
-        $this->assertSame("新版內文。\n", $documentation->refresh()->body);
+        $this->assertSame("舊版內文。\n", $documentation->refresh()->body);
+        // 欄位是 char(40)，PostgreSQL 讀回來會補空白
+        $this->assertSame('../../main', rtrim($documentation->source_commit_sha));
         $this->assertSame([], $this->githubRequests('/compare/'));
+    }
+
+    #[TestDox('確認的 commit 跟站上記的不同時回 409，附上站上目前記的 commit')]
+    public function test_confirmation_for_another_commit_is_rejected(): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $gone = str_repeat('2', 40);
+        $documentation->forceFill(['source_commit_sha' => $gone])->save();
+        $this->actingAsOwner();
+
+        // 別的 commit、這次的 commit、只差最後一個字元的 commit
+        foreach ([str_repeat('3', 40), $commit, substr($gone, 0, 39).'3'] as $wrong) {
+            $response = $this->assertUnverified($this->import([$this->item('the-post', $content, 'update', ['confirm_unverified_base' => $wrong])], $commit), [0 => $gone]);
+            $this->assertStringContainsString('不是確認時的那一個', $response->json('errors')['items.0.confirm_unverified_base'][0]);
+        }
+
+        $this->assertSame("舊版內文。\n", $documentation->refresh()->body);
+        $this->assertSame($gone, $documentation->source_commit_sha);
+    }
+
+    #[TestDox('站上已經匯入較新的版本時，帶了確認也回 409')]
+    public function test_confirmation_does_not_allow_an_older_commit(): void
+    {
+        [$documentation, $v2, $c2, , $c3] = $this->importedFromNewerCommit();
+        $this->captureLogs();
+
+        $response = $this->import([$this->item('the-post', $v2, 'update', ['confirm_unverified_base' => $c3])], $c2)
+            ->assertConflict()
+            ->assertJsonPath('reason', 'conflict');
+        $this->assertSame(['items.0.action'], array_keys($response->json('errors')));
+        $response->assertJsonMissingPath('unverified_commits');
+
+        $this->assertSame("第三版內文。\n", $documentation->refresh()->body);
+        $this->assertSame($c3, $documentation->source_commit_sha);
+        // 判斷得出先後（behind），不算判斷不出來，不記那一行
+        $this->assertSame([], $this->unverifiedLogs());
+    }
+
+    #[TestDox('確認之後、寫入之前那一篇被匯入了別的版本：回 409，不寫入')]
+    public function test_import_landing_after_confirmation_is_a_conflict(): void
+    {
+        [$documentation, $v2, $c2, , $c3] = $this->importedFromNewerCommit();
+        $v5 = self::article('the-post', '第五版', "第五版內文。\n");
+        $c5 = $this->publishSourceFiles(['post.md' => $v5]);
+        $downloads = 0;
+        $this->overrideGitHub(function (Request $request) use ($documentation, $c2, $c5, $v5, &$downloads) {
+            if (str_contains($request->url(), '/compare/')) {
+                return Http::response(['status' => 'diverged', 'ahead_by' => 1, 'behind_by' => 1]);
+            }
+            // 比對（c3...c2）之後、下載要寫入的內容時，另一個請求先把 c5 寫進去
+            if (str_contains($request->url(), '/contents/') && str_contains($request->url(), 'ref='.$c2) && ++$downloads === 2) {
+                $fifth = ['title' => '第五版', 'body' => "第五版內文。\n"];
+                Documentation::whereKey($documentation->id)->update($fifth + [
+                    'source_blob_sha' => self::blobSha($v5), 'source_commit_sha' => $c5,
+                    'source_body_hash' => ArticleSourceService::importedContentHash((clone $documentation)->forceFill($fifth)),
+                ]);
+            }
+
+            return null;
+        });
+
+        $response = $this->import([$this->item('the-post', $v2, 'update', ['confirm_unverified_base' => $c3])], $c2)
+            ->assertConflict()
+            ->assertJsonStructure(['errors' => ['items.0.action']]);
+        $response->assertJsonMissingPath('unverified_commits');
+
+        $this->assertSame(2, $downloads);
+        $this->assertSame("第五版內文。\n", $documentation->refresh()->body);
+        $this->assertSame($c5, $documentation->source_commit_sha);
+    }
+
+    #[TestDox('同一批裡只有判斷不出先後的那一項要確認，unverified_commits 標出它的索引')]
+    public function test_unverified_commits_point_at_the_right_items(): void
+    {
+        [$known, $knownContent] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $other = self::article('other-post', '另一篇新版', "另一篇新版內文。\n");
+        $commit = $this->publishSourceFiles(['post.md' => $knownContent, 'other.md' => $other]);
+        $gone = str_repeat('2', 40);
+        $unknown = Documentation::factory()->create(['type' => $this->post->id, 'title' => '另一篇', 'body' => "另一篇舊版。\n"]);
+        $unknown->forceFill([
+            'source_repo' => $this->sourceRepo, 'source_key' => 'other-post', 'source_path' => 'other.md',
+            'source_blob_sha' => str_repeat('1', 40), 'source_commit_sha' => $gone,
+            'source_body_hash' => ArticleSourceService::importedContentHash($unknown),
+        ])->save();
+        $this->actingAsOwner();
+        $items = [$this->item('the-post', $knownContent, 'update'), $this->item('other-post', $other, 'update')];
+
+        $this->assertUnverified($this->import($items, $commit), [1 => $gone]);
+        $this->assertSame("舊版內文。\n", $known->refresh()->body);
+        $this->assertSame("另一篇舊版。\n", $unknown->refresh()->body);
+
+        $items[1]['confirm_unverified_base'] = $gone;
+        $this->import($items, $commit)->assertOk();
+        $this->assertSame("新版內文。\n", $known->refresh()->body);
+        $this->assertSame("另一篇新版內文。\n", $unknown->refresh()->body);
+    }
+
+    #[TestDox('判斷得出這次比較新時，帶不帶確認都照常更新')]
+    public function test_confirmation_is_ignored_when_the_order_is_known(): void
+    {
+        [$documentation, , , , $c3] = $this->importedFromNewerCommit();
+        $v4 = self::article('the-post', '第四版', "第四版內文。\n");
+        $c4 = $this->publishSourceFiles(['post.md' => $v4]);
+
+        $this->import([$this->item('the-post', $v4, 'update', ['confirm_unverified_base' => str_repeat('3', 40)])], $c4)->assertOk();
+
+        $this->assertSame("第四版內文。\n", $documentation->refresh()->body);
+        $this->assertCount(1, $this->githubRequests("/compare/{$c3}...{$c4}"));
     }
 
     /** @return iterable<string, array{Closure(): mixed, int, string}> */
@@ -793,6 +928,23 @@ class ArticleSourceImportTest extends TestCase
         foreach ($badVersions as $label => $bad) {
             yield "expected_site_version {$label}" => [['commit_sha' => $sha, 'items' => [['overwrite_site_edits' => true, 'expected_site_version' => $bad] + $item]], 'items.0.expected_site_version'];
         }
+        yield 'create 帶了 confirm_unverified_base' => [['commit_sha' => $sha, 'items' => [['confirm_unverified_base' => $sha] + $item]], 'items.0.confirm_unverified_base'];
+        yield 'link 帶了 confirm_unverified_base' => [['commit_sha' => $sha, 'items' => [['action' => 'link', 'documentation_id' => 1, 'confirm_unverified_base' => $sha] + $item]], 'items.0.confirm_unverified_base'];
+        $update = ['action' => 'update'] + $item;
+        $badBases = [
+            '39 位' => substr($sha, 1),
+            '41 位' => $sha.'a',
+            '大寫' => strtoupper($sha),
+            '不是 hex' => str_repeat('g', 40),
+            '64 位的 site_version' => $version,
+            '不是 SHA 的 ref' => '../../main',
+            '整數' => 1,
+            '布林' => true,
+            '陣列' => [$sha],
+        ];
+        foreach ($badBases as $label => $bad) {
+            yield "confirm_unverified_base {$label}" => [['commit_sha' => $sha, 'items' => [['confirm_unverified_base' => $bad] + $update]], 'items.0.confirm_unverified_base'];
+        }
     }
 
     /** @param  array<string, mixed>  $payload */
@@ -855,19 +1007,20 @@ class ArticleSourceImportTest extends TestCase
     }
 
     /**
-     * 已連結、來源有新版的文章。
+     * 已連結、來源有新版的文章。站上記的 commit 是來源歷史裡較早的一個，比對先後是 `ahead`。
      *
      * @param  array<string, string>  $extraFiles
      * @return array{0: Documentation, 1: string, 2: string}
      */
     private function changedArticle(int $status, array $extraFiles = []): array
     {
+        $imported = $this->publishSourceFiles(['post.md' => self::article('the-post', '舊版標題', "舊版內文。\n")]);
         $content = self::article('the-post', '新版標題', "新版內文。\n");
         $commit = $this->publishSourceFiles(['post.md' => $content] + $extraFiles);
         $documentation = Documentation::factory()->create(['type' => $this->post->id, 'title' => '舊版標題', 'body' => "舊版內文。\n", 'status' => $status]);
         $documentation->forceFill([
             'source_repo' => $this->sourceRepo, 'source_key' => 'the-post', 'source_path' => 'post.md',
-            'source_blob_sha' => str_repeat('1', 40), 'source_commit_sha' => str_repeat('2', 40),
+            'source_blob_sha' => str_repeat('1', 40), 'source_commit_sha' => $imported,
             'source_body_hash' => ArticleSourceService::importedContentHash($documentation),
         ])->save();
 
@@ -897,6 +1050,50 @@ class ArticleSourceImportTest extends TestCase
         $this->assertSame($c3, $documentation->source_commit_sha);
 
         return [$documentation, $v2, $c2, $v3, $c3];
+    }
+
+    /**
+     * 409、`reason: conflict`，要確認的項目在 `errors` 的 key 是 `items.N.confirm_unverified_base`，
+     * `unverified_commits` 剛好列出這些項目與站上記的 commit。
+     *
+     * @param  array<int, string>  $expected  請求項目的索引 => 站上記的 commit
+     */
+    private function assertUnverified(TestResponse $response, array $expected): TestResponse
+    {
+        $response->assertConflict()->assertJsonPath('reason', 'conflict');
+        $this->assertSame(
+            array_map(fn (int $i) => "items.{$i}.confirm_unverified_base", array_keys($expected)),
+            array_keys($response->json('errors')),
+        );
+        $this->assertSame(
+            array_map(fn (int $i, string $sha) => ['index' => $i, 'commit_sha' => $sha], array_keys($expected), $expected),
+            $response->json('unverified_commits'),
+        );
+        // 是 JSON 陣列（不是以索引為 key 的物件），經過 ProblemDetails 重新編碼也一樣
+        $this->assertStringContainsString('"unverified_commits":[{"index":', $response->getContent());
+
+        return $response;
+    }
+
+    /** @return list<MessageLogged> 判斷不出 commit 先後時記的那一行 */
+    private function unverifiedLogs(): array
+    {
+        return array_values(array_filter(
+            $this->capturedLogs,
+            fn (MessageLogged $message) => str_contains($message->message, '判斷不出來源 commit 的先後'),
+        ));
+    }
+
+    /** @param  list<array{documentation_id: int, relation: string}>  $items */
+    private function assertUnverifiedLogged(array $items): void
+    {
+        $logs = $this->unverifiedLogs();
+        $this->assertCount(1, $logs);
+        $this->assertSame('warning', $logs[0]->level);
+        $this->assertSame(['items' => $items], $logs[0]->context);
+        // 不寫內文、標題與來源路徑
+        $this->assertNotLogged('內文');
+        $this->assertNotLogged('post.md');
     }
 
     /** 清單上這一項的 `site_version`（只有 conflict 的項目有）。 */

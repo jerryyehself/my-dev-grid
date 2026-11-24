@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -42,7 +43,9 @@ use Illuminate\Validation\ValidationException;
  * - `invalid`：選擇了匯入但不能匯入（原因見 `ArticleSourceParser::INVALID_REASONS`）。
  *
  * 匯入一律寫成草稿；更新既有文章時不改它的發布狀態（已發布的文章會直接換成新內容）。
- * 更新時，這次的 commit 不能比站上上次匯入的 commit 舊（見 `importedCommitRelations()`）。
+ * 更新時，這次的 commit 不能比站上上次匯入的 commit 舊（見 `importedCommitRelations()`）；
+ * 判斷不出先後（歷史改寫過、GitHub 查不到站上記的 commit）時，要帶上站上記的那個 commit 確認過才更新
+ * （見 `unverifiedBase()`）。
  * 新增與更新時，另外依 front matter 的 `about_techniques`、`about_projects` 補上文章到技術與專案的連結
  * （規則見 `ArticleAboutLinker`），並把內文切成段落單位存進 `article_units`（`ArticleUnitSync`）；
  * 連結（`link`）只寫來源欄位，不讀內容，也就不建這些連結、不存段落單位。
@@ -118,10 +121,10 @@ final class ArticleSourceService
     /**
      * 照清單上的選擇匯入。全部檢查過才寫入，任何一項不行就整批不寫。
      *
-     * @param  list<array{key: string, expected_blob_sha: string, action: string, documentation_id?: int|string|null, overwrite_site_edits?: bool|null, expected_site_version?: string|null}>  $requested
+     * @param  list<array{key: string, expected_blob_sha: string, action: string, documentation_id?: int|string|null, overwrite_site_edits?: bool|null, expected_site_version?: string|null, confirm_unverified_base?: string|null}>  $requested
      * @return list<array<string, mixed>>
      *
-     * @throws ArticleSourceException 清單過期、狀態變了、站上已經匯入較新的版本（409）或 GitHub 出錯（5xx）
+     * @throws ArticleSourceException 清單過期、狀態變了、站上已經匯入較新的版本、判斷不出先後而沒有確認（409）或 GitHub 出錯（5xx）
      * @throws ValidationException 要連結的文章不存在或已刪除
      */
     public function import(string $commitSha, array $requested): array
@@ -220,6 +223,7 @@ final class ArticleSourceService
         $presentKeys = array_keys($validFiles);
 
         $conflicts = [];
+        $unverified = [];
         $targets = [];
         foreach ($requested as $i => $item) {
             $entry = $statuses[$item['key']];
@@ -239,6 +243,17 @@ final class ArticleSourceService
                     } elseif (($older = self::olderThanImported($entry['row'], $commitSha, $importedCommits)) !== null) {
                         // 放在 overwrite_site_edits 之前：覆蓋站上的修改也不能順便把文章倒回舊版
                         $conflicts[$field] = [$older];
+                    } elseif (($base = self::unverifiedBase($entry['row'], $commitSha, $importedCommits)) !== null
+                        && ! self::confirmsBase($base, $item['confirm_unverified_base'] ?? null)) {
+                        // 同樣放在 overwrite_site_edits 之前：先後判斷不出來，覆蓋站上的修改也不代表確認了先後
+                        $unverified[$i] = ['row' => $entry['row'], 'relation' => $importedCommits[$base]];
+                        if (preg_match(self::SHA_PATTERN, $base) !== 1) {
+                            $conflicts[$field] = ['站上記的來源 commit 格式不正確，無法比對先後，也不能確認後更新。'];
+                        } else {
+                            $conflicts["items.{$i}.confirm_unverified_base"] = [($item['confirm_unverified_base'] ?? null) === null
+                                ? '無法確認這個版本是否比站上上次匯入的新（來源 repo 的歷史可能被改寫過）。確定要用這個版本更新，請帶上 confirm_unverified_base。'
+                                : '站上這篇記的來源 commit 已經不是確認時的那一個，請重新確認。'];
+                        }
                     } elseif ($status === self::STATUS_CONFLICT && ($item['overwrite_site_edits'] ?? false) !== true) {
                         $conflicts["items.{$i}.overwrite_site_edits"] = ['站上的標題、日期或內文在上次匯入之後改過，要覆蓋請明確設定 overwrite_site_edits。'];
                     } elseif ($status === self::STATUS_CONFLICT && ! self::sameSiteVersion($entry['row'], $item['expected_site_version'] ?? null)) {
@@ -272,8 +287,14 @@ final class ArticleSourceService
                     break;
             }
         }
+        if ($unverified !== []) {
+            // 不寫內文與標題，只記文章 id 與比對結果：要數得出這種情況多常發生
+            Log::warning('文章匯入：判斷不出來源 commit 的先後，沒有確認，整批不寫入。', [
+                'items' => array_values(array_map(fn (array $u) => ['documentation_id' => $u['row']->id, 'relation' => $u['relation']], $unverified)),
+            ]);
+        }
         if ($conflicts !== []) {
-            throw ArticleSourceException::conflict($conflicts);
+            throw ArticleSourceException::conflict($conflicts, self::unverifiedCommits($unverified));
         }
 
         $post = null;
@@ -559,7 +580,8 @@ final class ArticleSourceService
      * @param  array{token: string, repo: string, ref: string}  $config
      * @param  list<array<string, mixed>>  $requested
      * @return array<string, string> 站上記的 commit => `ahead`（這次的較新）、`behind`（這次的較舊）、
-     *                               `diverged`（互不包含）、`unknown`（GitHub 查不到站上記的 commit）
+     *                               `identical`、`diverged`（互不包含）、`unknown`（GitHub 查不到站上記的 commit，
+     *                               或站上記的值不是 SHA 格式）
      */
     private function importedCommitRelations(array $config, string $commitSha, array $requested): array
     {
@@ -590,10 +612,9 @@ final class ArticleSourceService
 
     /**
      * 這次的 commit 比站上記的舊，或站上記的 commit 已經不是比對過的那一個（比對完到上鎖之間又被匯入）時，
-     * 回傳不能更新的原因。
+     * 回傳不能更新的原因。這兩種情況確認也不能放行。
      *
-     * 互不包含（`diverged`）與 GitHub 查不到站上記的 commit（`unknown`）不擋：來源 repo 改寫過歷史之後，
-     * 新的 commit 跟站上記的舊 commit 都會是這樣，擋下來就再也更新不了。
+     * 互不包含（`diverged`）與 GitHub 查不到站上記的 commit（`unknown`）不在這裡擋，由 `unverifiedBase()` 要求確認。
      *
      * @param  array<string, string>  $importedCommits  `importedCommitRelations()` 的結果
      */
@@ -609,6 +630,62 @@ final class ArticleSourceService
             'behind' => '站上這篇已經用比這個版本新的 commit 匯入過，不能用較舊的版本覆蓋。要退回舊內容，請在來源 repo 另外 commit。',
             default => null,
         };
+    }
+
+    /**
+     * 判斷不出這次的 commit 跟站上記的 commit 誰新（`diverged`、`unknown`）時，回傳站上記的 commit；
+     * 判斷得出來（或不用判斷）時回傳 null。
+     *
+     * 不直接放行：舊的匯入請求重送時剛好碰上這種情況，就會把文章倒回舊版。也不一律擋下：來源 repo
+     * 改寫過歷史之後，新的 commit 跟站上記的舊 commit 都會是這樣，擋下來就再也更新不了。
+     * 所以要求用戶端帶回站上記的那個 commit 表示確認過（`confirmsBase()`）。
+     * 只在 `olderThanImported()` 放行之後呼叫，站上記的 commit 一定是比對過的那一個。
+     *
+     * @param  array<string, string>  $importedCommits  `importedCommitRelations()` 的結果
+     */
+    private static function unverifiedBase(Documentation $row, string $commitSha, array $importedCommits): ?string
+    {
+        $imported = $row->source_commit_sha;
+        if (! is_string($imported) || $imported === $commitSha) {
+            return null;
+        }
+
+        return in_array($importedCommits[$imported] ?? null, ['diverged', 'unknown'], true) ? $imported : null;
+    }
+
+    /**
+     * 用戶端確認的是不是站上目前記的這個 commit。
+     *
+     * 綁定 commit 而不是只帶 true：收到 409 之後、確認之前，這篇可能又被別人用另一個 commit 匯入過，
+     * 跟這次的 commit 一樣判斷不出先後；只帶 true 的話，確認就會套到使用者沒看過的那個版本上。
+     * 站上記的值不是 SHA 格式時，請求驗證不讓這種值進來，永遠對不上。
+     */
+    private static function confirmsBase(string $base, ?string $confirmed): bool
+    {
+        return is_string($confirmed) && hash_equals($base, $confirmed);
+    }
+
+    /**
+     * 409 回應附上的 `unverified_commits`：判斷不出先後、可以確認後更新的項目，各自要帶回的 commit。
+     *
+     * 寫成清單而不是以索引為 key 的物件：錯誤回應會再經過 `ProblemDetails` 解碼、重新編碼，
+     * key 剛好是 0、1、2… 的物件會變成 JSON 陣列，形狀會跟著有幾項而變。
+     * 站上記的值不是 SHA 格式的項目不列：請求驗證不收這種值，列出來也帶不回來。
+     *
+     * @param  array<int, array{row: Documentation, relation: string}>  $unverified  請求項目的索引 => 那一篇
+     * @return array{unverified_commits?: list<array{index: int, commit_sha: string}>}
+     */
+    private static function unverifiedCommits(array $unverified): array
+    {
+        $commits = [];
+        foreach ($unverified as $i => $u) {
+            $base = (string) $u['row']->source_commit_sha;
+            if (preg_match(self::SHA_PATTERN, $base) === 1) {
+                $commits[] = ['index' => $i, 'commit_sha' => $base];
+            }
+        }
+
+        return $commits === [] ? [] : ['unverified_commits' => $commits];
     }
 
     /**

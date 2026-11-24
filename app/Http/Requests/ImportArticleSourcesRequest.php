@@ -56,6 +56,15 @@ class ImportArticleSourcesRequest extends FormRequest
             // 重新整理清單也補不出這個欄位，要改的是用戶端
             /** 清單項目的 `site_version`。`overwrite_site_edits` 為 true 時必填；站上的標題、日期或內文在列出清單之後又改過時回 409。 */
             'items.*.expected_site_version' => ['required_if_accepted:items.*.overwrite_site_edits', 'nullable', 'string', 'regex:/^[0-9a-f]{64}$/'],
+            // 只收 SHA 格式：值要跟站上記的 commit 逐字比對，大寫或縮寫的 SHA 都對不上，不如在這裡就退回
+            /** 只有 `update` 可以帶。判斷不出這次的 `commit_sha` 跟站上那篇上次匯入時的 commit 誰新時（來源 repo 的歷史改寫過、或 GitHub 已經查不到那個 commit），匯入回 409 並在 `unverified_commits` 附上站上記的 commit；確認要用這個版本更新，就把那個值原樣放在這裡。 */
+            'items.*.confirm_unverified_base' => [
+                'bail',
+                'prohibited_unless:items.*.action,'.ArticleSourceService::ACTION_UPDATE,
+                'nullable',
+                'string',
+                'regex:/^[0-9a-f]{40}$/',
+            ],
         ];
     }
 }
