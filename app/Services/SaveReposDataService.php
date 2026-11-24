@@ -6,6 +6,7 @@ use App\Models\Documentation;
 use App\Models\EntityRelation;
 use App\Models\Implementation;
 use App\Models\Relation;
+use App\Models\ResLabel;
 use App\Models\Scope;
 use App\Models\Technique;
 use Closure;
@@ -210,12 +211,16 @@ class SaveReposDataService
             }
 
             // $packageVersion 是套件清單檔讀到的主版號（只有 Vue、Nuxt、Bootstrap 會有，見 PackageTechniqueMap）。
-            // AUTHORITY 已經指定版本的名稱（vue3、nuxt3…）以 AUTHORITY 為準
-            $resolve = function (string $name, string $defaultScope, ?string $packageVersion = null) use ($requiresRelationId, $specsRelationId, $isVersionOfRelationId): Technique {
+            // AUTHORITY 已經指定版本的名稱（vue3、nuxt3…）以 AUTHORITY 為準。
+            // 回 null 的名稱這次同步跳過（見 find_or_create_technique()）
+            $resolve = function (string $name, string $defaultScope, ?string $packageVersion = null) use ($requiresRelationId, $specsRelationId, $isVersionOfRelationId): ?Technique {
                 [$title, $scopeName, $version] = self::AUTHORITY[mb_strtolower($name)] ?? [$name, $defaultScope, null];
                 $version ??= $packageVersion;
 
                 $base = $this->find_or_create_technique($title, $scopeName);
+                if ($base === null) {
+                    return null;
+                }
                 $this->link_framework_to_base_language($base, $requiresRelationId);
                 $this->link_official_docs($base, $specsRelationId);
 
@@ -224,7 +229,13 @@ class SaveReposDataService
                 }
 
                 $versioned = $this->find_or_create_technique($title, $scopeName, $version);
-                $this->linkTechniques($versioned, $base, $isVersionOfRelationId);
+                if ($versioned === null) {
+                    return null;
+                }
+                // 停用的版本改用的可能就是不分版本的那一筆，不要連成自己 isVersionOf 自己
+                if ($versioned->id !== $base->id) {
+                    $this->linkTechniques($versioned, $base, $isVersionOfRelationId);
+                }
 
                 return $versioned;
             };
@@ -232,17 +243,19 @@ class SaveReposDataService
             // 解析順序照舊：語言、topic、套件。順序決定新技術建立的先後，跟述詞無關
             $languageTechniques = collect($repo['languages'] ?? [])
                 ->reject(fn ($language) => $this->is_ignored_language($language))
-                ->map(fn ($language) => $resolve($language, 'language'));
+                ->map(fn ($language) => $resolve($language, 'language'))
+                ->filter();
             // 是 FRAMEWORK_BASE_LANGUAGE 已知的 framework/library topic 就歸類到
             // framework scope，其餘 topic（package/build tool 等）才落回 packagetool。
             // AUTHORITY 裡有的以 AUTHORITY 為準。
             $topicTechniques = collect($repo['topics'] ?? [])->map(fn ($topic) => $resolve(
                 $topic,
                 array_key_exists($topic, self::FRAMEWORK_BASE_LANGUAGE) ? 'framework' : 'packagetool',
-            ));
+            ))->filter();
             // 套件清單裡有、而且在對照表（config/package_technologies.php）裡的套件，補上它們代表的技術
             $packageTechniques = collect(PackageTechniqueMap::techniquesFor($repo['packages'] ?? [], $repo['package_versions'] ?? []))
-                ->map(fn (array $technique) => $resolve($technique[0], $technique[1], $technique[2] ?? null));
+                ->map(fn (array $technique) => $resolve($technique[0], $technique[1], $technique[2] ?? null))
+                ->filter();
 
             // 程式證據：語言統計與套件。用小寫 title、不看版本，topic 的 Vue 跟套件的 Vue 3 算同一個技術
             $codeTitles = $languageTechniques->concat($packageTechniques)
@@ -393,21 +406,81 @@ class SaveReposDataService
     }
 
     /**
-     * 比對既有技術時不分大小寫、也不看 scope：`TypeScript`（語言）跟 topic `typescript` 是
-     * 同一個技術。版本要完全相同（null 對 null），Vue 跟 Vue 3 是兩筆。
+     * 找出這個名稱對應的技術，都找不到才建立。依序試：
+     *
+     * 1. 正式名：`lower(title)` 相同、版本也完全相同（null 對 null，Vue 跟 Vue 3 是兩筆）。不分大小寫、也不看
+     *    scope：`TypeScript`（語言）跟 topic `typescript` 是同一個技術。對到已停用的，沿改用換成仍在使用的那一筆
+     *    （`Technique::inUse()`）；仍在使用的優先。
+     * 2. 詞表的別名（`res_labels`）：名稱（含版本，`Technique::labelFrom()`）正規化後跟別名相同。正式名從
+     *    `tailwind` 改成 `Tailwind CSS`、舊名留成別名之後，同步才不會另外建一筆 `tailwind`。
+     * 3. 都沒有才建立。
+     *
+     * 回 null，由呼叫端跳過這個名稱（不建立、不連邊，舊的邊照常留著）：
+     * - 正式名只對到停用而找不到可用改用對象的技術（例如只停用、不取代的誤判語言），別名也沒對上。不能另建一筆同名的，
+     *   那等於把停用的技術又建回來。
+     * - 別名對到不只一筆技術（同形異義）。不猜，也不另建一筆，那會變成第三個同名節點。
+     *
+     * 版本那一筆用自己的正式名或別名比對，不會從不分版本那一筆的別名推過去：不分版本的改正式名時，版本那幾筆要一起改，
+     * 或各自加上舊名的別名。
      */
-    private function find_or_create_technique(string $title, string $scopeName, ?string $version = null): Technique
+    private function find_or_create_technique(string $title, string $scopeName, ?string $version = null): ?Technique
     {
-        $existing = Technique::whereRaw('lower(title) = ?', [mb_strtolower($title)])
+        $byTitle = Technique::whereRaw('lower(title) = ?', [mb_strtolower($title)])
             ->when($version === null, fn ($q) => $q->whereNull('version'), fn ($q) => $q->where('version', $version))
             ->orderBy('id')
-            ->first();
+            ->get();
 
-        return $existing ?? Technique::create([
+        $inUse = $byTitle->sortBy(fn (Technique $technique) => $technique->isDeprecated())
+            ->map(fn (Technique $technique) => $technique->inUse())
+            ->filter()
+            ->first();
+        if ($inUse !== null) {
+            return $inUse;
+        }
+
+        $byLabel = $this->techniques_by_label(Technique::labelFrom($title, $version));
+        if ($byLabel->count() === 1) {
+            return $byLabel->first();
+        }
+        if ($byLabel->count() > 1) {
+            Log::warning("「{$title}」是不只一個技術的別名，這次同步不連它。", ['technique_ids' => $byLabel->pluck('id')->all()]);
+
+            return null;
+        }
+
+        if ($byTitle->isNotEmpty()) {
+            Log::info("「{$title}」對到的技術已停用，而且沒有可用的改用對象，這次同步不連它。", ['technique_ids' => $byTitle->pluck('id')->all()]);
+
+            return null;
+        }
+
+        return Technique::create([
             'type' => $this->scope_id($scopeName),
             'title' => $title,
             'version' => $version,
         ]);
+    }
+
+    /**
+     * 別名（正規化後）跟 $name 相同的技術，已停用的換成改用對象、找不到可用改用對象的拿掉，同一筆只留一次。
+     *
+     * @return Collection<int, Technique>
+     */
+    private function techniques_by_label(string $name): Collection
+    {
+        $key = NomenResolver::normalize($name);
+        if ($key === '') {
+            return collect();
+        }
+
+        $ids = ResLabel::where('res_type', 'technique')->where('normalized', $key)->pluck('res_id');
+
+        // Technique 的 SoftDeletes 會濾掉已刪除的技術：別名表沒有外鍵，可能還指著它們
+        return Technique::whereIn('id', $ids)->orderBy('id')->get()
+            ->map(fn (Technique $technique) => $technique->inUse())
+            ->filter()
+            ->unique('id')
+            ->values();
     }
 
     /**
@@ -424,6 +497,9 @@ class SaveReposDataService
         }
 
         $baseLanguage = $this->find_or_create_technique($baseLanguageName, 'language');
+        if ($baseLanguage === null) {
+            return;
+        }
 
         $this->linkTechniques($framework, $baseLanguage, $requiresRelationId);
     }

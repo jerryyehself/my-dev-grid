@@ -149,6 +149,41 @@ class ArticleSourceAboutRelationsTest extends TestCase
         $this->assertSame([], $this->links($table, $column, $response->json('data.0.documentation_id')));
     }
 
+    #[TestDox('對到已停用的技術時，連到改用對象（E5 Procfile → Heroku）；只停用沒有改用對象的警告、不連')]
+    public function test_deprecated_techniques_link_to_their_replacement(): void
+    {
+        $procfile = $this->target('technique', 'Procfile');
+        $heroku = $this->target('technique', 'Heroku');
+        $hack = $this->target('technique', 'Hack');
+        DB::table('techniques')->where('id', $procfile->id)->update(['deprecated_at' => now(), 'replaced_by_id' => $heroku->id]);
+        DB::table('techniques')->where('id', $hack->id)->update(['deprecated_at' => now()]);
+        $content = self::article('post-a', '文章', extra: ['about_techniques' => '[Procfile, Hack]']);
+        $commit = $this->publishSourceFiles(['a.md' => $content]);
+        $this->actingAsOwner();
+
+        $response = $this->import([$this->item('post-a', $content, 'create')], $commit)->assertOk();
+
+        $response->assertJsonCount(1, 'data.0.warnings')->assertJsonPath('data.0.warnings.0.code', 'about_deprecated');
+        $this->assertStringContainsString('Hack', $response->json('data.0.warnings.0.message'));
+        $this->assertSame([$heroku->id], array_keys($this->links('documentation_technique', 'technique_id', $response->json('data.0.documentation_id'))));
+    }
+
+    #[TestDox('同名的兩筆裡一筆已停用、改用另一筆時，不算對上不只一筆')]
+    public function test_a_deprecated_twin_that_points_to_the_other_is_not_ambiguous(): void
+    {
+        $old = $this->target('technique', 'twin');
+        $kept = $this->target('technique', 'Twin');
+        DB::table('techniques')->where('id', $old->id)->update(['deprecated_at' => now(), 'replaced_by_id' => $kept->id]);
+        $content = self::article('post-a', '文章', extra: ['about_techniques' => '[Twin]']);
+        $commit = $this->publishSourceFiles(['a.md' => $content]);
+        $this->actingAsOwner();
+
+        $response = $this->import([$this->item('post-a', $content, 'create')], $commit)->assertOk();
+
+        $this->assertSame([], $response->json('data.0.warnings'));
+        $this->assertSame([$kept->id], array_keys($this->links('documentation_technique', 'technique_id', $response->json('data.0.documentation_id'))));
+    }
+
     #[DataProvider('kinds')]
     #[TestDox('重複匯入（更新）不會產生重複的連結')]
     public function test_reimport_is_idempotent(string $kind): void
