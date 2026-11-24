@@ -12,6 +12,10 @@
 - `article_units` 新增 `is_container`、`footnotes`、`chunks` 三欄（只新增、不回填）：腳註附給引用它的單位，只有子節、自己幾乎沒有內文的 H2 標成容器，正文超過 1500 字的單位切出檢索用的子片段（#226）。
 - 後台新增或修改文章（`POST /api/documentations`、`PUT /api/documentations/{id}`）時，在同一個 transaction 裡同步段落單位；只改標題等欄位時單位不動，原稿標題的 `{#id}` 重複或太長時回 422（`errors.body`），文件的變更一併回滾（#228）。
 
+### 變更
+
+- 文章匯入的 update：GitHub Compare 判斷不出站上記錄的 commit 和這次原稿的先後時（`diverged`、查不到 commit、站上記錄的值不是 SHA），改成回 409，除非該項帶 `confirm_unverified_base` 且等於站上目前記錄的 `source_commit_sha`；409 附 `unverified_commits: [{index, commit_sha}]`。原本這種情況一律放行，舊請求重送時可能把文章倒回舊版（#235）。
+
 ## [1.4.1] - 2026-11-24
 
 ### 變更
