@@ -6,13 +6,13 @@
 
 借鑑Linked Data三元組的觀念，將做side project或學習特定程式的過程記錄下來。
 
-![機制圖：概念圖背後的運作方式，分三塊。一、類別透過指向上層類別的箭頭形成階層，每個類別有一個由類號與子類號組成的參照碼。二、述詞連接主詞類別與受詞類別，畫成兩個三元組：實際執行 uses 使用技術、使用技術 usedBy 實際執行，兩個述詞互為反向（主詞與受詞對調），述詞也可以隸屬於上層述詞成為子述詞。三、邊連接兩筆紀錄，分成跨基礎類別的邊與同一基礎類別內的邊，兩種都帶述詞，同一對紀錄可以同時帶好幾個述詞](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_mechanism.svg?raw=true)
-
-這張圖是下面概念圖的運作方式，只畫很少變動的部分：類別怎麼分層、述詞怎麼組成、邊怎麼連紀錄；資料表與欄位不畫在圖上。
-
 ![概念圖：Documentation（文件）、Technique（使用技術）、Implementation（實際執行）三個基礎類別，兩兩之間各有一對方向相反的箭頭，每支箭頭標示該方向的述詞：Documentation specs Technique、Technique specifiedBy Documentation，Documentation documents Implementation、Implementation documentedBy Documentation，Implementation uses Technique、Technique usedBy Implementation；Technique 另有 requires／isRequiredBy、Implementation 另有 descendantOf／ancestorOf 兩支指回自己的箭頭；子類與其他述詞列在下面 Scope、Relation 兩節的表格](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_concept.svg?raw=true)
 
 圖上只畫三個基礎類別，以及類別之間的基礎關聯；每個類別底下的子類、每組關聯底下的子類型，列在下面 Scope、Relation 兩節的表格。
+
+![機制圖：概念圖背後的運作方式，分三塊。一、類別透過指向上層類別的箭頭形成階層，每個類別有一個由類號與子類號組成的參照碼。二、述詞連接主詞類別與受詞類別，畫成兩個三元組：實際執行 uses 使用技術、使用技術 usedBy 實際執行，兩個述詞互為反向（主詞與受詞對調），述詞也可以隸屬於上層述詞成為子述詞。三、邊連接兩筆紀錄，分成跨基礎類別的邊與同一基礎類別內的邊，兩種都帶述詞，同一對紀錄可以同時帶好幾個述詞](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_mechanism.svg?raw=true)
+
+這張圖是上面概念圖的運作方式，只畫很少變動的部分：類別怎麼分層、述詞怎麼組成、邊怎麼連紀錄；資料表與欄位不畫在圖上。
 
 ### Scope(主詞/受詞)
 
