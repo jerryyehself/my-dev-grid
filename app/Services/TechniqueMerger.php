@@ -33,6 +33,11 @@ use Illuminate\Validation\ValidationException;
  * 改用對象的合格檢查（`TechniqueReplacementIsUsable`）在 transaction 外面做，所以進 transaction 後先鎖住兩筆技術
  * 再確認一次 $into 還在、還沒停用：同時送出 A→B 與 B→C 時，後到的那個會等前一個 commit，看到 B 已停用就擋下。
  *
+ * 鎖技術之前，先拿跟後台新增、刪除上下位與相關同一組述詞鎖（`SemanticTechniqueEdges::lockPredicates()`），
+ * 順序同樣是述詞 → 技術。合併要讀整張上下位判斷有沒有新問題，只鎖自己的兩筆技術的話，跟一次兩端不重疊的
+ * 新增會各自檢查通過、合起來卻繞成環或讓相關與上下位重疊。不會死結的前提（`entity_relations` 的
+ * `subject_id`／`object_id` 沒有外鍵）寫在 `SemanticTechniqueEdges` 的類別說明；替那兩欄加外鍵時要回來重新檢查。
+ *
  * 擋下、整個不做（422，訊息在 `replaced_by_id`）的情況：
  * - 同一個另一端，$from 與 $into 用的述詞不同。後台編輯器一次以技術 id 為鍵存整份清單，同一對有兩列會撞唯一索引，
  *   這種要先在後台改成同一個述詞或刪掉一列。
@@ -68,6 +73,7 @@ final class TechniqueMerger
         $this->conflicts = [];
 
         return DB::transaction(function () use ($from, $into) {
+            SemanticTechniqueEdges::lockPredicates();
             $this->lockAndRecheck($from, $into);
 
             $before = SemanticRelations::fromDatabase();

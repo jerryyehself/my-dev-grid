@@ -260,6 +260,7 @@ class Relation extends Model
     public function deprecate(?self $replacement): void
     {
         DB::transaction(function () use ($replacement) {
+            $this->lockForDeprecation($replacement);
             $now = now();
             $this->markDeprecation($this->deprecated_at ?? $now, $replacement?->id);
 
@@ -274,9 +275,26 @@ class Relation extends Model
     public function undeprecate(): void
     {
         DB::transaction(function () {
+            $this->lockForDeprecation(null);
             $this->markDeprecation(null, null);
             $this->pairedReverse()?->markDeprecation(null, null);
         });
+    }
+
+    /**
+     * 寫入之前，依 id 順序一次鎖住這次會改到或指到的述詞：自己、反向、改用對象與它的反向。
+     *
+     * 後台新增、刪除技術之間的上下位與相關、合併技術，都依 id 順序鎖住 broader／narrower／related
+     * （`SemanticTechniqueEdges::lockPredicates()`）。這裡如果照「先存自己、再存反向」各自上鎖，棄用 narrower
+     * 時會先鎖 narrower、再鎖 broader，跟那邊的順序相反，PostgreSQL 上兩邊同時進行可能死結。
+     * 改用對象也要一起鎖：`replaced_by_id` 有外鍵，寫入時 PostgreSQL 會對被指到的那列拿 FOR KEY SHARE。
+     * SQLite 沒有列鎖，`lockForUpdate()` 不起作用；SQLite 的寫入本來就一次只有一個。
+     */
+    private function lockForDeprecation(?self $replacement): void
+    {
+        $ids = array_values(array_unique(array_map('intval', array_filter([$this->id, $this->reverse_id, $replacement?->id, $replacement?->reverse_id]))));
+
+        static::withTrashed()->whereKey($ids)->orderBy('id')->lockForUpdate()->get(['id']);
     }
 
     private function markDeprecation(mixed $deprecatedAt, ?int $replacedById): void
