@@ -27,7 +27,14 @@ jobs:
       - name: 檢查來源分支
         env:
           HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
         run: |
+          # fork 的分支名稱不可信：只接受本 repo 自己的分支
+          if [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "::error::開往 main 的 PR 只能來自本 repo 的分支，這個 PR 來自 '$HEAD_REPO'。"
+            exit 1
+          fi
           case "$HEAD_REF" in
             release/* | hotfix/* | dependabot/*)
               echo "來源分支 '$HEAD_REF' 符合規則，通過。"
