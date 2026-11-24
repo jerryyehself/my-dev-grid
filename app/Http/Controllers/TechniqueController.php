@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\DeprecateTechniqueRequest;
 use App\Http\Requests\StoreTechniqueRequest;
 use App\Http\Requests\UpdateTechniqueRequest;
 use App\Http\Resources\TechniqueResource;
 use App\Models\Technique;
+use App\Services\TechniqueMerger;
 use App\Traits\SyncsPivotRelations;
 use Dedoc\Scramble\Attributes\Endpoint;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
@@ -95,6 +98,31 @@ class TechniqueController extends Controller
             'message' => $isUpdated
                 ? 'Technique updated.'
                 : 'Technique update failed',
+        ]);
+    }
+
+    // 獨立端點，不併進 update()：那條要求整份表單，而且合併會搬動其他資料的連結，跟改欄位是兩回事。
+    #[Endpoint(
+        title: '停用、合併或取消停用技術',
+        description: '把技術標為停用（`deprecated` 為 true），或取消停用（`deprecated` 為 false，改用對象一併清除）。停用時可以用 `replaced_by_id` 指定改用的技術，等於把這個技術合併進去：這個技術的正式名變成改用對象的隱藏別名，連到文件、實作與其他技術的連結都改接到改用對象，改接後跟改用對象既有的連結重複的會刪掉。下列情況整個不做，回 422：同一個文件或實作，兩個技術用的述詞不同；改用對象的分類不符合某條連結的述詞；合併後上下位會繞成環、標了相關的兩個技術會有上下位路徑，或上位重複。只停用、不指定改用對象時，連結都不動。停用的技術不會被刪除，id 照舊；同步與匯入文章之後改連到改用對象，沒有改用對象的不再新增或更新連結。取消停用不會把合併時搬走的連結搬回來。重送同樣的內容回 200，停用時間維持第一次停用的時間。需要登入並有更新權限。',
+    )]
+    public function deprecate(DeprecateTechniqueRequest $request, Technique $technique, TechniqueMerger $merger): JsonResponse
+    {
+        $this->authorize('deprecate', $technique);
+
+        $validatedData = $request->validated();
+
+        if (! $validatedData['deprecated']) {
+            $technique->undeprecate();
+        } elseif (($validatedData['replaced_by_id'] ?? null) === null) {
+            $technique->deprecate(null);
+        } else {
+            $merger->merge($technique, Technique::findOrFail($validatedData['replaced_by_id']));
+        }
+
+        return response()->json([
+            'data' => new TechniqueResource($technique->fresh()->load('scope')),
+            'message' => 'Technique updated.',
         ]);
     }
 

@@ -49,9 +49,10 @@ class SoftDeletedForeignKeyTest extends TestCase
      * 不屬於 Store／Update 的請求裡的外鍵欄位。規則一樣要由 `ForeignId::rules()` 產生（下面的
      * 掃描會檢查），指到已刪除資料回 422 的行為測在各自的測試：
      * `RelationDeprecationTest::test_soft_deleted_replacement_is_rejected`、
+     * `TechniqueDeprecationTest::test_invalid_replacements_are_rejected`、
      * `ImplementationTechniquePredicateApiTest::test_patch_rejects_invalid_relations`。
      */
-    private const OTHER_FOREIGN_KEYS = ['deprecate relation replaced_by_id', 'update implementationtechnique relation_id'];
+    private const OTHER_FOREIGN_KEYS = ['deprecate relation replaced_by_id', 'deprecate technique replaced_by_id', 'update implementationtechnique relation_id'];
 
     /** @return iterable<string, array{string, string}> */
     public static function requests(): iterable

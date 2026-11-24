@@ -18,14 +18,16 @@ use PHPUnit\Framework\Attributes\TestDox;
 use Tests\TestCase;
 
 /**
- * 詞表的結構（`techniques.deprecated_at`、`techniques.replaced_by_id`、`res_labels`）這一步只建好、還沒有程式用，
- * 所以不能出現在任何 API 回應裡，既有 API 的輸出也不能變。
+ * 詞表的欄位只出現在刻意公開的地方：
+ *
+ * - 技術的停用狀態（`deprecated`、`deprecated_at`、`replaced_by_id`）是 `TechniqueResource` 的公開欄位，
+ *   技術出現的地方都帶著。
+ * - 別名表（`res_labels`）不出現在任何 JSON API 的回應裡。
  *
  * 技術會從好幾條路由帶出來（技術本身、文件與實作的詳情、圖譜、最短路徑、述詞的邊），所以打遍 `api/` 底下
  * 每一條 GET 路由。路由表多了一條 GET 路由、這裡沒有對應的網址，測試就失敗，要回來補。
  *
- * `relations` 也有 `deprecated_at`、`replaced_by_id` 兩個公開欄位，所以不能只比對 key 名稱：停用時間用一個
- * 獨一無二的時間當標記，別名用獨一無二的字串；技術的物件（技術清單、圖譜節點）另外比對完整的 key。
+ * 別名用獨一無二的字串當標記；技術的物件（技術清單、圖譜節點）另外比對完整的 key。
  */
 class VocabularyColumnsHiddenTest extends TestCase
 {
@@ -54,7 +56,7 @@ class VocabularyColumnsHiddenTest extends TestCase
     private const SIGNED_IN_ONLY = ['api/user', 'api/article-sources'];
 
     /** `TechniqueResource` 給的 key（沒有 pivot、沒有載入關聯時）。 */
-    private const TECHNIQUE_KEYS = ['id', 'type', 'title', 'version', 'note', 'created_at', 'updated_at', 'scope'];
+    private const TECHNIQUE_KEYS = ['id', 'type', 'title', 'version', 'note', 'deprecated', 'deprecated_at', 'replaced_by_id', 'created_at', 'updated_at', 'scope'];
 
     /** `/api/graph` 節點的 key，跟 `GraphController::index()` 的 `#[Response]` 一致。 */
     private const GRAPH_NODE_KEYS = ['id', 'type', 'label', 'created_at', 'added_at', 'updated_at', 'subtype', 'url', 'active'];
@@ -118,7 +120,7 @@ class VocabularyColumnsHiddenTest extends TestCase
         $this->assertSame([], array_values(array_diff($declared, $actual)), 'getUrls() 裡這些項目已經沒有對應的路由');
     }
 
-    #[TestDox('訪客讀每條公開的 GET 路由，回應都不含停用欄位與別名')]
+    #[TestDox('訪客讀每條公開的 GET 路由，回應都不含別名')]
     public function test_guest_responses_never_contain_vocabulary_columns(): void
     {
         $serialized = [];
@@ -142,7 +144,7 @@ class VocabularyColumnsHiddenTest extends TestCase
         }
     }
 
-    #[TestDox('登入後讀每條 GET 路由，回應也不含停用欄位與別名')]
+    #[TestDox('登入後讀每條 GET 路由，回應也不含別名')]
     public function test_signed_in_responses_never_contain_vocabulary_columns(): void
     {
         $this->actingAsOwner();
@@ -156,7 +158,7 @@ class VocabularyColumnsHiddenTest extends TestCase
         }
     }
 
-    #[TestDox('技術清單每一筆的 key 跟原本一樣')]
+    #[TestDox('技術清單每一筆的 key 是固定的一組，停用的技術帶停用時間與改用對象')]
     public function test_technique_list_items_keep_their_keys(): void
     {
         $items = collect($this->getJson('/api/techniques')->assertOk()->json('data'));
@@ -165,6 +167,11 @@ class VocabularyColumnsHiddenTest extends TestCase
         foreach ($items as $item) {
             $this->assertEqualsCanonicalizing(self::TECHNIQUE_KEYS, array_keys($item), "{$item['title']} 的 key 變了");
         }
+        $deprecated = $items->firstWhere('id', $this->technique->id);
+        $this->assertTrue($deprecated['deprecated']);
+        $this->assertSame(self::DEPRECATED_AT, $deprecated['deprecated_at']);
+        $this->assertSame(Technique::where('title', 'Heroku')->value('id'), $deprecated['replaced_by_id']);
+        $this->assertFalse($items->firstWhere('id', $this->concept->id)['deprecated']);
     }
 
     #[TestDox('圖譜節點的 key 跟原本一樣，概念詞與已停用的技術照常是 technique 節點')]
@@ -223,7 +230,6 @@ class VocabularyColumnsHiddenTest extends TestCase
     private function assertNoVocabularyColumns(TestResponse $response, string $where): void
     {
         $body = $response->getContent();
-        $this->assertStringNotContainsString(self::DEPRECATED_AT, $body, "{$where} 帶出了技術的停用時間");
         $this->assertStringNotContainsString(self::ALIAS, $body, "{$where} 帶出了別名");
         $this->assertStringNotContainsString('vocabmark-note', $body, "{$where} 帶出了別名的說明");
 

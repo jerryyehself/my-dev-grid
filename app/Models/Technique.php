@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon|null $deprecated_at 停用時間，null 代表仍在使用（見 deprecate()）
+ * @property-read string $label 顯示用的名稱（見 labelFrom()）
  */
 class Technique extends Model
 {
@@ -89,6 +90,26 @@ class Technique extends Model
     public function isDeprecated(): bool
     {
         return $this->deprecated_at !== null;
+    }
+
+    /**
+     * 標為停用，可指定改用哪一筆。已經停用的再送一次，保留原本的停用時間，只更新改用對象。
+     *
+     * 只改這兩欄；把連結搬到改用對象（合併）是 `TechniqueMerger` 的事。用 save()，稽核紀錄（AdminAudit）才記得到。
+     */
+    public function deprecate(?self $replacement): void
+    {
+        $this->deprecated_at ??= now();
+        $this->replaced_by_id = $replacement?->id;
+        $this->save();
+    }
+
+    /** 取消停用，連同改用對象一起清掉。合併時搬走的連結不會搬回來。 */
+    public function undeprecate(): void
+    {
+        $this->deprecated_at = null;
+        $this->replaced_by_id = null;
+        $this->save();
     }
 
     /**

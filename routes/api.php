@@ -92,6 +92,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // 述詞的棄用與取消棄用。多一段 /deprecation，不會跟下面 apiResources 的 /relations/{relation} 打架。
     Route::patch('relations/{relation}/deprecation', [RelationController::class, 'deprecate']);
 
+    // 技術的停用、合併與取消停用。多一段 /deprecation，不會跟下面 apiResources 的 /techniques/{technique} 打架。
+    Route::patch('techniques/{technique}/deprecation', [TechniqueController::class, 'deprecate']);
+
     // 站主指定一對專案與技術之間的述詞，或交還給 GitHub 同步。路徑比 apiResources 的 /implementations/{implementation} 長，不會打架。
     Route::patch('implementations/{implementation}/techniques/{technique}', [ImplementationTechniqueController::class, 'update']);
     Route::delete('implementations/{implementation}/techniques/{technique}/manual', [ImplementationTechniqueController::class, 'releaseToSync']);

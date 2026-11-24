@@ -26,4 +26,10 @@ class TechniquePolicy
     {
         return $user !== null;
     }
+
+    // 停用、合併、取消停用：跟 update／delete 同一個判斷。
+    public function deprecate(?User $user, Technique $technique): bool
+    {
+        return $user !== null;
+    }
 }

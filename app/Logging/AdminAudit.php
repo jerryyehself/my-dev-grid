@@ -103,6 +103,25 @@ final class AdminAudit
     }
 
     /**
+     * 把一筆技術合併進另一筆（`TechniqueMerger`）。停用本身另有 `update` 的紀錄；這一筆記下連結怎麼搬。
+     *
+     * 刪掉的連結記整列的值（id、兩端、述詞、時間），改寫過的記原本的值，要還原時照這筆寫回去：合併沒有備份表，
+     * 這是唯一的紀錄。連結列只有 id 與時間，沒有內文，不會撐爆一行日誌（見類別說明）。
+     *
+     * @param  array{moved: array<string, list<int>>, removed: array<string, list<array<string, mixed>>>, updated: array<string, list<array<string, mixed>>>, label_id: int|null}  $summary
+     */
+    public static function techniqueMerged(Technique $from, Technique $into, array $summary): void
+    {
+        self::record('merge', $from, [
+            'merged_into' => $into->id,
+            'moved_links' => $summary['moved'],
+            'removed_links' => $summary['removed'],
+            'updated_links' => $summary['updated'],
+            'res_label_id' => $summary['label_id'],
+        ]);
+    }
+
+    /**
      * @param  array<string, mixed>  $fields
      */
     private static function record(string $action, Model $model, array $fields = []): void
