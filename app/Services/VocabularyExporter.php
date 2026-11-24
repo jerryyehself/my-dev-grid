@@ -25,8 +25,8 @@ use InvalidArgumentException;
  *   停用的概念仍然在詞表裡（識別碼要打得開），但不當頂層概念。改用對象已軟刪除時不寫 isReplacedBy，
  *   免得指到詞表裡沒有的識別碼。
  * - 別名（`res_labels` 的 alt、hidden → `skos:altLabel`、`skos:hiddenLabel`）預設不輸出，要呼叫端明白打開。
- *   語言標記用別名的 `locale`，沒填或不是合法的語言標記就用預設的 `language`。跟正式名一字不差（同語言）的
- *   別名不輸出：同一個字串不能同時是 prefLabel 與 altLabel／hiddenLabel（SKOS S13）。
+ *   語言標記用別名的 `locale`，沒填或不是合法的語言標記就用預設的 `language`。跟正式名一字不差（同語言，
+ *   語言標記不分大小寫）的別名不輸出：同一個字串不能同時是 prefLabel 與 altLabel／hiddenLabel（SKOS S13）。
  *
  * 識別碼的前綴放在 `config/vocabulary.php`，程式不寫死網域。設定不合格（不是 http(s)、沒有以 `/` 結尾、
  * 語言標記不合法、詞表名稱空白）時直接丟例外，不產出半套的檔案。
@@ -121,7 +121,7 @@ final class VocabularyExporter
                     fn (array $alias) => self::literal($alias['label'], $alias['language']),
                     array_values(array_filter(
                         $aliases[$id][$type] ?? [],
-                        fn (array $alias) => ! ($alias['label'] === $prefLabel && $alias['language'] === $language),
+                        fn (array $alias) => ! ($alias['label'] === $prefLabel && strcasecmp($alias['language'], $language) === 0),
                     )),
                 );
             }
@@ -243,7 +243,8 @@ final class VocabularyExporter
 
     /**
      * 帶語言標記的字串。`"`、`\`、換行一定要跳脫；其他控制字元也寫成 \uXXXX，檔案裡才不會有看不見的字元。
-     * 不合法的 UTF-8 位元組換成 U+FFFD，不然整份 Turtle 都讀不進去。
+     * 不合法的 UTF-8 位元組用 `mb_scrub()` 換成替代字元（`mb_substitute_character()` 的設定，預設是 `?`），
+     * 不然整份 Turtle 都讀不進去。
      */
     private static function literal(string $value, string $language): string
     {

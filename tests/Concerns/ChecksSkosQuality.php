@@ -11,6 +11,11 @@ use RuntimeException;
  * 寫一份 PHP 版，直接檢查匯出的檔案。只報告、不擋的項目（同形異義造成的標籤重疊 `ol`、孤立概念 `oc`、
  * 沒有範圍說明 `uc`、語言相關、沒連到外部詞表等）不在這裡。
  *
+ * 跟 qSKOS 刻意不同、而且都比較嚴的地方：
+ * - `chr` 不把自己連自己算成環，那種一律算在 `rrc`。兩項都必須為 0，驗收結果一樣，只是報在哪一項不同。
+ * - `el` 把 Unicode 的空白（例如全形空白 U+3000）也當成空白；qSKOS 用 Java 的 `trim()`，只去掉 U+0020 以下的字元。
+ * - `ipl`、`dlv` 比語言標記時不分大小寫（`zh-hant` 與 `zh-Hant` 是同一個語言，RDF 也把兩個字串當成同一個值）。
+ *
  * Turtle 只讀得懂匯出用到的那一部分（`@prefix`、完整 IRI、前綴名稱、`a`、`;`、`,`、字串加語言標記或
  * `^^` 型別、`true`／`false`、`#` 註解）；讀到別的寫法就丟例外，所以匯出的語法寫錯時測試會失敗，不會被略過。
  */
@@ -24,6 +29,18 @@ trait ChecksSkosQuality
     private const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
 
     private const XSD_BOOLEAN = 'http://www.w3.org/2001/XMLSchema#boolean';
+
+    /** 互為反向的 SKOS 屬性，兩邊一樣的是對稱屬性（`urc` 用，跟 qSKOS 的 UnidirectionallyRelatedConcepts 同 8 組）。 */
+    private const SKOS_INVERSE_PAIRS = [
+        ['broader', 'narrower'],
+        ['broaderTransitive', 'narrowerTransitive'],
+        ['topConceptOf', 'hasTopConcept'],
+        ['narrowMatch', 'broadMatch'],
+        ['related', 'related'],
+        ['relatedMatch', 'relatedMatch'],
+        ['exactMatch', 'exactMatch'],
+        ['closeMatch', 'closeMatch'],
+    ];
 
     /** SKOS Reference 定義的所有詞（`usr` 用）。 */
     private const SKOS_TERMS = [
@@ -159,11 +176,11 @@ trait ChecksSkosQuality
 
         $problems = array_fill_keys(self::SKOS_MUST_BE_ZERO, []);
 
-        // ipl（S14）：同一個資源、同一個語言有兩個以上 prefLabel
+        // ipl（S14）：同一個資源、同一個語言（語言標記不分大小寫）有兩個以上 prefLabel
         $prefCount = [];
         foreach ($labels as [$s, $term, $value, $lang]) {
             if ($term === 'prefLabel') {
-                $prefCount["{$s} @{$lang}"][] = $value;
+                $prefCount["{$s} @".strtolower($lang)][] = $value;
             }
         }
         foreach ($prefCount as $key => $values) {
@@ -172,10 +189,10 @@ trait ChecksSkosQuality
             }
         }
 
-        // dlv（S13）：同一個資源的同一個字串（同語言）出現在兩種標籤
+        // dlv（S13）：同一個資源的同一個字串（同語言，語言標記不分大小寫）出現在兩種標籤
         $labelKinds = [];
         foreach ($labels as [$s, $term, $value, $lang]) {
-            $labelKinds["{$s} \"{$value}\"@{$lang}"][$term] = true;
+            $labelKinds["{$s} \"{$value}\"@".strtolower($lang)][$term] = true;
         }
         foreach ($labelKinds as $key => $kinds) {
             if (count($kinds) > 1) {
@@ -183,12 +200,13 @@ trait ChecksSkosQuality
             }
         }
 
-        // el：空字串或只有空白的標籤；ucil：標籤裡有控制字元
+        // el：空字串或只有空白的標籤；ucil：標籤裡有看不見的字元（Unicode 的 C 類：控制字元、零寬空格與 BOM 這類格式字元、
+        // 私用區、未指派的碼位），跟 qSKOS 一樣用 \p{C}
         foreach ($labels as [$s, $term, $value, $lang]) {
             if (preg_match('/\A[\s\p{Z}]*\z/u', $value) === 1) {
                 $problems['el'][] = "{$s} {$term}";
             }
-            if (preg_match('/\p{Cc}/u', $value) === 1) {
+            if (preg_match('/\p{C}/u', $value) === 1) {
                 $problems['ucil'][] = "{$s} {$term}";
             }
         }
@@ -217,17 +235,21 @@ trait ChecksSkosQuality
             }
         }
 
-        // urc：只有一個方向（broader 沒有對應的 narrower，或相關只寫了一邊）
+        // urc：互為反向（或對稱）的屬性只寫了一個方向。跟 qSKOS 檢查同樣的 8 組
         $has = [];
-        foreach (['broader', 'narrower', 'related'] as $term) {
-            foreach ($pairs($term) as [$a, $b]) {
-                $has[$term]["{$a} {$b}"] = true;
+        foreach (self::SKOS_INVERSE_PAIRS as [$term, $inverse]) {
+            foreach ([$term, $inverse] as $name) {
+                foreach ($pairs($name) as [$a, $b]) {
+                    $has[$name]["{$a} {$b}"] = true;
+                }
             }
         }
-        foreach (['broader' => 'narrower', 'narrower' => 'broader', 'related' => 'related'] as $term => $inverse) {
-            foreach ($pairs($term) as [$a, $b]) {
-                if (! isset($has[$inverse]["{$b} {$a}"])) {
-                    $problems['urc'][] = "{$a} {$term} {$b}";
+        foreach (self::SKOS_INVERSE_PAIRS as [$term, $inverse]) {
+            foreach ([[$term, $inverse], [$inverse, $term]] as [$name, $other]) {
+                foreach ($pairs($name) as [$a, $b]) {
+                    if (! isset($has[$other]["{$b} {$a}"])) {
+                        $problems['urc'][] = "{$a} {$name} {$b}";
+                    }
                 }
             }
         }

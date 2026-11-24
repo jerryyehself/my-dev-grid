@@ -31,6 +31,7 @@ use Illuminate\Validation\ValidationException;
  * 判斷要讀整張上下位與相關，所以在 transaction 裡先鎖住三個述詞（`lockPredicates()`）、再鎖兩端的技術，
  * 然後才讀、才寫：同時送出的兩個新增（例如 A broader B 與 B broader A）會排隊，後到的看得到前一個寫進去的邊。
  * 刪除與合併技術（`TechniqueMerger::merge()`）也照同一個順序拿同一組鎖：述詞 → 技術，兩者都依 id 排序。
+ * 棄用述詞（`Relation::deprecate()`）同樣先依 id 順序鎖住會改到的述詞，才不會跟這裡反著等。
  * 合併會改接邊、也會讀整張上下位判斷有沒有新問題，所以它跟一次兩端不重疊的新增也要排隊，不然兩邊各自
  * 檢查都通過、合起來卻繞成環；刪除鎖兩端，才不會刪到合併剛改接到別的技術上的那一列。
  * SQLite 沒有列鎖，`lockForUpdate()` 不起作用；SQLite 的寫入本來就一次只有一個。

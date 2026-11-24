@@ -19,7 +19,8 @@ use Tests\TestCase;
 
 /**
  * 後台新增、刪除上下位與相關（`SemanticTechniqueEdges`）和合併技術（`TechniqueMerger`）拿同一組鎖、同一個順序：
- * 先鎖 broader／narrower／related 三個述詞，再鎖牽涉的兩筆技術。
+ * 先鎖 broader／narrower／related 三個述詞，再鎖牽涉的兩筆技術。棄用述詞（`Relation::deprecate()`）也依 id 順序
+ * 先鎖住會改到的述詞，跟這個方向一致。
  *
  * 合併只鎖自己兩筆技術的話，跟一次兩端不重疊的新增可以同時各自檢查通過、合起來違反詞表規則；刪除不鎖技術的話，
  * 合併剛改接到別的技術上的那一列可能被照舊的 id 刪掉。SQLite 沒有列鎖，沒辦法真的讓兩個 transaction 互等，
@@ -137,6 +138,47 @@ class TechniqueEdgeLockOrderTest extends TestCase
         $this->assertCount(1, $locks['add']);
         $this->assertSame($locks['add'], $locks['remove']);
         $this->assertSame($locks['add'], $locks['merge']);
+    }
+
+    /** @return iterable<string, array{string, string|null}> */
+    public static function deprecations(): iterable
+    {
+        yield '棄用 narrower（反向 broader 的 id 比較小）' => ['narrower', null];
+        yield '棄用 broader 並指定改用對象' => ['broader', 'isVersionOf'];
+        yield '取消棄用 narrower' => ['narrower', 'undeprecate'];
+    }
+
+    /**
+     * 棄用述詞會改到自己與反向（有改用對象時還會指到改用對象與它的反向）。這幾列要在任何寫入之前，
+     * 依 id 順序一次鎖住，跟 `lockPredicates()` 同一個方向，不然棄用 narrower 時是先 narrower 後 broader。
+     */
+    #[DataProvider('deprecations')]
+    #[TestDox('棄用述詞先依 id 順序鎖住會改到的述詞，才寫入')]
+    public function test_deprecating_a_predicate_locks_the_pair_in_id_order(string $name, ?string $replacement): void
+    {
+        $relation = Relation::where('name', $name)->sole();
+        $other = $replacement === null || $replacement === 'undeprecate' ? null : Relation::where('name', $replacement)->sole();
+        $expected = array_values(array_unique(array_filter([$relation->id, $relation->reverse_id, $other?->id, $other?->reverse_id])));
+        sort($expected);
+        if ($replacement === 'undeprecate') {
+            $relation->deprecate(null);
+        }
+
+        $queries = $this->queriesDuring(fn () => $replacement === 'undeprecate' ? $relation->undeprecate() : $relation->deprecate($other));
+
+        $lock = array_key_first(array_filter($queries, fn (array $q) => str_contains($q[0], 'from "relations" where "relations"."id" in')));
+        $firstWrite = array_key_first(array_filter($queries, fn (array $q) => str_starts_with($q[0], 'update "relations"')));
+        $this->assertNotNull($lock);
+        $this->assertNotNull($firstWrite);
+        $this->assertLessThan($firstWrite, $lock);
+        $this->assertStringContainsString('order by "id" asc', $queries[$lock][0]);
+        preg_match('/"relations"\."id" in \(([^)]*)\)/', $queries[$lock][0], $match);
+        $locked = array_map('intval', explode(',', $match[1] ?? ''));
+        sort($locked);
+        $this->assertSame($expected, $locked);
+        if (DB::getDriverName() === 'pgsql') {
+            $this->assertStringEndsWith('for update', $queries[$lock][0]);
+        }
     }
 
     #[TestDox('刪除時另一端在綁定之後被刪除：鎖住重讀後回 404，邊不動')]

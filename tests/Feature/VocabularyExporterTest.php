@@ -259,6 +259,8 @@ class VocabularyExporterTest extends TestCase
         $this->alias('雲端服務', '雲端服務', ResLabelType::Alt);
         $this->alias('雲端服務', 'PaaS', ResLabelType::Alt, 'en');
         $this->alias('PaaS', 'PaaS', ResLabelType::Hidden, 'en');
+        // 語言標記只差大小寫算同一個語言，也不寫
+        $this->alias('SPA', 'SPA', ResLabelType::Hidden, 'zh-hant');
 
         $default = $this->exporter()->toTurtle();
         $this->assertStringNotContainsString('vocab-alias-marker', $default);
@@ -271,6 +273,7 @@ class VocabularyExporterTest extends TestCase
         $this->assertSame([['vocab-alias-marker-alt', 'en'], ['vocab-alias-marker-bad-locale', 'zh-Hant']], $this->objects($triples, $this->uri('PaaS'), 'altLabel'));
         $this->assertSame([['PaaS', 'en'], ['vocab-alias-marker-hidden', 'zh-Hant']], $this->objects($triples, $this->uri('PaaS'), 'hiddenLabel'));
         $this->assertSame([['PaaS', 'en']], $this->objects($triples, $this->uri('雲端服務'), 'altLabel'));
+        $this->assertSame([], $this->objects($triples, $this->uri('SPA'), 'hiddenLabel'));
         // 合併留下的舊名
         $this->assertSame([['Procfile', 'zh-Hant']], $this->objects($triples, $this->uri('Heroku'), 'hiddenLabel'));
         // 同形異義：兩個概念都有 token 這個別名（qSKOS ol 會標，但不在必須為 0 的清單裡）
@@ -348,9 +351,13 @@ class VocabularyExporterTest extends TestCase
 
         yield '乾淨的對照組' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant ; skos:prefLabel \"A\"@en ; skos:altLabel \"甲\"@en ; skos:inScheme ex:s ; skos:broader ex:top .\nex:top skos:narrower ex:a .\n", []];
         yield '同語言兩個正式名（ipl）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant , \"乙\"@zh-Hant .\n", ['ipl']];
+        yield '語言標記只差大小寫也算同一個字串（dlv）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant ; skos:altLabel \"甲\"@zh-hant .\n", ['dlv']];
+        yield '語言標記只差大小寫也算同一個語言（ipl）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant , \"乙\"@ZH-HANT .\n", ['ipl']];
         yield '同一個字串既是正式名又是別名（dlv）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant ; skos:hiddenLabel \"甲\"@zh-Hant .\n", ['dlv']];
-        yield '同一對同時 exactMatch 與 broadMatch（mc）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant ; skos:exactMatch <https://other.test/x> .\n<https://other.test/x> skos:broadMatch ex:a .\n", ['mc']];
+        yield '同一對同時 exactMatch 與 broadMatch（mc）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant ; skos:exactMatch <https://other.test/x> ; skos:narrowMatch <https://other.test/x> .\n"
+            ."<https://other.test/x> skos:broadMatch ex:a ; skos:exactMatch ex:a .\n", ['mc']];
         yield '只有 broader 沒有 narrower（urc）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant ; skos:broader ex:top .\n", ['urc']];
+        yield '只寫 topConceptOf、詞表沒寫 hasTopConcept（urc）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant ; skos:topConceptOf ex:s .\n", ['urc']];
         yield '相關只寫一邊（urc）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant ; skos:related ex:top .\n", ['urc']];
         yield '頂層概念有上位（tchbc）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant ; skos:narrower ex:top .\nex:top skos:broader ex:a .\n", ['tchbc']];
         yield '詞表沒有頂層概念（otc）' => [$head."ex:s2 a skos:ConceptScheme ; skos:prefLabel \"另一個\"@zh-Hant .\n", ['otc']];
@@ -358,6 +365,8 @@ class VocabularyExporterTest extends TestCase
         yield '概念沒有正式名（ml）' => [$head."ex:a a skos:Concept ; skos:altLabel \"甲\"@zh-Hant .\n", ['ml']];
         yield '識別碼不是 http（husv）' => [$head."<urn:x:a> a skos:Concept ; skos:prefLabel \"甲\"@zh-Hant .\n", ['husv']];
         yield '空字串的標籤（el）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"\"@zh-Hant .\n", ['el']];
+        yield '零寬空格（ucil）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\\u200B乙\"@zh-Hant .\n", ['ucil']];
+        yield '軟連字號（ucil）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\u{00AD}乙\"@zh-Hant .\n", ['ucil']];
         yield '跳脫寫法的控制字元（ucil）' => [$head."ex:a a skos:Concept ; skos:prefLabel \"甲\\u0000乙\"@zh-Hant .\n", ['ucil']];
     }
 
