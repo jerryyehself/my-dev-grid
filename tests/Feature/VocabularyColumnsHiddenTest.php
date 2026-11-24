@@ -59,7 +59,7 @@ class VocabularyColumnsHiddenTest extends TestCase
     private const TECHNIQUE_KEYS = ['id', 'type', 'title', 'version', 'note', 'deprecated', 'deprecated_at', 'replaced_by_id', 'created_at', 'updated_at', 'scope'];
 
     /** `/api/graph` 節點的 key，跟 `GraphController::index()` 的 `#[Response]` 一致。 */
-    private const GRAPH_NODE_KEYS = ['id', 'type', 'label', 'created_at', 'added_at', 'updated_at', 'subtype', 'url', 'active'];
+    private const GRAPH_NODE_KEYS = ['id', 'type', 'label', 'created_at', 'added_at', 'updated_at', 'subtype', 'url', 'active', 'deprecated', 'replaced_by'];
 
     private Documentation $documentation;
 
@@ -174,7 +174,7 @@ class VocabularyColumnsHiddenTest extends TestCase
         $this->assertFalse($items->firstWhere('id', $this->concept->id)['deprecated']);
     }
 
-    #[TestDox('圖譜節點的 key 跟原本一樣，概念詞與已停用的技術照常是 technique 節點')]
+    #[TestDox('圖譜節點的 key 是固定的一組，概念詞與已停用的技術照常是 technique 節點')]
     public function test_graph_nodes_keep_their_keys(): void
     {
         $graph = $this->getJson('/api/graph')->assertOk();
@@ -187,7 +187,7 @@ class VocabularyColumnsHiddenTest extends TestCase
             $node = $nodes->get('technique-'.$technique->id);
             $this->assertSame('technique', $node['type']);
             $this->assertSame($technique->title, $node['label']);
-            $this->assertNull($node['subtype'], '技術節點沒有 subtype，這一步不加');
+            $this->assertSame(Scope::find($technique->type)->name, $node['subtype']);
             $this->assertTrue($node['active']);
         }
         // broader 的邊照現有的做法輸出（entity_relations），述詞名稱就是 broader

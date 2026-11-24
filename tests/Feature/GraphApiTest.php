@@ -61,7 +61,7 @@ class GraphApiTest extends TestCase
         ]);
     }
 
-    #[TestDox('只有文件節點帶子類型與網址')]
+    #[TestDox('文件與技術節點帶子類型（分類名稱），只有文件節點帶網址')]
     public function test_documentation_nodes_carry_subtype_and_url_other_nodes_do_not()
     {
         $documentation = Documentation::factory()->create(['url' => 'https://www.php.net/docs.php']);
@@ -74,7 +74,7 @@ class GraphApiTest extends TestCase
         $this->assertSame('https://www.php.net/docs.php', $documentationNode['url']);
 
         $techniqueNode = $nodes["technique-{$technique->id}"];
-        $this->assertNull($techniqueNode['subtype']);
+        $this->assertSame($technique->scope->name, $techniqueNode['subtype']);
         $this->assertNull($techniqueNode['url']);
     }
 

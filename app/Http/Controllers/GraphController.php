@@ -31,7 +31,7 @@ class GraphController extends Controller
      * 加上通用的 entity_relations（同型別之間的關係，例如技術↔技術）。每條邊的 relation_id
      * 已解析成 Relation 的述詞名稱，前端不用再多打一次 API。
      *
-     * 回應的形狀給力導向圖用：節點是 {id, type, label, created_at, added_at, updated_at, subtype, url, active}，
+     * 回應的形狀給力導向圖用：節點是 {id, type, label, created_at, added_at, updated_at, subtype, url, active, deprecated, replaced_by}，
      * 邊是 {source, target, predicate, label, relation_id, added_at, stale, predicate_deprecated, predicate_replaced_by}，
      * source／target 是節點 id。
      * created_at 只有實作節點有值（來自 git_repo_created_at），文件與技術沒有對應欄位，一律 null。
@@ -40,13 +40,15 @@ class GraphController extends Controller
      * 是基準，不是實際建立的時間；連結列在開始寫入時間之前存下來的沒有值，也不回補，所以邊的 added_at 可能是 null。
      * 沒登入時，未公開文件的 added_at／updated_at，以及連到它的邊的 added_at，也一律是 null。
      * stale 已停用，一律 false：技術與實作之間的基本關聯不會過期。之後的版本會移除這個欄位。
+     * 技術節點的 subtype 是所屬分類的名稱；deprecated、replaced_by 是技術的停用狀態與改用對象的節點 id，
+     * 其他種類的節點一律 false、null。技術沒有草稿或不公開的狀態，登入與否看到的一樣。
      */
     // 回應是手動組的陣列，Scramble 推不出節點的欄位，在這裡寫明給 OpenAPI 文件用。
     #[Endpoint(
         title: '取得知識圖譜',
-        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。`stale` 已停用，一律為 false（技術與實作之間的基本關聯不會過期，包括 GitHub 同步建立的邊；repo 後來拿掉某個技術，這條邊也會留著），之後的版本會移除這個欄位。`predicate_deprecated` 為 true 表示這條邊的述詞已棄用，`predicate_replaced_by` 是建議改用的述詞名稱（改用的述詞後來也棄用時，給最後仍在使用的那一條；沒有可用的述詞時為 null）：邊照常回傳，述詞名稱維持原本的，路徑查詢也照常經過。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype`、`url`、`added_at`、`updated_at` 為 null，連到它的邊 `added_at` 也是 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。',
+        description: '回傳文件、技術、實作三種節點，以及它們之間的邊（含述詞名稱），可直接用在力導向圖。`created_at` 只有實作節點有值（專案在 GitHub 上的建立日期）。`added_at` 是節點或邊加入這個網站的時間，`updated_at` 是節點最後更新的時間，格式為 `Y-m-d H:i:s`；2026-10-02 首次匯入的資料以匯入當天為基準，不代表內容實際建立的時間，開始記錄之前就存下來的邊沒有加入時間，`added_at` 為 null，不會回補。`stale` 已停用，一律為 false（技術與實作之間的基本關聯不會過期，包括 GitHub 同步建立的邊；repo 後來拿掉某個技術，這條邊也會留著），之後的版本會移除這個欄位。`predicate_deprecated` 為 true 表示這條邊的述詞已棄用，`predicate_replaced_by` 是建議改用的述詞名稱（改用的述詞後來也棄用時，給最後仍在使用的那一條；沒有可用的述詞時為 null）：邊照常回傳，述詞名稱維持原本的，路徑查詢也照常經過。未公開的文件也會列出，`active` 為 false，連到它的邊照常回傳；未登入時這類節點的 `label` 固定是「未公開」，`subtype`、`url`、`added_at`、`updated_at` 為 null，連到它的邊 `added_at` 也是 null。已刪除的文件、技術、實作不會出現，連到它們的邊也不會，路徑也不會經過它們。未登入時不含設為不公開的實作，連到它們的邊也不會出現。技術節點的 `subtype` 是所屬分類的名稱（例如 `language`、`framework`），`deprecated` 為 true 表示這個技術已停用：節點與它的邊照常回傳，`replaced_by` 是改用的技術節點 id（改用的技術後來也停用時，給最後仍在使用的那一個；沒有可用的改用對象時為 null）。文件與實作節點的 `deprecated` 一律為 false、`replaced_by` 一律為 null。',
     )]
-    #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, added_at: string|null, updated_at: string|null, subtype: string|null, url: string|null, active: bool}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, added_at: string|null, stale: bool, predicate_deprecated: bool, predicate_replaced_by: string|null}>}')]
+    #[Response(200, type: 'array{nodes: list<array{id: string, type: "documentation"|"technique"|"implementation", label: string, created_at: string|null, added_at: string|null, updated_at: string|null, subtype: string|null, url: string|null, active: bool, deprecated: bool, replaced_by: string|null}>, edges: list<array{source: string, target: string, predicate: string|null, label: string|null, relation_id: int|null, added_at: string|null, stale: bool, predicate_deprecated: bool, predicate_replaced_by: string|null}>}')]
     public function index()
     {
         // 登入態每個請求只在這裡判斷一次，往下傳給每個節點用，不在節點迴圈裡一個一個問
@@ -57,7 +59,7 @@ class GraphController extends Controller
         $nodes = collect()
             // 未公開的文件也列出來（`active` 為 false），沒登入時由 nodesFor() 遮掉標題與連結
             ->concat($this->nodesFor($documentations, 'documentation', $canSeeDrafts))
-            ->concat($this->nodesFor(Technique::all(), 'technique', $canSeeDrafts))
+            ->concat($this->nodesFor(Technique::with('scope')->get(), 'technique', $canSeeDrafts))
             ->concat($this->nodesFor(Implementation::visibleToViewer()->get(), 'implementation', $canSeeDrafts))
             ->values();
 
@@ -189,6 +191,9 @@ class GraphController extends Controller
 
     private function nodesFor(Collection $models, string $type, bool $canSeeDrafts): Collection
     {
+        // 改用對象沿「改用」找，用這份已載入的清單對，不在每個節點各查一次；已軟刪除的不在裡面，找不到就是 null
+        $byId = $models->keyBy('id');
+
         return $models->map(fn ($model) => [
             'id' => $this->nodeId($type, $model->id),
             'type' => $type,
@@ -208,11 +213,35 @@ class GraphController extends Controller
             // 這類參考資料）與外部網址。前端的節點彈窗靠這兩個決定連去哪：post 連文章頁、
             // 有網址的連外部網址。其他型別沒有這兩個概念，一律 null。沒登入時，未公開的文件
             // 兩個也都回 null：不給可以點進去的連結（文章頁對訪客本來就會回 404）
-            'subtype' => $type === 'documentation' && $this->documentationIsOpenToViewer($model, $canSeeDrafts) ? $model->scope?->name : null,
+            // 技術節點的子類是所屬分類的名稱（language、framework…），讓前端分得出不同種類的技術。技術沒有草稿
+            // 或不公開的狀態，不用遮
+            'subtype' => match (true) {
+                $type === 'technique' => $model->scope?->name,
+                $type === 'documentation' && $this->documentationIsOpenToViewer($model, $canSeeDrafts) => $model->scope?->name,
+                default => null,
+            },
             'url' => $type === 'documentation' && $this->documentationIsOpenToViewer($model, $canSeeDrafts) ? $model->url : null,
             // `active` 是「這篇文件公開了沒有」的狀態，跟看不看得到標題無關，所以登入與否不影響這個值
             'active' => $type !== 'documentation' || $model->isPublished(),
+            // 技術的停用狀態。停用的節點照常回傳：它的 id 是公開過的識別碼，合併後也還連得到；
+            // 改用對象給節點 id，前端可以直接跳過去
+            'deprecated' => $type === 'technique' && $model->isDeprecated(),
+            'replaced_by' => $type === 'technique' && $model->isDeprecated()
+                ? $this->replacementNodeId($model, $byId)
+                : null,
         ]);
+    }
+
+    /**
+     * 停用的技術沿「改用」找到仍在使用的那一筆的節點 id；沒有可用的改用對象時是 null。
+     *
+     * @param  Collection<int, Technique>  $techniquesById
+     */
+    private function replacementNodeId(Technique $technique, Collection $techniquesById): ?string
+    {
+        $replacement = $technique->inUse(fn (int $id) => $techniquesById->get($id));
+
+        return $replacement === null ? null : $this->nodeId('technique', $replacement->id);
     }
 
     /**
