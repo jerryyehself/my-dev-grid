@@ -60,9 +60,9 @@ class RelationSourceVocabularyTest extends TestCase
             'assisted-by（實作把 AI 當工具用＝usesTool，2026-09-30 從 dependsOn 修正）' => ['assisted-by', 'spdx', 'usesTool'],
             'descendantOf' => ['descendantOf', 'spdx', 'DESCENDANT_OF'],
             'ancestorOf' => ['ancestorOf', 'spdx', 'ANCESTOR_OF'],
-            'accompanies' => ['accompanies', 'tillett1987', 'Accompanying'],
-            'precedes' => ['precedes', 'tillett1987', 'Sequential'],
-            'succeeds（沿用 precedes 的詞條，note 沒有另外具名）' => ['succeeds', 'tillett1987', 'Sequential'],
+            'accompanies（RDA is complemented by work，2026-11-24 從 Tillett 分類名改）' => ['accompanies', 'rda', 'P10103'],
+            'precedes（A precedes B ＝ A bf:succeededBy B）' => ['precedes', 'bibframe', 'succeededBy'],
+            'succeeds（BIBFRAME 具名的反向詞條 precededBy）' => ['succeeds', 'bibframe', 'precededBy'],
             'about（文章講到某個技術，schema.org）' => ['about', 'schema', 'about'],
             'subjectOf' => ['subjectOf', 'schema', 'subjectOf'],
             'aboutProject（文章講到某個專案，受詞端不同所以另立一筆，沿用同一個詞條）' => ['aboutProject', 'schema', 'about'],
@@ -141,6 +141,12 @@ class RelationSourceVocabularyTest extends TestCase
         }
         $this->assertCount(17, $sources);
 
+        // 再疊上 2026-11-24 把 accompanies／precedes／succeeds 從 Tillett 分類名改成 RDA／BIBFRAME 屬性
+        $mapped = require database_path('migrations/2026_11_24_000002_map_implementation_relations_to_rda_and_bibframe.php');
+        foreach ($mapped::NEW as $name => $values) {
+            $sources[$name] = [$values['source_vocabulary'], $values['source_term']];
+        }
+
         foreach ($sources as $name => [$vocabulary, $term]) {
             $relation = Relation::where('name', $name)->first();
             $this->assertNotNull($relation, "migration 的 SOURCES 表裡有 seeder 沒種出來的名字：{$name}");
@@ -156,7 +162,7 @@ class RelationSourceVocabularyTest extends TestCase
     #[TestDox('互為反向的述詞，出處詞彙保持一致')]
     public function test_reverse_pairs_agree_on_shared_source(): void
     {
-        // documentedBy／usedBy／succeeds 這三筆沒有在自己的 note 裡另外具名詞條，
+        // documentedBy／usedBy 這兩筆沒有在自己的 note 裡另外具名詞條，
         // 沿用正向那一筆的判斷——這支測試守的是「兩邊沒有因為之後有人改了
         // 其中一筆就悄悄長出分歧」，不是重新驗證值本身（上面已經驗證過）。
         $this->seed();
@@ -179,8 +185,9 @@ class RelationSourceVocabularyTest extends TestCase
             $reverseRelation = Relation::where('name', $reverse)->firstOrFail();
 
             // uses/usedBy 的詞條實際上不同（DEPENDS_ON vs DEPENDENCY_OF），
-            // 只有 vocabulary 該一致；documents/documentedBy 與
-            // precedes/succeeds 才是 vocabulary 跟 term 都完全沿用。
+            // 只有 vocabulary 該一致；documents/documentedBy 才是
+            // vocabulary 跟 term 都完全沿用。precedes/succeeds 的詞條是 BIBFRAME 的一對互反屬性
+            // （succeededBy／precededBy），詞條不同，所以不在這裡比 term。
             $this->assertSame(
                 $forwardRelation->source_vocabulary,
                 $reverseRelation->source_vocabulary,
@@ -188,7 +195,7 @@ class RelationSourceVocabularyTest extends TestCase
             );
         }
 
-        foreach ([['documents', 'documentedBy'], ['precedes', 'succeeds'], ['targets', 'targetedBy']] as [$forward, $reverse]) {
+        foreach ([['documents', 'documentedBy'], ['targets', 'targetedBy']] as [$forward, $reverse]) {
             $forwardRelation = Relation::where('name', $forward)->firstOrFail();
             $reverseRelation = Relation::where('name', $reverse)->firstOrFail();
 
