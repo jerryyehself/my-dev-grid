@@ -11,6 +11,7 @@ use App\Http\Controllers\ImplementationTechniqueController;
 use App\Http\Controllers\RelationController;
 use App\Http\Controllers\ScopeController;
 use App\Http\Controllers\TechniqueController;
+use App\Http\Controllers\TechniqueSemanticRelationController;
 use Illuminate\Support\Facades\Route;
 
 // 前端（SPA）開機時拿這支確認目前的登入狀態——未登入回 401，
@@ -94,6 +95,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // 技術的停用、合併與取消停用。多一段 /deprecation，不會跟下面 apiResources 的 /techniques/{technique} 打架。
     Route::patch('techniques/{technique}/deprecation', [TechniqueController::class, 'deprecate']);
+
+    // 技術之間的上下位與相關。上下位只存「下位 broader 上位」一個方向，narrower 是反著讀的名稱，沒有另外的端點。
+    // 路徑比 apiResources 的 /techniques/{technique} 長，不會打架。
+    Route::put('techniques/{technique}/broader/{broader}', [TechniqueSemanticRelationController::class, 'addBroader']);
+    Route::delete('techniques/{technique}/broader/{broader}', [TechniqueSemanticRelationController::class, 'removeBroader']);
+    Route::put('techniques/{technique}/related/{related}', [TechniqueSemanticRelationController::class, 'addRelated']);
+    Route::delete('techniques/{technique}/related/{related}', [TechniqueSemanticRelationController::class, 'removeRelated']);
 
     // 站主指定一對專案與技術之間的述詞，或交還給 GitHub 同步。路徑比 apiResources 的 /implementations/{implementation} 長，不會打架。
     Route::patch('implementations/{implementation}/techniques/{technique}', [ImplementationTechniqueController::class, 'update']);
