@@ -656,6 +656,71 @@ class ArticleSourceImportTest extends TestCase
         $this->assertCount(1, $this->githubRequests("/compare/{$c3}...{$c4}"));
     }
 
+    /**
+     * 用戶端可能每一項都送 `confirm_unverified_base`，沒確認時填 null 或空字串；這兩種都要當成沒帶。
+     *
+     * @return iterable<string, array{string|null}>
+     */
+    public static function emptyConfirmations(): iterable
+    {
+        yield 'null' => [null];
+        yield '空字串' => [''];
+    }
+
+    #[DataProvider('emptyConfirmations')]
+    #[TestDox('新增與連結帶空的 confirm_unverified_base 時照常匯入')]
+    public function test_empty_confirmation_is_accepted_for_create_and_link(?string $empty): void
+    {
+        $created = self::article('first-post', '第一篇文章');
+        $linked = self::article('legacy', '既有文章');
+        $commit = $this->publishSourceFiles(['first.md' => $created, 'legacy.md' => $linked]);
+        $legacy = Documentation::factory()->create(['type' => $this->post->id, 'title' => '既有文章']);
+        $this->actingAsOwner();
+
+        $this->import([
+            $this->item('first-post', $created, 'create', ['confirm_unverified_base' => $empty]),
+            $this->item('legacy', $linked, 'link', ['documentation_id' => $legacy->id, 'confirm_unverified_base' => $empty]),
+        ], $commit)->assertOk();
+
+        $this->assertSame(1, Documentation::where('source_key', 'first-post')->count());
+        $this->assertSame('legacy', $legacy->refresh()->source_key);
+    }
+
+    /** @return iterable<string, array{string, string|null}> */
+    public static function emptyConfirmationsForUnverifiedOrder(): iterable
+    {
+        foreach (['unknown', 'diverged'] as $relation) {
+            foreach (self::emptyConfirmations() as $label => [$empty]) {
+                yield "{$relation}、{$label}" => [$relation, $empty];
+            }
+        }
+    }
+
+    #[DataProvider('emptyConfirmationsForUnverifiedOrder')]
+    #[TestDox('判斷不出先後時，空的 confirm_unverified_base 等於沒確認')]
+    public function test_empty_confirmation_counts_as_not_confirmed(string $relation, ?string $empty): void
+    {
+        [$documentation, $content, $commit] = $this->changedArticle(Documentation::STATUS_PUBLISHED);
+        $imported = $documentation->source_commit_sha;
+        if ($relation === 'unknown') {
+            $imported = str_repeat('2', 40);
+            $documentation->forceFill(['source_commit_sha' => $imported])->save();
+        } else {
+            $this->overrideGitHub(fn (Request $request) => str_contains($request->url(), '/compare/')
+                ? Http::response(['status' => 'diverged', 'ahead_by' => 1, 'behind_by' => 1])
+                : null);
+        }
+        $this->actingAsOwner();
+
+        $response = $this->assertUnverified($this->import([$this->item('the-post', $content, 'update', ['confirm_unverified_base' => $empty])], $commit), [0 => $imported]);
+
+        // 是要求帶確認的那一句，不是「確認的 commit 不符」那一句
+        $message = $response->json('errors')['items.0.confirm_unverified_base'][0];
+        $this->assertStringContainsString('請帶上 confirm_unverified_base', $message);
+        $this->assertStringNotContainsString('不是確認時的那一個', $message);
+        $this->assertSame("舊版內文。\n", $documentation->refresh()->body);
+    }
+
     /** @return iterable<string, array{Closure(): mixed, int, string}> */
     public static function compareFailures(): iterable
     {
