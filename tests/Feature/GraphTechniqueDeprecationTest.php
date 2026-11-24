@@ -16,7 +16,7 @@ use Tests\TestCase;
 /**
  * `/api/graph` 節點的 `subtype`、`deprecated`、`replaced_by`。
  *
- * 停用與合併的例子照設計報告的 E5（Procfile 併進 Heroku、Hack 只停用）。可見性照圖譜原本的規則：
+ * 停用與合併的例子：Procfile 併進 Heroku、Hack 只停用。可見性照圖譜原本的規則：
  * 技術沒有草稿或不公開的狀態，訪客與登入看到的一樣；草稿文件的 subtype 只給登入的人，
  * 不公開的實作只給登入的人。
  */
@@ -107,7 +107,7 @@ class GraphTechniqueDeprecationTest extends TestCase
         $this->assertSame([null, false, null], $this->fields($owner[$hiddenId]));
     }
 
-    #[TestDox('合併之後（E5）：停用的技術節點留著、沒有邊，邊都在改用對象上')]
+    #[TestDox('合併之後：停用的技術節點留著、沒有邊，邊都在改用對象上')]
     public function test_after_a_merge_edges_live_on_the_replacement(): void
     {
         $project = Implementation::factory()->create(['type' => Scope::where('name', 'project')->value('id'), 'is_visible' => true]);

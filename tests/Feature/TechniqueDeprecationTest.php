@@ -22,8 +22,8 @@ use Tests\TestCase;
 /**
  * `PATCH /api/techniques/{technique}/deprecation`：只停用、停用並合併進另一筆、取消停用。
  *
- * 合併的例子照設計報告的 E5：Linguist 把 Procfile 當成一種語言，正式環境因此有一筆 Procfile 技術，
- * 跟 Heroku 一樣連到 Laravel-LearningLibrary（usedBy）。快照同步現在會把 Procfile 換成 Heroku，
+ * 合併的例子：Linguist 把 Procfile 當成一種語言，在同步加上權威對照（Procfile → Heroku）之前，會建出一筆
+ * Procfile 技術，跟 Heroku 一樣連到 Laravel-LearningLibrary（usedBy）。快照同步現在會把 Procfile 換成 Heroku，
  * 所以測試先用 GitHub 快照同步，再補上那筆舊的 Procfile 與它的邊，重現合併前的資料。
  */
 class TechniqueDeprecationTest extends TestCase
@@ -89,7 +89,7 @@ class TechniqueDeprecationTest extends TestCase
         $this->assertCount(1, $this->implementationLinks($this->procfile));
     }
 
-    #[TestDox('只停用（E5 的 Hack）：標為停用，連結都不動，不加別名，回傳的技術帶停用狀態')]
+    #[TestDox('只停用（Hack）：標為停用，連結都不動，不加別名，回傳的技術帶停用狀態')]
     public function test_deprecate_without_replacement_keeps_links(): void
     {
         $hack = Technique::create(['type' => Scope::where('name', 'language')->value('id'), 'title' => 'Hack']);
@@ -108,7 +108,7 @@ class TechniqueDeprecationTest extends TestCase
         $this->assertSame(['deprecated_at'], $context['fields']);
     }
 
-    #[TestDox('合併（E5 Procfile → Heroku）：停用並改用 Heroku，舊名成為隱藏別名，跟 Heroku 重複的連結刪掉')]
+    #[TestDox('合併（Procfile → Heroku）：停用並改用 Heroku，舊名成為隱藏別名，跟 Heroku 重複的連結刪掉')]
     public function test_merge_removes_duplicate_links_and_adds_the_old_name_as_alias(): void
     {
         $this->assertSame([[$this->learningLibrary->id, $this->relationId('usedBy')]], $this->implementationLinks($this->procfile));

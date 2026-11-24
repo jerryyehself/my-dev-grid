@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * 上下位與相關的規則檢查（`SemanticRelations::problems()`），以及合併的模擬（`merged()`），不碰資料庫。
  *
- * 用設計報告 E2、E3 的形狀：65 Cloudflare Workers、66 Cloudflare Pages 掛在 64 Cloudflare 底下，
+ * 用這樣的形狀：65 Cloudflare Workers、66 Cloudflare Pages 掛在 64 Cloudflare 底下，
  * 66 與 46 github-pages 掛在 67 靜態託管底下；56 vue-router related 68 SPA。
  */
 class SemanticRelationsTest extends TestCase
@@ -21,7 +21,7 @@ class SemanticRelationsTest extends TestCase
         return [65 => [64], 66 => [64, 67], 46 => [67]];
     }
 
-    #[TestDox('E2、E3 的資料沒有任何問題（多重上位、兄弟之間沒標相關）')]
+    #[TestDox('多重上位、技術掛到概念底下的資料沒有任何問題（多重上位、兄弟之間沒標相關）')]
     public function test_the_design_examples_are_clean(): void
     {
         $relations = new SemanticRelations(self::e2(), [56 => [68], 65 => [68], 68 => [56, 65]]);

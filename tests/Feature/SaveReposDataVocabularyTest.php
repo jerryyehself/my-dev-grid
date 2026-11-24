@@ -19,8 +19,8 @@ use Tests\TestCase;
 /**
  * 同步認技術時讀詞表：先比正式名、再比別名，沿停用技術的改用對象走，跳過停用而沒有改用對象的。
  *
- * 用 repo 裡的 GitHub 快照（`GitHubReposSnapshotSeeder` 的 fixture）同步兩次，第二次之前照設計報告的 E1、E5
- * 改詞表，看第二次同步有沒有多建技術、邊連到哪裡。
+ * 用 repo 裡的 GitHub 快照（`GitHubReposSnapshotSeeder` 的 fixture）同步兩次，第二次之前改詞表（tailwind 改名加別名、
+ * 停用並改用另一筆、只停用），看第二次同步有沒有多建技術、邊連到哪裡。
  */
 class SaveReposDataVocabularyTest extends TestCase
 {
@@ -55,7 +55,7 @@ class SaveReposDataVocabularyTest extends TestCase
             ->pluck('implementation_id')->map(fn ($id) => (int) $id)->all();
     }
 
-    #[TestDox('E1：正式名改成 Tailwind CSS、舊名留成別名後再同步，不會另建一筆 tailwind，邊照常連在原本那筆')]
+    #[TestDox('正式名改成 Tailwind CSS、舊名留成別名後再同步，不會另建一筆 tailwind，邊照常連在原本那筆')]
     public function test_renamed_title_with_alias_does_not_create_a_duplicate(): void
     {
         $tailwind = $this->tailwind();
@@ -73,7 +73,7 @@ class SaveReposDataVocabularyTest extends TestCase
         $this->assertSame($projects, $this->projectIdsLinkedTo($tailwind));
     }
 
-    #[TestDox('E1 的對照組：只改正式名、沒留別名時，同步會另建一筆 tailwind（所以改名前要先加別名）')]
+    #[TestDox('對照組：只改正式名、沒留別名時，同步會另建一筆 tailwind（所以改名前要先加別名）')]
     public function test_renamed_title_without_alias_creates_a_duplicate(): void
     {
         $tailwind = $this->tailwind();
@@ -86,7 +86,7 @@ class SaveReposDataVocabularyTest extends TestCase
         $this->assertSame(1, Technique::where('title', 'tailwind')->count());
     }
 
-    #[TestDox('E5：tailwind 停用、改用 Tailwind CSS 之後再同步，不會把 tailwind 建回來，新的邊連到改用對象')]
+    #[TestDox('tailwind 停用、改用 Tailwind CSS 之後再同步，不會把 tailwind 建回來，新的邊連到改用對象')]
     public function test_deprecated_title_follows_its_replacement(): void
     {
         $tailwind = $this->tailwind();
@@ -103,7 +103,7 @@ class SaveReposDataVocabularyTest extends TestCase
         $this->assertSame($projects, $this->projectIdsLinkedTo($tailwind));
     }
 
-    #[TestDox('E5（只停用）：停用而沒有改用對象的技術，同步不建回來、不新增也不更新它的邊')]
+    #[TestDox('只停用：停用而沒有改用對象的技術，同步不建回來、不新增也不更新它的邊')]
     public function test_deprecated_title_without_replacement_is_skipped(): void
     {
         $leetcode = Technique::where('title', 'leetcode')->sole();
@@ -122,7 +122,7 @@ class SaveReposDataVocabularyTest extends TestCase
         Log::shouldHaveReceived('info')->withArgs(fn (string $message) => str_contains($message, '「leetcode」對到的技術已停用'));
     }
 
-    #[TestDox('E5（只停用）：已經有的邊留著，但同步不再更新它的 last_seen_at')]
+    #[TestDox('只停用：已經有的邊留著，但同步不再更新它的 last_seen_at')]
     public function test_existing_edges_of_a_skipped_technique_are_not_touched(): void
     {
         $leetcode = Technique::where('title', 'leetcode')->sole();
@@ -134,7 +134,7 @@ class SaveReposDataVocabularyTest extends TestCase
         $this->assertSame(['2001-01-01 00:00:00'], DB::table('technique_implementation')->where('technique_id', $leetcode->id)->pluck('last_seen_at')->all());
     }
 
-    #[TestDox('別名掛在兩個技術上（E4 token 這種同形異義）：同步不猜、不另建，記一筆 warning')]
+    #[TestDox('別名掛在兩個技術上（token 這種同形異義）：同步不猜、不另建，記一筆 warning')]
     public function test_homonym_alias_is_skipped(): void
     {
         $concept = Scope::where('name', 'concept')->value('id');

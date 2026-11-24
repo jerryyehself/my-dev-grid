@@ -412,7 +412,7 @@ class NomenResolverTest extends TestCase
         ]);
     }
 
-    #[TestDox('別名（E1 tailwind）：正式名改成 Tailwind CSS 之後，舊寫法經別名對上，記成 label，排在 variant:suffix 之前')]
+    #[TestDox('別名（tailwind）：正式名改成 Tailwind CSS 之後，舊寫法經別名對上，記成 label，排在 variant:suffix 之前')]
     public function test_aliases_resolve_before_the_suffix_rule(): void
     {
         $tailwind = $this->technique('Tailwind CSS', 'packagetool');
@@ -456,7 +456,7 @@ class NomenResolverTest extends TestCase
     }
 
     /**
-     * E4 的資料：兩個概念詞都有別名 token，Sanctum 跟「token（驗證）」相關，Claude Code 跟「token（LLM）」相關。
+     * 同形異義的資料：兩個概念詞都有別名 token，Sanctum 跟「token（驗證）」相關，Claude Code 跟「token（LLM）」相關。
      *
      * @return array{0: Technique, 1: Technique, 2: Technique, 3: Technique}
      */
@@ -478,7 +478,7 @@ class NomenResolverTest extends TestCase
         return [$auth, $llm, $sanctum, $claudeCode];
     }
 
-    #[TestDox('同形異義（E4 token）：兩個概念詞有同一個別名，單獨出現時是 ambiguous')]
+    #[TestDox('同形異義（token）：兩個概念詞有同一個別名，單獨出現時是 ambiguous')]
     public function test_homonym_aliases_stay_ambiguous_without_context(): void
     {
         $this->tokenHomonyms();
@@ -493,7 +493,7 @@ class NomenResolverTest extends TestCase
         $this->assertSame([null, null, Nomen::AMBIGUOUS], $this->resolved($unrelated), '同一篇的其他名稱不是任何候選的鄰居');
     }
 
-    #[TestDox('同形異義（E4 token）：同一篇也寫了 Sanctum，選跟 Sanctum 相關的「token（驗證）」；寫 Claude Code 就選另一個')]
+    #[TestDox('同形異義（token）：同一篇也寫了 Sanctum，選跟 Sanctum 相關的「token（驗證）」；寫 Claude Code 就選另一個')]
     public function test_homonyms_prefer_the_candidate_whose_neighbour_appears_in_the_same_work(): void
     {
         [$auth, $llm] = $this->tokenHomonyms();
@@ -532,7 +532,7 @@ class NomenResolverTest extends TestCase
         $this->assertSame(['technique', $auth->id, 'label'], $this->resolved($token));
     }
 
-    #[TestDox('對到已停用的技術時，沿改用換成仍在使用的那一筆（E5 Procfile → Heroku）')]
+    #[TestDox('對到已停用的技術時，沿改用換成仍在使用的那一筆（Procfile → Heroku）')]
     public function test_deprecated_matches_follow_their_replacement(): void
     {
         $procfile = $this->technique('Procfile', 'language');
@@ -569,7 +569,7 @@ class NomenResolverTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function deprecationsWithoutUsableReplacement(): iterable
     {
-        yield '停用、沒有改用對象（E5 Hack）' => ['none'];
+        yield '停用、沒有改用對象（Hack）' => ['none'];
         yield '改用對象已軟刪除' => ['trashed'];
         yield '改用繞成環（只有直接改資料庫才會發生）' => ['loop'];
     }

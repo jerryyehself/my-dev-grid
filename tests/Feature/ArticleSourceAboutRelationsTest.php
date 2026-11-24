@@ -149,7 +149,7 @@ class ArticleSourceAboutRelationsTest extends TestCase
         $this->assertSame([], $this->links($table, $column, $response->json('data.0.documentation_id')));
     }
 
-    #[TestDox('對到已停用的技術時，連到改用對象（E5 Procfile → Heroku）；只停用沒有改用對象的警告、不連')]
+    #[TestDox('對到已停用的技術時，連到改用對象（Procfile → Heroku）；只停用沒有改用對象的警告、不連')]
     public function test_deprecated_techniques_link_to_their_replacement(): void
     {
         $procfile = $this->target('technique', 'Procfile');
