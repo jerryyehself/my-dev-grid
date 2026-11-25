@@ -402,6 +402,46 @@ public function up(): void
 
 `down()` 還是要寫，而且要能跑，因為本地開發和 CI 會用到。真的沒辦法還原的（例如刪資料的回填），就在 `down()` 裡寫註解說明，不要假裝能還原。
 
+### 5.5 看一支 migration 前後的結構差異
+
+審查帶 migration 的 PR 時，想知道「這一支」到底讓哪些資料表、欄位、索引、外鍵變了，在本機跑 `scripts/migration-schema-diff.sh`。只用 Laravel 內建指令（`db:wipe`、`migrate --path`、`migrate --pretend`、`db:table --json`）加 `jq`，不用安裝套件，SQLite 與 PostgreSQL 用同一套指令〔實測：Laravel 13.43.0、PostgreSQL 16、SQLite〕。
+
+```bash
+# SQLite：自動用輸出目錄裡的暫存檔，不會動到平常開發用的 sqlite 檔
+scripts/migration-schema-diff.sh 2026_11_23_000001
+
+# PostgreSQL：連到用完即丟的本機資料庫，並明確確認可以清空
+SCHEMA_DIFF_CONFIRM_WIPE=1 DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=<port> \
+  DB_DATABASE=<db> DB_USERNAME=<user> DB_PASSWORD=<password> \
+  scripts/migration-schema-diff.sh 2026_11_23_000001
+```
+
+參數是檔名（有沒有 `.php` 都可以）或時間戳記，必須剛好對到 `database/migrations/` 底下一支。專案需要 PHP 8.4，本機的 `php` 不是 8.4 時用 `PHP_BIN=<php 8.4 的路徑>` 指定。
+
+腳本做的事：
+
+1. 清空資料庫，只跑排序在目標之前的所有 migration（`migrate --path=…`，檔名依位元組順序，跟 Laravel 排序一致）。
+2. 對每張表跑 `db:table <表> --json`，拿掉每次都可能不同的 `table.size`，合成一份前快照。
+3. `migrate --pretend` 把目標這一支實際會送的 SQL 存下來（PostgreSQL 上會看到 `SET LOCAL lock_timeout`，SQLite 沒有，對照 §5.3）。
+4. 只跑目標這一支，取後快照，印出資料表層級的摘要（新增、移除、有變動的表）與 `diff -u`。
+
+差異只屬於目標這一支：一次 `migrate` 指令就是一次快照區間，所以不會跟前後的 migration 混在一起。目標是第一支 migration 時前面沒有任何 migration，前快照是空的。
+
+腳本會清空它連到的資料庫，所以有三道擋，都是「不確定就拒絕」：
+
+- `APP_ENV` 只有 `local`、`testing` 能跑；`production`、其他值、讀不到，都直接結束，不碰資料庫。
+- SQLite 一律用暫存檔；PostgreSQL 只接受 `127.0.0.1`、`localhost`、`::1`，而且要設 `SCHEMA_DIFF_CONFIRM_WIPE=1`。其他資料庫驅動不支援。
+- 目標名稱只收英數字與底線，對到 0 支或多於 1 支都結束。
+
+**輸出只留在本機**：預設寫到 `storage/app/private/schema-diff/<連線>/<migration>/`（`before.json`、`after.json`、`pretend.sql`、`schema.diff`），這個資料夾被 `.gitignore` 擋掉。不要 commit，也不要把結構或差異貼進公開 repo 的 PR、issue 或留言；要改輸出位置就用 `SCHEMA_DIFF_OUT`，但不要指到會進版控的地方。不要用 `schema:dump` 做這件事：它預設寫到沒被 `.gitignore` 擋的 `database/schema/`，而且全新資料庫的 `migrate` 會先載入那份檔，改變 CI 從頭跑 migration 的方式〔實測：讀 `MigrateCommand`〕。
+
+限制：
+
+- 比的是結構，不是資料；回填資料的 migration 看不出效果。
+- 兩種資料庫的型別名稱不同是正常的（例如 PostgreSQL 的 `bigint` 在 SQLite 是 `integer`；`varchar(16)` 的長度只有 PostgreSQL 看得到），這正是 §5.3 說的差異。
+- `db:table --json` 不輸出欄位註解（`data.md` 建議每個新欄位都加）。要看註解，在 PostgreSQL 上對該表跑 `php artisan tinker --execute="echo json_encode(collect(Schema::getColumns('<表>'))->pluck('comment', 'name'), JSON_UNESCAPED_UNICODE);"`；SQLite 沒有欄位註解〔實測：PostgreSQL 回傳註解〕。
+- 改名會顯示成「舊欄位消失、新欄位出現」。
+
 ---
 
 ## 6. 回滾
