@@ -57,11 +57,11 @@ class ResLabelTest extends TestCase
         $this->assertSame(['alt', 'hidden'], DB::table('res_labels')->orderBy('normalized')->pluck('label_type')->all());
     }
 
-    #[TestDox('同形異義：兩個概念詞都可以有別名 token')]
+    #[TestDox('同形異義：兩個技術都可以有別名 token')]
     public function test_two_techniques_can_both_carry_the_alias_token(): void
     {
-        $authToken = $this->technique('token（驗證）', 'concept');
-        $llmToken = $this->technique('token（LLM）', 'concept');
+        $authToken = $this->technique('token（驗證）', 'packagetool');
+        $llmToken = $this->technique('token（LLM）', 'packagetool');
 
         $this->label($authToken, ['label' => 'token']);
         $this->label($authToken, ['label' => '存取權杖']);
@@ -88,7 +88,7 @@ class ResLabelTest extends TestCase
     #[TestDox('同一個 res 不能再存一個正規化後相同的別名')]
     public function test_the_same_res_cannot_store_the_same_key_twice(string $spelling): void
     {
-        $authToken = $this->technique('token（驗證）', 'concept');
+        $authToken = $this->technique('token（驗證）', 'packagetool');
         $this->label($authToken, ['label' => 'token']);
 
         try {

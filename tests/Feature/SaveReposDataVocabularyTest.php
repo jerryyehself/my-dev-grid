@@ -137,9 +137,9 @@ class SaveReposDataVocabularyTest extends TestCase
     #[TestDox('別名掛在兩個技術上（token 這種同形異義）：同步不猜、不另建，記一筆 warning')]
     public function test_homonym_alias_is_skipped(): void
     {
-        $concept = Scope::where('name', 'concept')->value('id');
+        $type = Scope::where('name', 'packagetool')->value('id');
         foreach (['token（驗證）', 'token（LLM）'] as $title) {
-            $technique = Technique::create(['type' => $concept, 'title' => $title]);
+            $technique = Technique::create(['type' => $type, 'title' => $title]);
             ResLabel::create(['res_type' => 'technique', 'res_id' => $technique->id, 'label' => 'token', 'label_type' => ResLabelType::Alt]);
         }
         $count = Technique::count();

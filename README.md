@@ -34,7 +34,6 @@
 | `packagetool` | Technique | 套件管理與建置工具，例如 npm、Composer |
 | `framework` | Technique | 軟體框架，例如 Vue、Laravel |
 | `assistant` | Technique | AI 工具本身，例如 Claude Code、ChatGPT、GitHub Copilot |
-| `concept` | Technique | 概念詞：文章談到的觀念或主題，不是具體的工具或套件，例如「建置工具」「認證」 |
 | `work` | Implementation | 非 GitHub repo 形式的產出物，例如作品、成果展示 |
 | `project` | Implementation | GitHub repo 專案，同步進來的每個公開 repo |
 | `problem` | Implementation | 待解決或已記錄的問題、議題 |
