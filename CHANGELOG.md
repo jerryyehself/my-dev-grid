@@ -4,17 +4,32 @@
 
 格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號依循[語意化版本](https://semver.org/lang/zh-TW/)。後端與前端（[`my-dev-grid-front`](https://github.com/jerryyehself/my-dev-grid-front)）各自獨立編版號。`v1.0.0` 是網站正式公開（移除 Cloudflare Access）的那一版，在那之前的內部版本都視為預發行，不逐版列出。
 
-## [Unreleased]
+## [1.5.0] - 2026-11-26
 
 ### 新增
 
 - 文章匯入時把段落單位存進新資料表 `article_units`（只新增表，不改既有的表）：鍵是 `(article_id, unit_id)`，重新匯入時依明確 ID、標題、內容相似度對上原本的單位，原稿裡不見的單位只填 `removed_at`、不刪列。原稿標題的 `{#id}` 重複或超過 255 字元時，`GET /api/article-sources` 列成 invalid，匯入回 409（#225）。
-- `article_units` 新增 `is_container`、`footnotes`、`chunks` 三欄（只新增、不回填）：腳註附給引用它的單位，只有子節、自己幾乎沒有內文的 H2 標成容器，正文超過 1500 字的單位切出檢索用的子片段（#226）。
+- `article_units` 新增 `is_container`、`footnotes`、`chunks` 三欄（只新增、不回填）：腳註附給引用它的單位，只有子節、自己幾乎沒有內文的 H2 標成容器，正文超過 1500 字的單位切出檢索用的子片段（#226）。段落單位的順序以文章原稿為準，資料表不另存位置欄（#234）。
 - 後台新增或修改文章（`POST /api/documentations`、`PUT /api/documentations/{id}`）時，在同一個 transaction 裡同步段落單位；只改標題等欄位時單位不動，原稿標題的 `{#id}` 重複或太長時回 422（`errors.body`），文件的變更一併回滾（#228）。
+- 新增指令 `articles:write-heading-ids {path} {--dry-run}`：替文章原稿的 H2、H3 補上短的 `{#sN}`。已有 ID 的不動，可重跑；任何一檔補不了就一檔都不寫。補 ID 時不會重用原稿歷史裡出現過的 ID（#230、#234）。
+- 技術詞表第一步：新增 `res_labels` 資料表，存技術或實作的別名與只用來比對的寫法；`techniques` 新增可為 NULL 的 `deprecated_at`、`replaced_by_id` 兩欄，不回填；預設資料新增 `broader`／`narrower`（互為反向）、`related`（對稱）三個述詞。新欄位與別名不會出現在既有的 API 回應裡（#239）。
+- 技術詞表第二步：同步與文章匯入比對技術時，先比正式名稱、再比別名，遇到已停用的技術會沿改用對象走。新增 `PATCH /api/techniques/{technique}/deprecation`（需登入）停用、合併與取消停用技術，合併前被刪掉的重複連結整列寫進稽核紀錄。`/api/techniques` 回應多停用狀態、停用時間與改用對象三個欄位；`GET /api/graph` 的節點多 `deprecated`、`replaced_by`，技術節點的 `subtype` 從 `null` 改成分類名稱（#240）。
+- 新增四支需要登入的端點，維護技術之間的上下位與相關：`PUT`／`DELETE /api/techniques/{technique}/broader/{broader}`、`PUT`／`DELETE /api/techniques/{technique}/related/{related}`。新增時擋下（422）連到自己、任一端已停用、分類不符合述詞、述詞已棄用，以及上下位成環、相關與上下位重疊、上位重複；寫入記進稽核紀錄（#242）。
+- 技術詞表可以匯出成 SKOS Turtle（`VocabularyExporter` service，識別碼前綴、語言標記等設定放在新的 `config/vocabulary.php`）；這一版沒有新增路由或指令（#243）。
 
 ### 變更
 
 - 文章匯入的 update：GitHub Compare 判斷不出站上記錄的 commit 和這次原稿的先後時（`diverged`、查不到 commit、站上記錄的值不是 SHA），改成回 409，除非該項帶 `confirm_unverified_base` 且等於站上目前記錄的 `source_commit_sha`；409 附 `unverified_commits: [{index, commit_sha}]`。原本這種情況一律放行，舊請求重送時可能把文章倒回舊版（#235）。
+- `accompanies`、`precedes`、`succeeds` 三個述詞的外部詞彙對照，從 Tillett (1987) 的分類名改成 RDA／BIBFRAME 的屬性（`rda` P10103、`bibframe` succeededBy、`bibframe` precededBy）。新資料庫直接種新值；既有資料庫由資料 migration 更新這三列，只改還停在舊對照的列。述詞名稱、id、反向配對都不動，API 沒有公開這兩個欄位（#241）。
+- 合併技術與刪除上下位、相關時，跟新增共用同一組述詞鎖，避免同時寫入時各自檢查都通過、合起來卻違反詞表規則（#243）。
+- 預設資料不建立暫定的 Technique `concept` 子分類（該分類從未部署到正式環境，不需要 migration）；概念詞的放置方式之後再定（#245）。
+- 文件：`docs/release.md` 成為上線流程唯一的規則來源，上線改從 release 分支開；README 的兩張 ER 圖重畫（概念圖只留基礎類別，機制圖只畫邏輯層）（#232、#238）。
+- 升級 `laravel/framework` 13.40.0 → 13.43.0（安全性修補）（#237）。
+- 開往 `main` 的 PR 只接受 `release/*`、`hotfix/*`、`dependabot/*` 分支，由新的 `main-source-branch` 檢查把關；`tests.yml` 也對 `release/**` 的 PR 跑（#236）。
+
+### 修正
+
+- 修正測試 `SoftDeletedForeignKeyTest` 偶爾撞到隨機資料而失敗的問題，並補上技術上下位與相關寫入 API 的驗證測試（#227、#246）。
 
 ## [1.4.1] - 2026-11-24
 
@@ -214,6 +229,7 @@ GitHub 同步
 - CORS 只放行前端網址，refresh、session、登出只接受 `Origin` 等於前端網址的請求（commit `38b9e19`, #70, #85）。
 - 升級 `league/commonmark` 至 2.10.3，修正兩個安全公告（#86）。
 
+[1.5.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.5.0
 [1.4.1]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.4.1
 [1.4.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.4.0
 [1.3.0]: https://github.com/jerryyehself/my-dev-grid/releases/tag/v1.3.0
