@@ -11,6 +11,7 @@
 - 每週一上線。要不要上線一律先問使用者，就算 CI 全過也一樣。
 - 前後端同一天上線時，後端先上、部署成功後再上前端，前端用到的新 API 才會已經在正式環境。
 - CI 在開往 `main`、`develop`、`release/**` 的 PR 都會跑，所以從 `release/*` 開往 `main` 的上線 PR、開到 release 分支的修正 PR 也會跑。
+- 開往 `main` 的 PR，來源分支只能是 `release/*`、`hotfix/*` 或 `dependabot/*`，由 `.github/workflows/main-source-branch.yml` 的 `main-source-branch` 檢查把關。
 - 預設分支維持 `main`：`main` 的保護規則與 Dependabot 的安全性更新都跟著預設分支。`develop` 有保護規則擋刪除與 force push。
 
 ## 2. 切 release 分支
