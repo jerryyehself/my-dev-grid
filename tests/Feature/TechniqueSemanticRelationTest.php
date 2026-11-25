@@ -266,6 +266,104 @@ class TechniqueSemanticRelationTest extends TestCase
         };
     }
 
+    /**
+     * 跟 `rejected()` 一條一條對著寫：每條擋下的規則，各配一個「差一點就違規、但不違規」的新增，必須通過。
+     * 這些案例守的是規則不能寫得太寬：把任一條規則改成多擋一點（例如只比對名稱、只看有沒有共同上位），
+     * 對應的案例就會變紅。
+     *
+     * 規則 → 通過的案例：
+     * - 連到自己：名稱開頭相同（token）、但是不同的兩個技術。
+     * - 繞成環：往上多接一層、往下多接一個，鏈變長但沒有回頭；多條路走到同一個上位（菱形）不是環。
+     * - S27（相關不能跟上下位重疊）：兄弟、叔姪沒有上下位路徑，可以標相關；已經標相關的兩個，
+     *   各自掛到對方的親戚底下也沒有路徑。
+     * - 上位重複：第二個上位是兄弟，走不到、也不會被走到。
+     * - 已停用：別的技術停用，不影響這次的兩端；名稱開頭相同的停用技術也不連坐。
+     * - 分類：技術的任何子分類都算（不只 packagetool）。
+     * - 述詞：另一個述詞棄用、刪除、同名重複都不影響這次用的述詞；棄用後恢復、同名的另一筆已軟刪除，都算只有一筆可用。
+     *
+     * @return iterable<string, array{string, string, string}> [種類, 主詞, 受詞]
+     */
+    public static function accepted(): iterable
+    {
+        yield '名稱開頭相同的兩個技術，上位不是自己' => ['broader', 'token（LLM）', 'token（驗證）'];
+        yield '名稱開頭相同的兩個技術，相關不是自己' => ['related', 'token（LLM）', 'token（驗證）'];
+        yield '往上多接一層不算環' => ['broader', '雲端服務', '資訊安全'];
+        yield '往下多接一個不算環' => ['broader', '資訊安全', 'Heroku'];
+        yield '兄弟標相關（沒有上下位路徑）' => ['related', 'PaaS', '靜態託管'];
+        yield '叔姪標相關（共用祖先、沒有上下位路徑）' => ['related', 'Heroku', '靜態託管'];
+        yield '標了相關的兩個，各自掛到對方的親戚底下' => ['broader', 'Heroku', 'PaaS'];
+        yield '第二個上位是兄弟，不算上位重複' => ['broader', 'Heroku', '靜態託管'];
+        yield '主詞沒停用，同一個上位底下另一個技術已停用' => ['broader', 'SPA', '資訊安全'];
+        yield '受詞沒停用，名稱開頭相同的技術已停用' => ['broader', 'SPA', 'token（驗證）'];
+        yield '相關兩端都沒停用，名稱開頭相同的技術已停用' => ['related', 'SPA', 'token（驗證）'];
+        yield '分類是技術底下的另一個子分類' => ['broader', 'Vue', 'PaaS'];
+        yield '只有 related 棄用，上下位照常' => ['broader', 'SPA', '資訊安全'];
+        yield '只有 broader 棄用，相關照常' => ['related', 'SPA', '資訊安全'];
+        yield '述詞棄用後恢復' => ['broader', 'SPA', '資訊安全'];
+        yield '只有 related 已刪除，上下位照常' => ['broader', 'SPA', '資訊安全'];
+        yield '只有 narrower 已刪除，上下位照常' => ['broader', 'SPA', '資訊安全'];
+        yield 'broader 同名重複，相關照常' => ['related', 'SPA', '資訊安全'];
+        yield 'broader 同名的另一筆已軟刪除，只算一筆' => ['broader', 'SPA', '資訊安全'];
+    }
+
+    #[DataProvider('accepted')]
+    #[TestDox('差一點就違規但沒有違規時回 201，只多寫那一列並記稽核')]
+    public function test_accepted_edges_get_201_and_exactly_one_row_is_written(string $kind, string $subject, string $object): void
+    {
+        $this->arrangeAccepted($this->dataName());
+        $before = $this->semanticRows();
+        $this->actingAsOwner();
+        $this->captureLogs();
+
+        $response = $this->edgeRequest('PUT', $kind, $subject, $object)->assertCreated();
+
+        $this->assertContains($this->t[$object]->id, $response->json("data.{$kind}"));
+        // 相關存的時候 id 小的當主詞
+        $expected = $kind === 'related'
+            ? [min($this->t[$subject]->id, $this->t[$object]->id), max($this->t[$subject]->id, $this->t[$object]->id), 'related']
+            : [$this->t[$subject]->id, $this->t[$object]->id, 'broader'];
+        $this->assertSame([...$before, $expected], $this->semanticRows());
+        $context = $this->assertSecurityEvent('authz_admin', ['action' => 'attach', 'object_id' => $this->t[$subject]->id]);
+        $this->assertSame($kind, $context['predicate']);
+        $this->assertCount(1, $this->auditEvents('attach'));
+    }
+
+    /** `accepted()` 各個案例需要的額外資料。 */
+    private function arrangeAccepted(string $case): void
+    {
+        match ($case) {
+            '叔姪標相關（共用祖先、沒有上下位路徑）', '往下多接一個不算環', '第二個上位是兄弟，不算上位重複' => $this->edge('Heroku', 'PaaS', 'broader'),
+            '標了相關的兩個，各自掛到對方的親戚底下' => $this->edge('Heroku', '靜態託管', 'related'),
+            '主詞沒停用，同一個上位底下另一個技術已停用', '受詞沒停用，名稱開頭相同的技術已停用', '相關兩端都沒停用，名稱開頭相同的技術已停用' => $this->t['token（LLM）']->deprecate(null),
+            '分類是技術底下的另一個子分類' => $this->t['Vue'] = Technique::create(['type' => Scope::where('name', 'framework')->value('id'), 'title' => 'Vue']),
+            '只有 related 棄用，上下位照常' => Relation::where('name', 'related')->sole()->deprecate(null),
+            '只有 broader 棄用，相關照常' => Relation::where('name', 'broader')->sole()->deprecate(null),
+            '述詞棄用後恢復' => $this->deprecateAndRestore('broader'),
+            '只有 related 已刪除，上下位照常' => DB::table('relations')->where('name', 'related')->update(['deleted_at' => now()]),
+            '只有 narrower 已刪除，上下位照常' => DB::table('relations')->where('name', 'narrower')->update(['deleted_at' => now()]),
+            'broader 同名重複，相關照常' => $this->duplicateBroader(null),
+            'broader 同名的另一筆已軟刪除，只算一筆' => $this->duplicateBroader(now()),
+            default => null,
+        };
+    }
+
+    private function deprecateAndRestore(string $name): void
+    {
+        $relation = Relation::where('name', $name)->sole();
+        $relation->deprecate(null);
+        $relation->refresh()->undeprecate();
+        $this->assertNull(Relation::where('name', $name)->sole()->deprecated_at);
+    }
+
+    /** 再插一筆名稱是 broader 的述詞（$deletedAt 不是 null 就是已軟刪除的那種）。 */
+    private function duplicateBroader(mixed $deletedAt): void
+    {
+        DB::table('relations')->insert([
+            ...(array) DB::table('relations')->where('name', 'broader')->first(['subject_id', 'object_id', 'class_number', 'name']),
+            'call_number' => '99', 'deleted_at' => $deletedAt, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+
     #[TestDox('原本就有的問題不擋無關的新增，只擋這次多出來的')]
     public function test_existing_problems_only_block_edges_that_add_new_ones(): void
     {
