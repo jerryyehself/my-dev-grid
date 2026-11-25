@@ -243,7 +243,7 @@ jobs:
       # - httpGet.port 要跟服務的 container port 一致（沒另外設定，是預設的 8080）。
       - name: Deploy new revision (no traffic)
         id: deploy
-        uses: google-github-actions/deploy-cloudrun@251330ba9a8a34bfbc1622895f42e1d53fd14522 # v2.7.6
+        uses: google-github-actions/deploy-cloudrun@2028e2d7d30a78c6910e0632e48dd561b064884d # v3.0.1
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           region: ${{ vars.GCP_REGION }}
