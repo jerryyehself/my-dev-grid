@@ -88,7 +88,7 @@ class VocabularyColumnsHiddenTest extends TestCase
         // 已停用、指向改用對象的技術，又有連結：舊程式會照常把它帶出來
         $this->technique = Technique::factory()->create(['type' => $this->scope->id, 'title' => self::TITLE]);
         DB::table('techniques')->where('id', $this->technique->id)->update(['deprecated_at' => self::DEPRECATED_AT, 'replaced_by_id' => $replacement->id]);
-        $this->concept = Technique::factory()->create(['type' => Scope::where('name', 'concept')->value('id'), 'title' => '靜態託管']);
+        $this->concept = Technique::factory()->create(['type' => Scope::where('name', 'packagetool')->value('id'), 'title' => '靜態託管']);
         $this->implementation = Implementation::factory()->create(['type' => Scope::where('name', 'project')->value('id'), 'is_visible' => true]);
         $this->documentation->techniques()->attach($this->technique->id, ['relation_id' => $this->relation->id]);
         $this->implementation->techniques()->attach($this->technique->id, ['relation_id' => Relation::where('name', 'uses')->value('id')]);

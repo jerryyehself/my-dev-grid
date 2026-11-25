@@ -47,7 +47,7 @@ class VocabularyExporterTest extends TestCase
         DB::table('relations')->where('name', 'isVersionOf')->update(['parent_class' => $this->relationId('broader')]);
         DB::table('relations')->where('name', 'requires')->update(['parent_class' => $this->relationId('related')]);
 
-        $concept = $this->scopeId('concept');
+        $concept = $this->scopeId('packagetool');
         foreach (['雲端服務', 'PaaS', '靜態託管', '資訊安全', 'token（驗證）', 'token（LLM）', 'SPA'] as $title) {
             $this->t[$title] = Technique::create(['type' => $concept, 'title' => $title]);
         }
@@ -288,7 +288,7 @@ class VocabularyExporterTest extends TestCase
         $titles = ['帶 "引號" 的', 'C:\\path\\to', "兩行\n第二行", "tab\there", '結尾反斜線\\'];
         $ids = [];
         foreach ($titles as $title) {
-            $ids[$title] = Technique::create(['type' => $this->scopeId('concept'), 'title' => $title])->id;
+            $ids[$title] = Technique::create(['type' => $this->scopeId('packagetool'), 'title' => $title])->id;
         }
 
         $triples = $this->parseTurtle($this->exporter()->toTurtle());
@@ -322,7 +322,7 @@ class VocabularyExporterTest extends TestCase
     #[TestDox('資料庫裡違規的資料，匯出後被對應的檢查抓到')]
     public function test_violations_in_the_database_are_caught(string $case, array $expected): void
     {
-        $concept = $this->scopeId('concept');
+        $concept = $this->scopeId('packagetool');
         match ($case) {
             'cycle' => $this->edge('雲端服務', 'Heroku', 'broader'),
             'related_on_path' => $this->edge('Heroku', '雲端服務', 'related'),

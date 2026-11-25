@@ -456,14 +456,14 @@ class NomenResolverTest extends TestCase
     }
 
     /**
-     * 同形異義的資料：兩個概念詞都有別名 token，Sanctum 跟「token（驗證）」相關，Claude Code 跟「token（LLM）」相關。
+     * 同形異義的資料：兩個技術都有別名 token，Sanctum 跟「token（驗證）」相關，Claude Code 跟「token（LLM）」相關。
      *
      * @return array{0: Technique, 1: Technique, 2: Technique, 3: Technique}
      */
     private function tokenHomonyms(): array
     {
-        $auth = $this->technique('token（驗證）', 'concept');
-        $llm = $this->technique('token（LLM）', 'concept');
+        $auth = $this->technique('token（驗證）', 'packagetool');
+        $llm = $this->technique('token（LLM）', 'packagetool');
         foreach (['token', '存取權杖', 'access token'] as $label) {
             $this->alias($auth, $label);
         }
@@ -478,7 +478,7 @@ class NomenResolverTest extends TestCase
         return [$auth, $llm, $sanctum, $claudeCode];
     }
 
-    #[TestDox('同形異義（token）：兩個概念詞有同一個別名，單獨出現時是 ambiguous')]
+    #[TestDox('同形異義（token）：兩個技術有同一個別名，單獨出現時是 ambiguous')]
     public function test_homonym_aliases_stay_ambiguous_without_context(): void
     {
         $this->tokenHomonyms();
@@ -517,7 +517,7 @@ class NomenResolverTest extends TestCase
     public function test_homonyms_prefer_the_candidate_whose_broader_concept_appears(): void
     {
         [$auth] = $this->tokenHomonyms();
-        $security = $this->technique('資訊安全', 'concept');
+        $security = $this->technique('資訊安全', 'packagetool');
         EntityRelation::create([
             'entity_type' => 'technique',
             'subject_id' => $auth->id,

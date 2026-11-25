@@ -38,7 +38,7 @@ class TechniqueEdgeLockOrderTest extends TestCase
         parent::setUp();
         $this->seed();
 
-        $concept = Scope::where('name', 'concept')->value('id');
+        $concept = Scope::where('name', 'packagetool')->value('id');
         foreach (['雲端服務', 'PaaS', 'PaaS（舊）', 'SPA'] as $title) {
             $this->t[$title] = Technique::create(['type' => $concept, 'title' => $title]);
         }

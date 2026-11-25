@@ -14,9 +14,9 @@ use InvalidArgumentException;
  *
  * 內容：
  * - 一個 `skos:ConceptScheme`（`{base_uri}vocabulary`），名稱是設定的 `scheme_label`。
- * - 每個技術（含 Technique 底下的 concept，不含已軟刪除的）一個 `skos:Concept`（`{base_uri}technique/{id}`），
+ * - 每個技術（不含已軟刪除的）一個 `skos:Concept`（`{base_uri}technique/{id}`），
  *   正式名（`skos:prefLabel`）是 `Technique::labelFrom(title, version)`，語言標記是設定的 `language`。
- *   專案（implementations）不在詞表裡。分類（language、framework、concept…）是類別，不是概念之間的上下位，不輸出。
+ *   專案（implementations）不在詞表裡。分類（language、framework…）是類別，不是概念之間的上下位，不輸出。
  * - 上下位與相關照 `SemanticRelations::fromDatabase()` 讀：broader／narrower／related 加上掛在它們底下的子述詞
  *   （例如 isVersionOf 掛到 broader 底下之後也算 broader）。資料庫只存一個方向，這裡兩個方向都輸出
  *   （broader 配 narrower、related 兩端各一條），不然 qSKOS 會報單向關係（`urc`）。

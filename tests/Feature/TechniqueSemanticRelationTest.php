@@ -35,7 +35,7 @@ class TechniqueSemanticRelationTest extends TestCase
         parent::setUp();
         $this->seed();
 
-        $concept = Scope::where('name', 'concept')->value('id');
+        $concept = Scope::where('name', 'packagetool')->value('id');
         $packagetool = Scope::where('name', 'packagetool')->value('id');
         foreach (['雲端服務', 'PaaS', '靜態託管', '資訊安全', 'token（驗證）', 'token（LLM）', 'SPA'] as $title) {
             $this->t[$title] = Technique::create(['type' => $concept, 'title' => $title]);

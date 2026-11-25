@@ -160,7 +160,7 @@ class TechniqueDeprecationTest extends TestCase
         $vue = Technique::where('title', 'Vue')->whereNull('version')->sole();
         $vue3 = Technique::where('title', 'Vue')->where('version', '3')->sole();
         $selfLoop = EntityRelation::where(['subject_id' => $vue3->id, 'object_id' => $vue->id, 'relation_id' => $this->relationId('isVersionOf')])->sole();
-        $spa = Technique::create(['type' => Scope::where('name', 'concept')->value('id'), 'title' => 'SPA']);
+        $spa = Technique::create(['type' => Scope::where('name', 'packagetool')->value('id'), 'title' => 'SPA']);
         $related = EntityRelation::create(['entity_type' => 'technique', 'subject_id' => $vue3->id, 'object_id' => $spa->id, 'relation_id' => $this->relationId('related')]);
         $post = Documentation::factory()->create(['type' => Scope::where('name', 'post')->value('id')]);
         $post->techniques()->attach($vue3->id, ['relation_id' => $this->relationId('about')]);
@@ -318,7 +318,7 @@ class TechniqueDeprecationTest extends TestCase
     #[TestDox('合併會弄壞資料時回 422，整個不做：不停用、不搬連結、不加別名、不記 merge')]
     public function test_blocked_merges_change_nothing(string $case, string $message): void
     {
-        $concept = Scope::where('name', 'concept')->value('id');
+        $type = Scope::where('name', 'packagetool')->value('id');
         $broader = $this->relationId('broader');
         $edge = fn (Technique $a, Technique $b, int $relation) => EntityRelation::create(['entity_type' => 'technique', 'subject_id' => $a->id, 'object_id' => $b->id, 'relation_id' => $relation]);
         $from = $this->procfile;
@@ -336,18 +336,18 @@ class TechniqueDeprecationTest extends TestCase
                 Implementation::where('title', 'shorturl')->sole()->techniques()->attach($from->id, ['relation_id' => $languageOnly->id]);
                 break;
             case 'cycle':
-                $hosting = Technique::create(['type' => $concept, 'title' => '靜態託管']);
+                $hosting = Technique::create(['type' => $type, 'title' => '靜態託管']);
                 $edge($from, $hosting, $broader);
                 $edge($hosting, $into, $broader);
                 break;
             case 'related_in_hierarchy':
-                $paas = Technique::create(['type' => $concept, 'title' => 'PaaS']);
+                $paas = Technique::create(['type' => $type, 'title' => 'PaaS']);
                 $edge($from, $paas, $broader);
                 $edge($into, $paas, $this->relationId('related'));
                 break;
             case 'redundant_broader':
-                $cloud = Technique::create(['type' => $concept, 'title' => '雲端服務']);
-                $paas = Technique::create(['type' => $concept, 'title' => 'PaaS']);
+                $cloud = Technique::create(['type' => $type, 'title' => '雲端服務']);
+                $paas = Technique::create(['type' => $type, 'title' => 'PaaS']);
                 $edge($paas, $cloud, $broader);
                 $edge($from, $paas, $broader);
                 $edge($into, $cloud, $broader);
