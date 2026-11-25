@@ -22,6 +22,7 @@
   - 有 `down()`。會刪資料或改寫資料的，先把原值備份到暫存表，`down()` 照備份還原（`merge_duplicate_techniques` 的 `technique_merge_backups`）。
   - 補一個測試，跑 `up()`、`down()` 驗證資料：`FixUsesRelationDirectionMigrationTest`、`MergeDuplicateTechniquesMigrationTest`。
 - README 兩張 ER 圖（`docs/readme/er_model_*.svg`）不畫資料表與欄位：概念圖畫基礎類別與基礎述詞，機制圖畫類別階層、述詞三元組與兩種邊。只有這些改變時（新增或刪除基礎類別、基礎述詞，或改變述詞、邊的組成方式），同一個 PR 一起改圖，子類與子述詞的表格也一起改；當下改不了，就開 issue 寫明圖上哪裡要改。只加欄位或資料表不用改圖。
+- 想看這一支 migration 前後的結構差異（資料表、欄位、索引、外鍵），在本機跑 `scripts/migration-schema-diff.sh <migration>`，用法與限制見 [`docs/zero-downtime-migrations.md`](../zero-downtime-migrations.md) §5.5。
 
 ## 寫 seeder
 
