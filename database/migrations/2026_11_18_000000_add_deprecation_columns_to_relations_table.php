@@ -54,9 +54,11 @@ return new class extends Migration
 
     /**
      * SQLite（CI 與本機）加或拿掉外鍵時，Laravel 會整張表重建：建暫存表、複製、刪掉舊表、改名。
-     * 它會先下 `PRAGMA foreign_keys = OFF`，但 migration 跑在 transaction 裡，這句在 transaction 裡
-     * 沒有作用；表裡有互相指著的述詞（reverse_id）時，刪舊表那一步就會撞外鍵。改成把外鍵檢查延到
-     * commit 才做，那時表已經改名回來，參照都對得上。PostgreSQL 不重建表，不需要。
+     * 它會先下 `PRAGMA foreign_keys = OFF`，但在 transaction 裡（例如測試直接呼叫 `up()`／`down()`）
+     * 這句沒有作用；表裡有互相指著的述詞（reverse_id）時，刪舊表那一步就會撞外鍵。`artisan migrate`
+     * 在 SQLite 上不包 transaction（Laravel 只替 PostgreSQL、SQL Server 的結構變更包），所以那時
+     * 這句有作用，延後檢查只是多一層保險。改成把外鍵檢查延到 commit 才做，那時表已經改名回來，
+     * 參照都對得上。PostgreSQL 不重建表，不需要。
      */
     private function deferSqliteForeignKeys(): void
     {

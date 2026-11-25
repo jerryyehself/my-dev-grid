@@ -28,7 +28,7 @@ class SeederIdempotencyTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $this->assertSame(17, $scopeCount);
-        $this->assertSame(31, $relationCount); // 15 筆＋技術版本的 isVersionOf／hasVersion＋兩對 about＋外部參考的兩組述詞＋改作與建置產物的兩對＋專案關於技術的一對
+        $this->assertSame(34, $relationCount); // 15 筆＋技術版本的 isVersionOf／hasVersion＋兩對 about＋外部參考的兩組述詞＋改作與建置產物的兩對＋專案關於技術的一對＋詞表的 broader／narrower／related
         $this->assertSame($scopeCount, Scope::count());
         $this->assertSame($relationCount, Relation::count());
         $this->assertSame($scopeCount, Scope::distinct()->count('name'));

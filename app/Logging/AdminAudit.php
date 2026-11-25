@@ -103,6 +103,45 @@ final class AdminAudit
     }
 
     /**
+     * 把一筆技術合併進另一筆（`TechniqueMerger`）。停用本身另有 `update` 的紀錄；這一筆記下連結怎麼搬。
+     *
+     * 刪掉的連結記整列的值（id、兩端、述詞、時間），改寫過的記原本的值（留下那列的 created_at、manually_set_at，
+     * 改接的邊原本的兩端），要還原時照這筆寫回去：合併沒有備份表，
+     * 這是唯一的紀錄。連結列只有 id 與時間，沒有內文，不會撐爆一行日誌（見類別說明）。
+     *
+     * @param  array{moved: array<string, list<int>>, removed: array<string, list<array<string, mixed>>>, updated: array<string, list<array<string, mixed>>>, label_id: int|null}  $summary
+     */
+    public static function techniqueMerged(Technique $from, Technique $into, array $summary): void
+    {
+        self::record('merge', $from, [
+            'merged_into' => $into->id,
+            'moved_links' => $summary['moved'],
+            'removed_links' => $summary['removed'],
+            'updated_links' => $summary['updated'],
+            'res_label_id' => $summary['label_id'],
+        ]);
+    }
+
+    /**
+     * 新增（`attach`）或刪除（`detach`）技術之間的上下位或相關（`SemanticTechniqueEdges`）。
+     * `entity_relations` 不在 MODELS 裡、沒有 model 事件的紀錄，這一筆是唯一的紀錄。
+     *
+     * 跟合併一樣記整列的值（id、兩端、述詞、時間）：刪掉的要還原時照這筆寫回去，新增的要撤回時查得到是哪一列。
+     *
+     * @param  string  $action  attach 或 detach
+     * @param  string  $predicate  broader 或 related
+     * @param  list<array<string, mixed>>  $rows  `entity_relations` 的整列
+     */
+    public static function semanticRelationChanged(string $action, Technique $technique, string $predicate, Technique $other, array $rows): void
+    {
+        self::record($action, $technique, [
+            'predicate' => $predicate,
+            'other_id' => $other->id,
+            'entity_relations' => $rows,
+        ]);
+    }
+
+    /**
      * @param  array<string, mixed>  $fields
      */
     private static function record(string $action, Model $model, array $fields = []): void

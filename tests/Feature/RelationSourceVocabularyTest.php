@@ -44,7 +44,7 @@ class RelationSourceVocabularyTest extends TestCase
 
     public static function borrowedPredicateProvider(): array
     {
-        // 31 筆裡扣掉 specs/specifiedBy（上面那支測試單獨守），剩下 29 筆全部
+        // 34 筆裡扣掉 specs/specifiedBy（上面那支測試單獨守），剩下 32 筆全部
         // 應該是借來的，逐筆核對——不是只挑幾個代表，因為漏一筆不會報錯，
         // 只會安靜留一個 null。挑選依據記在回填 migration 的 docblock。
         return [
@@ -60,9 +60,9 @@ class RelationSourceVocabularyTest extends TestCase
             'assisted-by（實作把 AI 當工具用＝usesTool，2026-09-30 從 dependsOn 修正）' => ['assisted-by', 'spdx', 'usesTool'],
             'descendantOf' => ['descendantOf', 'spdx', 'DESCENDANT_OF'],
             'ancestorOf' => ['ancestorOf', 'spdx', 'ANCESTOR_OF'],
-            'accompanies' => ['accompanies', 'tillett1987', 'Accompanying'],
-            'precedes' => ['precedes', 'tillett1987', 'Sequential'],
-            'succeeds（沿用 precedes 的詞條，note 沒有另外具名）' => ['succeeds', 'tillett1987', 'Sequential'],
+            'accompanies（RDA is complemented by work，2026-11-24 從 Tillett 分類名改）' => ['accompanies', 'rda', 'P10103'],
+            'precedes（A precedes B ＝ A bf:succeededBy B）' => ['precedes', 'bibframe', 'succeededBy'],
+            'succeeds（BIBFRAME 具名的反向詞條 precededBy）' => ['succeeds', 'bibframe', 'precededBy'],
             'about（文章講到某個技術，schema.org）' => ['about', 'schema', 'about'],
             'subjectOf' => ['subjectOf', 'schema', 'subjectOf'],
             'aboutProject（文章講到某個專案，受詞端不同所以另立一筆，沿用同一個詞條）' => ['aboutProject', 'schema', 'about'],
@@ -77,13 +77,16 @@ class RelationSourceVocabularyTest extends TestCase
             'isBasisForProject' => ['isBasisForProject', 'schema', 'isBasisFor'],
             'subjectOfProject（技術是專案的主題，只有 topic 證據時同步寫這條）' => ['subjectOfProject', 'schema', 'subjectOf'],
             'projectAbout（反向）' => ['projectAbout', 'schema', 'about'],
+            'broader（詞表的上位，技術與概念詞之間）' => ['broader', 'skos', 'broader'],
+            'narrower（SKOS 具名的反向詞條）' => ['narrower', 'skos', 'narrower'],
+            'related（對稱，反向是自己）' => ['related', 'skos', 'related'],
         ];
     }
 
     #[TestDox('每個 seeder 種出的述詞都做過出處判斷')]
     public function test_every_seeded_relation_has_a_source_decision(): void
     {
-        // 上面兩支測試合起來要覆蓋全部 31 筆——這支測試不驗證個別值，只驗證
+        // 上面兩支測試合起來要覆蓋全部 34 筆——這支測試不驗證個別值，只驗證
         // 「沒有漏掉的一筆」。漏掉的一筆會落成 source_vocabulary 為 null，
         // 跟「查證後判斷是自創」在資料庫裡長得一模一樣，光看資料分不出來，
         // 所以覆蓋率要用「這 29 個名字都出現在上面兩支測試的清單裡」來守，
@@ -97,7 +100,7 @@ class RelationSourceVocabularyTest extends TestCase
 
         $allNames = Relation::pluck('name')->all();
 
-        $this->assertCount(31, $allNames, '目前 seeder 應該種出 31 筆 relation——這個數字變了，上面兩支測試的覆蓋清單要跟著補');
+        $this->assertCount(34, $allNames, '目前 seeder 應該種出 34 筆 relation——這個數字變了，上面兩支測試的覆蓋清單要跟著補');
         $this->assertEqualsCanonicalizing($allNames, $decided, '有 relation 沒有被任何一支測試的清單涵蓋到，即使它剛好是 null 也不能算「驗證過」');
     }
 
@@ -138,6 +141,12 @@ class RelationSourceVocabularyTest extends TestCase
         }
         $this->assertCount(17, $sources);
 
+        // 再疊上 2026-11-24 把 accompanies／precedes／succeeds 從 Tillett 分類名改成 RDA／BIBFRAME 屬性
+        $mapped = require database_path('migrations/2026_11_24_000002_map_implementation_relations_to_rda_and_bibframe.php');
+        foreach ($mapped::NEW as $name => $values) {
+            $sources[$name] = [$values['source_vocabulary'], $values['source_term']];
+        }
+
         foreach ($sources as $name => [$vocabulary, $term]) {
             $relation = Relation::where('name', $name)->first();
             $this->assertNotNull($relation, "migration 的 SOURCES 表裡有 seeder 沒種出來的名字：{$name}");
@@ -153,7 +162,7 @@ class RelationSourceVocabularyTest extends TestCase
     #[TestDox('互為反向的述詞，出處詞彙保持一致')]
     public function test_reverse_pairs_agree_on_shared_source(): void
     {
-        // documentedBy／usedBy／succeeds 這三筆沒有在自己的 note 裡另外具名詞條，
+        // documentedBy／usedBy 這兩筆沒有在自己的 note 裡另外具名詞條，
         // 沿用正向那一筆的判斷——這支測試守的是「兩邊沒有因為之後有人改了
         // 其中一筆就悄悄長出分歧」，不是重新驗證值本身（上面已經驗證過）。
         $this->seed();
@@ -168,6 +177,7 @@ class RelationSourceVocabularyTest extends TestCase
             ['targets', 'targetedBy'],
             ['influences', 'influencedBy'],
             ['subjectOfProject', 'projectAbout'],
+            ['broader', 'narrower'],
         ];
 
         foreach ($pairs as [$forward, $reverse]) {
@@ -175,8 +185,9 @@ class RelationSourceVocabularyTest extends TestCase
             $reverseRelation = Relation::where('name', $reverse)->firstOrFail();
 
             // uses/usedBy 的詞條實際上不同（DEPENDS_ON vs DEPENDENCY_OF），
-            // 只有 vocabulary 該一致；documents/documentedBy 與
-            // precedes/succeeds 才是 vocabulary 跟 term 都完全沿用。
+            // 只有 vocabulary 該一致；documents/documentedBy 才是
+            // vocabulary 跟 term 都完全沿用。precedes/succeeds 的詞條是 BIBFRAME 的一對互反屬性
+            // （succeededBy／precededBy），詞條不同，所以不在這裡比 term。
             $this->assertSame(
                 $forwardRelation->source_vocabulary,
                 $reverseRelation->source_vocabulary,
@@ -184,7 +195,7 @@ class RelationSourceVocabularyTest extends TestCase
             );
         }
 
-        foreach ([['documents', 'documentedBy'], ['precedes', 'succeeds'], ['targets', 'targetedBy']] as [$forward, $reverse]) {
+        foreach ([['documents', 'documentedBy'], ['targets', 'targetedBy']] as [$forward, $reverse]) {
             $forwardRelation = Relation::where('name', $forward)->firstOrFail();
             $reverseRelation = Relation::where('name', $reverse)->firstOrFail();
 

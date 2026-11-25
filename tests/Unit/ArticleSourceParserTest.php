@@ -145,6 +145,10 @@ class ArticleSourceParserTest extends TestCase
         yield 'about_projects 的名稱超過 100 字' => ["---\nslug: s\nimport: true\nabout_projects: [".str_repeat('a', 101)."]\n---\n# T\n", 'about_projects_invalid'];
         yield '含 NUL' => ["---\nslug: s\nimport: true\n---\n# T\n\0\n", 'binary'];
         yield '不是 UTF-8' => ["---\nslug: s\nimport: true\n---\n# T\n\xC3\x28\n", 'not_utf8'];
+        yield '兩個標題的 {#id} 相同' => ["---\nslug: s\nimport: true\n---\n# T\n## A {#a}\n## B {#a}\n", 'duplicate_unit_id'];
+        yield 'H3 跟 H2 的 {#id} 相同' => ["---\nslug: s\nimport: true\n---\n# T\n## A {#a}\n### A1 {#a}\n", 'duplicate_unit_id'];
+        yield '標題用了導言的 lead' => ["---\nslug: s\nimport: true\n---\n# T\n前言\n## A {#lead}\n", 'duplicate_unit_id'];
+        yield '{#id} 超過 255 字元' => ["---\nslug: s\nimport: true\n---\n# T\n## A {#".str_repeat('a', 256)."}\n", 'unit_id_too_long'];
     }
 
     #[DataProvider('invalidFiles')]
@@ -156,6 +160,16 @@ class ArticleSourceParserTest extends TestCase
         $this->assertTrue($result['import']);
         $this->assertSame($reason, $result['invalid']);
         $this->assertArrayHasKey($reason, ArticleSourceParser::INVALID_REASONS);
+    }
+
+    #[TestDox('{#id} 重複時列出重複的 ID；程式碼區塊裡的、只差大小寫的、剛好 255 字元的不算問題')]
+    public function test_unit_id_checks(): void
+    {
+        $duplicate = $this->parse("---\nslug: s\nimport: true\n---\n# T\n## A {#a}\n## B {#b}\n## C {#a}\n## D {#b}\n");
+        $this->assertSame(['duplicate_unit_id', '重複的 ID：a、b'], [$duplicate['invalid'], $duplicate['invalid_detail']]);
+
+        $fine = $this->parse("---\nslug: s\nimport: true\n---\n# T\n## A {#a}\n```\n## B {#a}\n```\n## C {#A}\n## D {#".str_repeat('a', 255)."}\n");
+        $this->assertSame([null, null], [$fine['invalid'], $fine['invalid_detail']]);
     }
 
     #[TestDox('剛好 255 字的標題與 slug 可以匯入')]

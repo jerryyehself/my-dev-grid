@@ -38,15 +38,20 @@ class ArticleSourceController extends Controller
             .'`link` 把來源記到既有文章上，不改標題與內文。`create`、`update` 時，原稿 front matter 的 '
             .'`about_techniques`、`about_projects`（名稱清單，不分大小寫）會對上站上的技術與專案，新增文章到它們的連結；'
             .'只新增，不刪除也不改既有的連結，重複匯入不會重複，找不到、對上不只一筆或分類不符的名稱不會建立連結，也不會自動新增技術或專案，'
-            .'只在該篇的 `warnings` 回報。伺服器會以 `commit_sha` 那個版本重新讀取，'
+            .'只在該篇的 `warnings` 回報。`create`、`update` 也會把內文依 H2、H3 切成段落單位存起來，'
+            .'標題行尾的 `{#id}` 是段落的固定 ID；ID 重複或超過 255 字元的原稿在清單上是 `invalid`，不能匯入，也不能連結。伺服器會以 `commit_sha` 那個版本重新讀取，'
             .'檔案跟 `expected_blob_sha` 不同、或站上的狀態已經改變時回 409，整批都不寫入，請重新列清單。'
             .'`update` 的 `commit_sha` 比站上那篇上次匯入時的 commit 舊（在它的歷史裡）時也回 409，不會把文章倒回舊內容。'
+            .'判斷不出誰新時（來源 repo 的歷史改寫過、或 GitHub 已經查不到站上記的 commit）同樣回 409，'
+            .'回應的 `unverified_commits` 列出這些項目的索引（`index`）與站上記的 commit（`commit_sha`）；'
+            .'確認要用這個版本更新，把那個 commit 原樣放在該項的 `confirm_unverified_base` 再送一次。'
+            .'站上記的 commit 跟帶來的值不同（例如這段時間又有人匯入過）時照樣回 409，比這次的 commit 新時帶了也不會放行。'
             .'狀態是 `conflict` 的項目要帶 `overwrite_site_edits: true`，並把清單上的 `site_version` 原樣放在 `expected_site_version`，才會更新；'
             .'少了 `expected_site_version` 回 422。站上的標題、日期或內文在列出清單之後又改過時回 409，整批都不寫入，'
             .'不會蓋掉看清單時還沒看到的修改。需要登入。',
     )]
     #[Response(200, type: 'array{commit_sha: string, data: list<array{key: string, action: "create"|"update"|"link", documentation_id: int, title: string, published: bool, warnings: list<array{code: string, message: string, line: int|null}>}>, message: string}')]
-    #[Response(409, '清單已過期（`reason: stale`）或站上的狀態已經改變（`reason: conflict`，包括站上的內容在列出清單之後又改過，key 是 `items.N.expected_site_version`）。`errors` 以請求欄位為 key 列出原因。')]
+    #[Response(409, '清單已過期或要匯入的檔案不能匯入（`reason: stale`）、或站上的狀態已經改變（`reason: conflict`，包括站上的內容在列出清單之後又改過，key 是 `items.N.expected_site_version`）。`errors` 以請求欄位為 key 列出原因。判斷不出來源 commit 的先後、要確認才能更新的項目，key 是 `items.N.confirm_unverified_base`，並列在 `unverified_commits`（`[{index: int, commit_sha: string}]`，沒有這種項目時不會出現）。')]
     #[Response(502, 'GitHub 拒絕請求或回應錯誤，`reason` 說明是哪一種。')]
     #[Response(503, '文章來源未設定、找不到文章分類，或被 GitHub 限流（帶 `Retry-After`）。')]
     public function import(ImportArticleSourcesRequest $request, ArticleSourceService $articleSources): JsonResponse
@@ -61,6 +66,7 @@ class ArticleSourceController extends Controller
             'documentation_id' => isset($item['documentation_id']) ? (int) $item['documentation_id'] : null,
             'overwrite_site_edits' => filter_var($item['overwrite_site_edits'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'expected_site_version' => $item['expected_site_version'] ?? null,
+            'confirm_unverified_base' => $item['confirm_unverified_base'] ?? null,
         ], array_values($data['items']));
 
         return response()->json([

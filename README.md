@@ -6,9 +6,13 @@
 
 借鑑Linked Data三元組的觀念，將做side project或學習特定程式的過程記錄下來。
 
-![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_mechanism.svg?raw=true "本體機制圖：Scope 階層、Relation 三元組、唯讀鎖定規則")
+![概念圖：Documentation（文件）、Technique（使用技術）、Implementation（實際執行）三個基礎類別，兩兩之間各有一對方向相反的箭頭，每支箭頭標示該方向的述詞：Documentation specs Technique、Technique specifiedBy Documentation，Documentation documents Implementation、Implementation documentedBy Documentation，Implementation uses Technique、Technique usedBy Implementation；Technique 另有 requires／isRequiredBy、Implementation 另有 descendantOf／ancestorOf 兩支指回自己的箭頭；子類與其他述詞列在下面 Scope、Relation 兩節的表格](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_concept.svg?raw=true)
 
-![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_concept.svg?raw=true "三大類、子類與跨類關聯圖")
+圖上只畫三個基礎類別，以及類別之間的基礎關聯；每個類別底下的子類、每組關聯底下的子類型，列在下面 Scope、Relation 兩節的表格。
+
+![機制圖：概念圖背後的運作方式，分三塊。一、類別透過指向上層類別的箭頭形成階層，每個類別有一個由類號與子類號組成的參照碼。二、述詞連接主詞類別與受詞類別，畫成兩個三元組：實際執行 uses 使用技術、使用技術 usedBy 實際執行，兩個述詞互為反向（主詞與受詞對調），述詞也可以隸屬於上層述詞成為子述詞。三、邊連接兩筆紀錄，分成跨基礎類別的邊與同一基礎類別內的邊，兩種都帶述詞，同一對紀錄可以同時帶好幾個述詞](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/er_model_mechanism.svg?raw=true)
+
+這張圖是上面概念圖的運作方式，只畫很少變動的部分：類別怎麼分層、述詞怎麼組成、邊怎麼連紀錄；資料表與欄位不畫在圖上。
 
 ### Scope(主詞/受詞)
 
@@ -16,9 +20,56 @@
 
 ![](https://github.com/jerryyehself/my-dev-grid/blob/main/docs/readme/scope_sample.png?raw=true "分類一覽：三大類與各自的子分類（my-dev-grid-front /ontology/scopes）")
 
+基礎類別底下的子類（`Scope` 的第二層，每筆紀錄的 `type` 欄位指向其中一個）：
+
+| 子類型 | 屬於哪個基礎類別 | 意思 |
+| --- | --- | --- |
+| `sourcesite` | Documentation | 官方文件站台，例如 Vue、Laravel 官網 |
+| `document` | Documentation | 靜態文件檔，例如規格書、白皮書 |
+| `post` | Documentation | 單篇文章、部落格文章 |
+| `conversation` | Documentation | 值得引用的 AI 對話紀錄 |
+| `repository` | Documentation | 外部的程式碼庫（包含 skill、工具），`url` 存 repo 網址 |
+| `language` | Technique | 程式語言，例如 PHP、JavaScript |
+| `environment` | Technique | 執行環境，例如 Node.js、Docker |
+| `packagetool` | Technique | 套件管理與建置工具，例如 npm、Composer |
+| `framework` | Technique | 軟體框架，例如 Vue、Laravel |
+| `assistant` | Technique | AI 工具本身，例如 Claude Code、ChatGPT、GitHub Copilot |
+| `work` | Implementation | 非 GitHub repo 形式的產出物，例如作品、成果展示 |
+| `project` | Implementation | GitHub repo 專案，同步進來的每個公開 repo |
+| `problem` | Implementation | 待解決或已記錄的問題、議題 |
+| `picture` | Implementation | 圖像、視覺類的產出物 |
+
 ### Relation
 
-連接不同類別的關係為何
+連接不同類別的關係為何。概念圖上的基礎關聯有五組，每組都是一對方向相反的述詞：
+
+- 文件 ↔ 使用技術：`specs`／`specifiedBy`
+- 文件 ↔ 實際執行：`documents`／`documentedBy`
+- 實際執行 ↔ 使用技術：`uses`／`usedBy`
+- 使用技術 ↔ 使用技術：`requires`／`isRequiredBy`
+- 實際執行 ↔ 實際執行：`descendantOf`／`ancestorOf`
+
+同一組之內，還有意思不同的子類型述詞（兩個名字是一對方向相反的述詞，第一個名字與該組基礎關聯的第一個名字方向相同）：
+
+| 子類型 | 屬於哪個基礎關聯 | 意思 |
+| --- | --- | --- |
+| `about`／`subjectOf` | 文件 ↔ 使用技術（`specs`／`specifiedBy`） | 文章談到某個技術，但不是它的規格或文件 |
+| `targets`／`targetedBy` | 文件 ↔ 使用技術（`specs`／`specifiedBy`） | 這份來源（skill、外掛、工具）是寫給這個技術用的，通常是 AI 工具 |
+| `aboutProject`／`projectSubjectOf` | 文件 ↔ 實際執行（`documents`／`documentedBy`） | 文章談到某個專案，但不是它的文件 |
+| `influences`／`influencedBy` | 文件 ↔ 實際執行（`documents`／`documentedBy`） | 這份來源的規則、做法或概念已經寫進這個實作；還在計畫中的不連 |
+| `isBasisFor`／`isBasedOn` | 文件 ↔ 實際執行（`documents`／`documentedBy`） | 外部 repo（當成文件）是這個實作改作的基礎 |
+| `assisted-by`／`assists` | 實際執行 ↔ 使用技術（`uses`／`usedBy`） | AI 只提供建議，不是直接產出或執行成品；與 `uses`／`usedBy` 並存，不是取代 |
+| `projectAbout`／`subjectOfProject` | 實際執行 ↔ 使用技術（`uses`／`usedBy`） | 專案在講某個技術，但程式裡沒有用到它的證據（只出現在 repo topics） |
+| `isVersionOf`／`hasVersion` | 使用技術 ↔ 使用技術（`requires`／`isRequiredBy`） | 某個版本（例如 Vue 3）是版本留空的那一筆（Vue）的一個版本 |
+| `broader`／`narrower` | 使用技術 ↔ 使用技術（`requires`／`isRequiredBy`） | 詞表的上位與下位：主詞的意思比受詞窄（例如 Vite `broader` 建置工具） |
+| `related`（對稱） | 使用技術 ↔ 使用技術（`requires`／`isRequiredBy`） | 詞表的相關：兩個詞有關聯，但不是上下位 |
+| `accompanies`（對稱） | 實際執行 ↔ 實際執行（`descendantOf`／`ancestorOf`） | 兩個獨立但相伴而生、共同組成同一個產品的 repo，例如前後端拆分 |
+| `precedes`／`succeeds` | 實際執行 ↔ 實際執行（`descendantOf`／`ancestorOf`） | 依建立時間前後相接的同性質練習專案 |
+| `isBasedOnProject`／`isBasisForProject` | 實際執行 ↔ 實際執行（`descendantOf`／`ancestorOf`） | 建置產物與它的來源專案；跟 `descendantOf` 不同，後者是同一個譜系的前後代（含 fork） |
+
+文件 ↔ 文件目前沒有任何述詞，所以概念圖上 Documentation 沒有指回自己的箭頭。
+
+述詞一旦被任何一筆邊用到（反向述詞被用到也算），主詞、受詞、名稱、類號、子類號與上層述詞就鎖定為唯讀；自己被邊用到的述詞也不能刪除，要改標為棄用。
 
 ### 期望目標
 
@@ -86,7 +137,7 @@ php artisan test                        # 全套測試
 
 Cloud Run ＋ Cloud SQL Postgres，`--min-instances=0` 可以縮到零。設計與實際設定見 [`docs/deployment-gcp.md`](docs/deployment-gcp.md)、[`docs/infrastructure-concepts.md`](docs/infrastructure-concepts.md)，workflow 在 `.github/workflows/deploy-cloud-run.yml`。
 
-已經部署在正式環境（服務 `my-dev-grid-api`，區域 `asia-east1`）。平常的 PR 合進整合分支 `develop`，不會部署；每週由 `develop` 開 PR 合併進 `main` 才上線（分支規則見 `CLAUDE.md`「分支策略」）。push 到 `main` 會觸發 workflow，依序做這幾件事：建置並推送映像檔、用 Cloud Run Job 跑 `php artisan migrate --force`、部署新版（先不接流量，對新版的專用網址自動檢查，通過才切流量）、更新每天同步 GitHub 的 Job。同一時間只跑一個部署，後到的排隊（`concurrency`）。
+已經部署在正式環境（服務 `my-dev-grid-api`，區域 `asia-east1`）。平常的 PR 合進整合分支 `develop`，不會部署；每週上線時合進 `main` 才部署（流程見 [`docs/release.md`](docs/release.md)）。push 到 `main` 會觸發 workflow，依序做這幾件事：建置並推送映像檔、用 Cloud Run Job 跑 `php artisan migrate --force`、部署新版（先不接流量，對新版的專用網址自動檢查，通過才切流量）、更新每天同步 GitHub 的 Job。同一時間只跑一個部署，後到的排隊（`concurrency`）。
 
 因為 migration 跑完到新版上線之間，舊版程式還在接流量，資料庫結構變更要照 `CLAUDE.md`「資料庫結構變更的順序」分次上線。改名、刪欄位、改型別、加 NOT NULL 的分次步驟，以及 PostgreSQL 鎖、`lock_timeout`、建索引、回滾的細節，見 [`docs/zero-downtime-migrations.md`](docs/zero-downtime-migrations.md)。
 

@@ -16,8 +16,8 @@ class RelationSeeder extends Seeder
         // 出處」那一列,2026-09-21 結構化)。null 代表自創,理由跟每筆詞條的挑選
         // 邏輯記在回填 migration
         // (backfill_relation_source_vocabulary_from_notes.php)的 docblock,
-        // 這裡不重複貼一次——那支 migration 的 SOURCES 表是這裡的權威副本,
-        // 兩邊要保持一致(有測試守著)。
+        // 這裡不重複貼一次——那支 migration 的 SOURCES 表是當時的快照,
+        // 之後改過的詞條由後續的 migration 疊上去,兩邊要保持一致(有測試守著)。
         $seeds = [
             ['00', '10', 'specs', 'No clean external-vocabulary mapping; closest is Dublin Core dcterms:conformsTo, but direction/semantics don\'t fully align — kept as a project-specific predicate (Documentation specs a Technique).', null, null],
             ['00', '20', 'documents', 'SPDX DOCUMENTATION_OF — Documentation documents an Implementation (SPDX 2.3 relationships spec).', 'spdx', 'DOCUMENTATION_OF'],
@@ -185,35 +185,36 @@ class RelationSeeder extends Seeder
         $this->pairReverse($descendantOf, $ancestorOf);
 
         // 2026-09-11 使用者確認：兩個 repo 共同組成同一個產品（例如前後端
-        // 拆分），彼此獨立但相伴而生，不是誰包含誰的 whole-part。取自 Tillett
-        // (1987) 書目關係分類法的 Accompanying 類別命名——老實記錄：這不是
-        // DCMI/SPDX 那種有固定 predicate URI 的機器可讀詞彙，是分類法的類別
-        // 名稱，沒有更貼切的正式詞彙可用。對稱關係，reverse_id 指向自己。
+        // 拆分），彼此獨立但相伴而生，不是誰包含誰的 whole-part。外部詞彙取 RDA 的
+        // 「is complemented by work」（P10103）：兩個 work 配成一組、沒有哪一個是主要的，
+        // 跟「對等、相伴」的語意相符。對稱關係，reverse_id 指向自己。
+        // 已存在的資料庫由 2026_11_24_000002_map_implementation_relations_to_rda_and_bibframe.php 改值。
         $accompanies = $this->relation([
             'subject_id' => $implementation->id,
             'object_id' => $implementation->id,
             'class_number' => '22',
             'call_number' => '20',
             'name' => 'accompanies',
-            'note' => 'Tillett (1987) bibliographic-relationships taxonomy 的 Accompanying 類別命名（非 DCMI/SPDX 正式詞彙）。對稱關係：兩個獨立但相伴而生、共同組成同一個產品的 repo（例如前後端拆分）。',
-            'source_vocabulary' => 'tillett1987',
-            'source_term' => 'Accompanying',
+            'note' => 'RDA P10103 (is complemented by work), http://rdaregistry.info/Elements/w/P10103 — "Relates a work to a work that is paired with a related work without either work being considered to be predominant." 對稱關係：兩個獨立但相伴而生、共同組成同一個產品的 repo（例如前後端拆分）。',
+            'source_vocabulary' => 'rda',
+            'source_term' => 'P10103',
         ]);
         $this->pairReverse($accompanies, $accompanies);
 
         // 2026-09-11 使用者確認：同性質的練習專案，依建立時間前後相接
         // （啟發式：同樣的技術主題 + 建立時間連續，中間沒有夾著其他主題的
-        // 專案，且間隔在 1 年以內）。同樣取自 Tillett (1987) 的 Sequential
-        // 類別命名，非正式機器可讀詞彙——老實記錄。
+        // 專案，且間隔在 1 年以內）。外部詞彙取 BIBFRAME 的 succeededBy／precededBy。
+        // 注意方向：「A precedes B」就是「A bf:succeededBy B」，所以 precedes 對到 succeededBy，
+        // succeeds 對到 precededBy，不要照字面對反。
         $precedes = $this->relation([
             'subject_id' => $implementation->id,
             'object_id' => $implementation->id,
             'class_number' => '22',
             'call_number' => '30',
             'name' => 'precedes',
-            'note' => 'Tillett (1987) bibliographic-relationships taxonomy 的 Sequential 類別命名（非 DCMI/SPDX 正式詞彙）。依建立時間前後相接的同性質練習專案。',
-            'source_vocabulary' => 'tillett1987',
-            'source_term' => 'Sequential',
+            'note' => 'BIBFRAME succeededBy, http://id.loc.gov/ontologies/bibframe/succeededBy — "Resource that succeeds the resource being described, e.g., later in time or after in a narrative". A precedes B 即 A bf:succeededBy B。依建立時間前後相接的同性質練習專案。',
+            'source_vocabulary' => 'bibframe',
+            'source_term' => 'succeededBy',
         ]);
 
         $succeeds = $this->relation([
@@ -222,9 +223,9 @@ class RelationSeeder extends Seeder
             'class_number' => '22',
             'call_number' => '40',
             'name' => 'succeeds',
-            'note' => 'Reverse of precedes.',
-            'source_vocabulary' => 'tillett1987',
-            'source_term' => 'Sequential',
+            'note' => 'BIBFRAME precededBy, http://id.loc.gov/ontologies/bibframe/precededBy — "Resource that precedes the resource being described, e.g., is earlier in time or before in narrative". Reverse of precedes：A succeeds B 即 A bf:precededBy B。',
+            'source_vocabulary' => 'bibframe',
+            'source_term' => 'precededBy',
         ]);
 
         $this->pairReverse($precedes, $succeeds);
@@ -399,6 +400,32 @@ class RelationSeeder extends Seeder
         }
 
         $this->pairReverse($seeded['subjectOfProject'], $seeded['projectAbout']);
+
+        // 詞表的上下位與相關，借 SKOS 的 broader／narrower／related：
+        // https://www.w3.org/TR/skos-reference/#semantic-relations
+        // 上下位與相關的主詞、受詞都是 Technique，所以跟 requires、isVersionOf 一樣
+        // 用 Technique×Technique 的類號 11，子類號接在 hasVersion（30）後面。broader／narrower 互為反向；
+        // related 是對稱關係，反向指向自己（跟 accompanies 一樣）。邊只存一個方向：上下位存 broader
+        // （下位指向上位），narrower 是反向走時用的名稱。放在最後面，既有述詞種出來的 id 不變。
+        $skosSeeds = [
+            ['40', 'broader', 'SKOS skos:broader — the object Technique is a broader concept than the subject (e.g. Cloudflare Workers broader Cloudflare).'],
+            ['50', 'narrower', 'SKOS skos:narrower — reverse of broader.'],
+            ['60', 'related', 'SKOS skos:related — associative, symmetric link between two Techniques that are neither broader nor narrower than each other (e.g. vue-router related SPA).'],
+        ];
+        foreach ($skosSeeds as [$callNumber, $name, $note]) {
+            $seeded[$name] = $this->relation([
+                'subject_id' => $technique->id,
+                'object_id' => $technique->id,
+                'class_number' => '11',
+                'call_number' => $callNumber,
+                'name' => $name,
+                'note' => $note,
+                'source_vocabulary' => 'skos',
+                'source_term' => $name,
+            ]);
+        }
+        $this->pairReverse($seeded['broader'], $seeded['narrower']);
+        $this->pairReverse($seeded['related'], $seeded['related']);
 
         // $this->createRandomRelation($nonLeadScopes);
     }

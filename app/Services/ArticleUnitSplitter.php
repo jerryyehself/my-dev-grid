@@ -20,6 +20,27 @@ namespace App\Services;
  * - 換行與前端（`headings.ts`）一致：只去掉每行最後一個 `\r`，標題與圍欄判斷只認空格與 tab，
  *   不用 PHP 預設的 `trim()`（會連 `\v`、`\0` 一起吃掉）。
  *
+ * 腳註（判斷方式見 `ArticleFootnotes`）：
+ * - 有被引用的定義從所在單位的 `content` 拿掉，放進引用它的單位的 `footnotes`（取用時接在單位後面），
+ *   同時記下定義原本的行號（`start_line`／`end_line`）。不記定義原本所在的單位：沒有地方讀，
+ *   而且那個單位在清單裡的位置、有沒有 ID 都會變，記了就得跟著重寫。
+ *   定義放在哪裡沒有語意（Pandoc 手冊："need not be placed at the end of the document"），
+ *   放在文末時跟引用句隔得很遠，切段後就跟引用它的那一節分開了。
+ * - 同一個標籤被好幾個單位引用時，每個單位都附一份；同一個單位裡引用好幾次只附一份。
+ * - 定義裡又引用別的腳註時，那個腳註也附給同一個單位。
+ * - 沒有被引用的定義、同一個標籤後面重複的定義（第一個才算數）留在原位，不附給任何單位。
+ * - 引用寫在標題裡也算是那個單位引用的。
+ * - `source` 是單位在原稿裡的原文（標題行以下，腳註定義還沒拿掉），`content` 是拿掉之後的內容。
+ *
+ * 容器：H2 底下有 H3、自己的內容（腳註定義拿掉之後、去掉空白）不超過 `CONTAINER_MAX_CHARS` 字時，
+ * `is_container` 是 true。容器只用來組樹，不當取用單位；仍然留在清單裡，H3 的父指標照常指向它。
+ *
+ * 子片段：導言與 `body` 單位（不含容器）的內容去掉空白後超過 `CHUNK_SOFT_LIMIT` 字時，
+ * 用 `ArticleUnitChunker` 在段落、再不行在句子邊界切成 `chunks`；每片的 `id` 是 `<unit_id>~N`（N 從 1 起算，
+ * 單位還沒有 ID 時是 null），`footnotes` 是這一片引用到的腳註標籤。子片段只給檢索內部用，
+ * 引用與心智圖一律指回原單位。沒超過、或切不開（例如整節是一個大表格）時是 null。
+ * `references` 單位不切：它不是正文的取用單位。
+ *
  * `parent_index` 是父單位在回傳清單裡的位置（0 起算）：H2 的 `unit_id` 可能還是 null（尚未補寫），
  * 這時 `parent_id` 也是 null，靠 `parent_index` 才找得到父單位。
  *
@@ -28,10 +49,34 @@ namespace App\Services;
  *
  * 行號都是 1 起算、相對於傳進來的內文。內容範圍是標題行的下一行到單位最後一行；
  * 單位沒有內容時 `end_line` 是 `start_line - 1`。
+ *
+ * @phpstan-type Section array{unit_id: string|null, parent_id: string|null, parent_index: int|null, heading: string|null, role: string, level: int|null, start_line: int, end_line: int}
+ * @phpstan-type Definition array{label: string, key: string, start_line: int, end_line: int, content: string}
+ * @phpstan-type Footnote array{label: string, content: string, start_line: int, end_line: int}
+ * @phpstan-type Chunk array{id: string|null, content: string, footnotes: list<string>}
+ * @phpstan-type Unit array{unit_id: string|null, parent_id: string|null, parent_index: int|null, heading: string|null, role: string, level: int|null, start_line: int, end_line: int, source: string, content: string, footnotes: list<Footnote>, is_container: bool, chunks: list<Chunk>|null}
  */
 final class ArticleUnitSplitter
 {
     public const LEAD_ID = 'lead';
+
+    /**
+     * 容器 H2 自己的內容上限（去掉空白後的字元數）。
+     *
+     * 依據：已發布的文章裡，有 H3 的 H2 自己的內容只有兩種：只用來分組的（例如「其他取捨」底下直接是 H3，
+     * 0～2 字），以及 362 字以上的正文，中間沒有落在模糊地帶的。20 字留給「以下分三點說明。」這種一句話的引子。
+     */
+    public const CONTAINER_MAX_CHARS = 20;
+
+    /**
+     * 子片段的軟上限（去掉空白後的字元數）。
+     *
+     * 1500 參考 MDKeyChunker 的預設（1500 字元），只有這一個來源，還沒有用這裡的文章校準過。
+     */
+    public const CHUNK_SOFT_LIMIT = 1500;
+
+    /** 子片段 ID 的分隔字元：`{#id}` 只能有英數、`_`、`-`，不會跟單位 ID 撞在一起。 */
+    public const CHUNK_SEPARATOR = '~';
 
     private const REFERENCES_HEADINGS = ['來源', '參考文獻'];
 
@@ -44,32 +89,66 @@ final class ArticleUnitSplitter
     private const ID_PATTERN = '/[ \t]*\{#([A-Za-z0-9][A-Za-z0-9_-]*)\}$/';
 
     /**
-     * @return array{units: list<array{unit_id: string|null, parent_id: string|null, parent_index: int|null, heading: string|null, role: string, level: int|null, start_line: int, end_line: int, content: string}>, duplicate_ids: list<string>}
+     * @return array{units: list<Unit>, duplicate_ids: list<string>}
      */
     public function split(string $body): array
     {
         $lines = array_map(self::stripCr(...), explode("\n", $body));
-        $total = count($lines);
+        $sections = $this->sections($lines);
+        $footnotes = $this->assignFootnotes($sections, $lines);
+        $hasChildren = array_flip(array_filter(array_column($sections, 'parent_index'), fn (?int $index) => $index !== null));
 
         $units = [];
-        $current = $this->newUnit(self::LEAD_ID, null, null, null, 'intro', null, 1);
+        foreach ($sections as $index => $section) {
+            $range = $section['end_line'] < $section['start_line'] ? [] : range($section['start_line'], $section['end_line']);
+            $kept = array_values(array_filter($range, fn (int $line) => ! isset($footnotes['moved'][$line])));
+            $content = implode("\n", array_map(fn (int $line) => $lines[$line - 1], $kept));
+            $keys = $footnotes['keys'][$index];
+            $isContainer = $section['level'] === 2
+                && isset($hasChildren[$index])
+                && ArticleUnitChunker::length($content) <= self::CONTAINER_MAX_CHARS;
+
+            $units[] = $section + [
+                'source' => implode("\n", array_map(fn (int $line) => $lines[$line - 1], $range)),
+                'content' => $content,
+                'footnotes' => array_map(fn (string $key) => $this->footnote($footnotes['definitions'][$key]), $keys),
+                'is_container' => $isContainer,
+                'chunks' => $section['role'] === 'references' || $isContainer
+                    ? null
+                    : $this->chunks($section['unit_id'], $content, $keys, $footnotes['definitions'], $footnotes['nested']),
+            ];
+        }
+
+        return ['units' => $units, 'duplicate_ids' => $this->duplicateIds($units)];
+    }
+
+    /**
+     * 依 H2、H3 切出各單位的範圍、父子關係與角色，還沒有內容。
+     *
+     * @param  list<string>  $lines
+     * @return non-empty-list<Section>
+     */
+    private function sections(array $lines): array
+    {
+        $sections = [];
+        $current = $this->newSection(self::LEAD_ID, null, null, null, 'intro', null, 1);
         $currentH2 = null;
         $h2Index = null;
         $h2Role = 'body';
 
-        foreach ($this->scan($lines) as $number => $heading) {
+        foreach ($this->scan($lines)['headings'] as $number => $heading) {
             if (! in_array($heading['level'], [2, 3], true)) {
                 continue;
             }
 
             $current['end_line'] = $number - 1;
-            $units[] = $current;
+            $sections[] = $current;
 
             if ($heading['level'] === 2) {
                 $role = in_array($heading['text'], self::REFERENCES_HEADINGS, true) ? 'references' : 'body';
                 $h2Role = $role;
                 $currentH2 = $heading['id'];
-                $h2Index = count($units);
+                $h2Index = count($sections);
                 $parent = null;
                 $parentIndex = null;
             } else {
@@ -78,18 +157,13 @@ final class ArticleUnitSplitter
                 $parentIndex = $h2Index;
             }
 
-            $current = $this->newUnit($heading['id'], $parent, $parentIndex, $heading['text'], $role, $heading['level'], $number + 1);
+            $current = $this->newSection($heading['id'], $parent, $parentIndex, $heading['text'], $role, $heading['level'], $number + 1);
         }
 
-        $current['end_line'] = $total;
-        $units[] = $current;
+        $current['end_line'] = count($lines);
+        $sections[] = $current;
 
-        foreach ($units as &$unit) {
-            $unit['content'] = implode("\n", array_slice($lines, $unit['start_line'] - 1, max(0, $unit['end_line'] - $unit['start_line'] + 1)));
-        }
-        unset($unit);
-
-        return ['units' => $units, 'duplicate_ids' => $this->duplicateIds($units)];
+        return $sections;
     }
 
     /**
@@ -100,7 +174,7 @@ final class ArticleUnitSplitter
     {
         $lines = explode("\n", $body);
 
-        foreach ((new self)->scan(array_map(self::stripCr(...), $lines)) as $number => $heading) {
+        foreach ((new self)->scan(array_map(self::stripCr(...), $lines))['headings'] as $number => $heading) {
             if ($heading['id'] === null) {
                 continue;
             }
@@ -114,14 +188,40 @@ final class ArticleUnitSplitter
     }
 
     /**
-     * 逐行判斷是不是標題（跳過程式碼區塊），回傳「行號 => 標題資訊」，不是標題的行不在結果裡。
+     * 每個標題行的資訊（任何層級，程式碼區塊裡的不算），key 是 1 起算的行號。給補寫 `{#id}` 的工具用，
+     * 讓它認標題的方式跟切段完全一樣：`level` 是井號數、`text` 是去掉 `{#id}` 的標題文字、`id` 是明確 ID（沒寫是 null），
+     * `end` 是標題文字結束處在那一行的位元組位置（在收尾的井號與行尾空白之前），沒有 `{#id}` 的標題要補的話就補在這裡。
+     *
+     * @param  list<string>  $lines  原稿的行，可以帶行尾 `\r`
+     * @return array<int, array{level: int, text: string, id: string|null, end: int}>
+     */
+    public static function headings(array $lines): array
+    {
+        return (new self)->scan(array_map(self::stripCr(...), $lines))['headings'];
+    }
+
+    /**
+     * 程式碼區塊（含圍欄行）的行號，1 起算。沒關上的圍欄一直延續到最後一行（CommonMark）。
+     *
+     * @param  list<string>  $lines  已去掉行尾 `\r` 的行
+     * @return array<int, true>
+     */
+    public static function codeLines(array $lines): array
+    {
+        return (new self)->scan($lines)['code'];
+    }
+
+    /**
+     * 逐行判斷是不是標題（跳過程式碼區塊）。`headings` 是「行號 => 標題資訊」，不是標題的行不在裡面；
+     * `code` 是程式碼區塊的行號（含開頭與結尾的圍欄行）。
      *
      * @param  list<string>  $lines
-     * @return array<int, array{level: int, text: string, id: string|null}>
+     * @return array{headings: array<int, array{level: int, text: string, id: string|null, end: int}>, code: array<int, true>}
      */
     private function scan(array $lines): array
     {
         $result = [];
+        $code = [];
         $fence = null; // [字元, 開頭長度]
 
         foreach ($lines as $index => $line) {
@@ -134,30 +234,166 @@ final class ArticleUnitSplitter
                     // 反引號開頭的區塊，資訊字串裡不能再有反引號，否則只是行內程式碼
                     if ($marker[0] !== '`' || ! str_contains($match[2], '`')) {
                         $fence = [$marker[0], strlen($marker)];
+                        $code[$number] = true;
                     }
-                } elseif ($marker[0] === $fence[0] && strlen($marker) >= $fence[1] && preg_match('/^[ \t]*$/', $match[2]) === 1) {
-                    // 關閉圍欄後面只能接空格或 tab（CommonMark）；PHP 的 trim() 還會吃掉 \v、\0，會誤判成關閉
-                    $fence = null;
+                } else {
+                    $code[$number] = true;
+                    if ($marker[0] === $fence[0] && strlen($marker) >= $fence[1] && preg_match('/^[ \t]*$/', $match[2]) === 1) {
+                        // 關閉圍欄後面只能接空格或 tab（CommonMark）；PHP 的 trim() 還會吃掉 \v、\0，會誤判成關閉
+                        $fence = null;
+                    }
                 }
 
                 continue;
             }
 
-            if ($fence !== null || preg_match(self::HEADING_PATTERN, $line, $match) !== 1) {
+            if ($fence !== null) {
+                $code[$number] = true;
+
                 continue;
             }
 
-            $text = trim($match[2], " \t");
+            if (preg_match(self::HEADING_PATTERN, $line, $match, PREG_OFFSET_CAPTURE) !== 1) {
+                continue;
+            }
+
+            [$hashes] = $match[1];
+            [$rawText, $textStart] = $match[2];
+            $end = $textStart + strlen($rawText);
+            $text = trim($rawText, " \t");
             $id = null;
             if (preg_match(self::ID_PATTERN, $text, $idMatch) === 1) {
                 $id = $idMatch[1];
                 $text = trim(substr($text, 0, -strlen($idMatch[0])), " \t");
             }
 
-            $result[$number] = ['level' => strlen($match[1]), 'text' => $text, 'id' => $id];
+            $result[$number] = ['level' => strlen($hashes), 'text' => $text, 'id' => $id, 'end' => $end];
         }
 
+        return ['headings' => $result, 'code' => $code];
+    }
+
+    /**
+     * 決定每個單位附哪些腳註、哪些定義的行要從原單位拿掉。
+     *
+     * 回傳的 `keys` 是每個單位附的腳註（正規化後的標籤，照定義在原稿裡的順序），`moved` 是要拿掉的行號，
+     * `nested` 是每個定義裡又引用到的腳註。
+     *
+     * @param  list<Section>  $sections
+     * @param  list<string>  $lines
+     * @return array{keys: list<list<string>>, moved: array<int, true>, definitions: array<string, Definition>, nested: array<string, list<string>>}
+     */
+    private function assignFootnotes(array $sections, array $lines): array
+    {
+        // 同一個標籤只認第一個定義；後面重複的留在原位。所有定義的行（含重複的）都不拿來找引用：
+        // 開頭的 `[^x]:` 長得像引用，定義裡的引用由 $nested 處理
+        $definitions = [];
+        $definitionLines = [];
+        foreach (ArticleFootnotes::definitions($lines, self::codeLines($lines)) as $definition) {
+            for ($line = $definition['start_line']; $line <= $definition['end_line']; $line++) {
+                $definitionLines[$line] = true;
+            }
+            $definitions[$definition['key']] ??= $definition;
+        }
+
+        $nested = array_map(fn (array $definition) => ArticleFootnotes::referencesInDefinition($definition['content']), $definitions);
+
+        $keys = [];
+        $moved = [];
+        foreach ($sections as $section) {
+            // 標題行也算（導言沒有標題行）
+            $from = $section['level'] === null ? $section['start_line'] : $section['start_line'] - 1;
+            $own = [];
+            for ($line = $from; $line <= $section['end_line']; $line++) {
+                $own[] = isset($definitionLines[$line]) ? '' : $lines[$line - 1];
+            }
+
+            $attached = $this->closure(ArticleFootnotes::references($own), $definitions, $nested);
+            $keys[] = $attached;
+            // 被引用的定義才搬走
+            foreach ($attached as $key) {
+                for ($line = $definitions[$key]['start_line']; $line <= $definitions[$key]['end_line']; $line++) {
+                    $moved[$line] = true;
+                }
+            }
+        }
+
+        return ['keys' => $keys, 'moved' => $moved, 'definitions' => $definitions, 'nested' => $nested];
+    }
+
+    /**
+     * 引用到的腳註，加上它們的定義裡再引用到的（遞迴），只留有定義的，照定義在原稿裡的順序。
+     *
+     * @param  list<string>  $keys
+     * @param  array<string, Definition>  $definitions
+     * @param  array<string, list<string>>  $nested
+     * @return list<string>
+     */
+    private function closure(array $keys, array $definitions, array $nested): array
+    {
+        $found = [];
+        $queue = $keys;
+        while ($queue !== []) {
+            $key = array_shift($queue);
+            if (isset($found[$key]) || ! isset($definitions[$key])) {
+                continue;
+            }
+            $found[$key] = true;
+            array_push($queue, ...$nested[$key]);
+        }
+
+        // 標籤是純數字時陣列 key 會變成整數，轉回字串
+        $result = array_map('strval', array_keys($found));
+        usort($result, fn (string $a, string $b) => $definitions[$a]['start_line'] <=> $definitions[$b]['start_line']);
+
         return $result;
+    }
+
+    /**
+     * @param  Definition  $definition
+     * @return Footnote
+     */
+    private function footnote(array $definition): array
+    {
+        return [
+            'label' => $definition['label'],
+            'content' => $definition['content'],
+            'start_line' => $definition['start_line'],
+            'end_line' => $definition['end_line'],
+        ];
+    }
+
+    /**
+     * 太長的單位切成子片段；不用切或切不開時是 null。
+     *
+     * @param  list<string>  $attached  這個單位附的腳註
+     * @param  array<string, Definition>  $definitions
+     * @param  array<string, list<string>>  $nested
+     * @return list<Chunk>|null
+     */
+    private function chunks(?string $unitId, string $content, array $attached, array $definitions, array $nested): ?array
+    {
+        $pieces = ArticleUnitChunker::chunk($content, self::CHUNK_SOFT_LIMIT);
+        if (count($pieces) < 2) {
+            return null;
+        }
+
+        $chunks = [];
+        foreach ($pieces as $n => $piece) {
+            // 每片只附它自己引用到的腳註（定義裡再引用的也算）。留在原位的定義（沒被引用、重複的）
+            // 開頭的 `[^x]:` 也長得像引用，所以只取這個單位本來就附的那些
+            $keys = array_values(array_intersect(
+                $this->closure(ArticleFootnotes::references(explode("\n", $piece)), $definitions, $nested),
+                $attached,
+            ));
+            $chunks[] = [
+                'id' => $unitId === null ? null : $unitId.self::CHUNK_SEPARATOR.($n + 1),
+                'content' => $piece,
+                'footnotes' => array_map(fn (string $key) => $definitions[$key]['label'], $keys),
+            ];
+        }
+
+        return $chunks;
     }
 
     /** 只去掉一個行尾 `\r`（CRLF 的 CR），跟前端一樣；不用 rtrim，免得連續的 `\r` 全被吃掉。 */
@@ -167,11 +403,11 @@ final class ArticleUnitSplitter
     }
 
     /**
-     * @return array{unit_id: string|null, parent_id: string|null, parent_index: int|null, heading: string|null, role: string, level: int|null, start_line: int, end_line: int, content: string}
+     * @return Section
      */
-    private function newUnit(?string $id, ?string $parent, ?int $parentIndex, ?string $heading, string $role, ?int $level, int $start): array
+    private function newSection(?string $id, ?string $parent, ?int $parentIndex, ?string $heading, string $role, ?int $level, int $start): array
     {
-        return ['unit_id' => $id, 'parent_id' => $parent, 'parent_index' => $parentIndex, 'heading' => $heading, 'role' => $role, 'level' => $level, 'start_line' => $start, 'end_line' => $start - 1, 'content' => ''];
+        return ['unit_id' => $id, 'parent_id' => $parent, 'parent_index' => $parentIndex, 'heading' => $heading, 'role' => $role, 'level' => $level, 'start_line' => $start, 'end_line' => $start - 1];
     }
 
     /**

@@ -79,6 +79,7 @@ class ApiDocsTest extends TestCase
             '/relations', '/relations/{relation}', '/relations/{relation}/edges',
             '/documentations', '/documentations/{documentation}',
             '/techniques', '/techniques/{technique}',
+            '/techniques/{technique}/broader/{broader}', '/techniques/{technique}/related/{related}',
             '/implementations', '/implementations/{implementation}',
             '/graph', '/graph/path',
             '/user', '/auth/login', '/auth/logout', '/auth/refresh', '/auth/session',
@@ -108,11 +109,31 @@ class ApiDocsTest extends TestCase
         $schema = $this->document()['paths']['/graph']['get']['responses']['200']['content']['application/json']['schema'];
 
         $node = $schema['properties']['nodes']['items'];
-        $this->assertSame(['id', 'type', 'label', 'created_at', 'added_at', 'updated_at', 'subtype', 'url', 'active'], array_keys($node['properties']));
+        $this->assertSame(['id', 'type', 'label', 'created_at', 'added_at', 'updated_at', 'subtype', 'url', 'active', 'deprecated', 'replaced_by'], array_keys($node['properties']));
         $this->assertSame(
             ['source', 'target', 'predicate', 'label', 'relation_id', 'added_at', 'stale', 'predicate_deprecated', 'predicate_replaced_by'],
             array_keys($schema['properties']['edges']['items']['properties'])
         );
+    }
+
+    #[TestDox('技術之間上下位與相關的回應在文件中有欄位說明')]
+    public function test_hand_built_semantic_relation_responses_are_described()
+    {
+        $paths = $this->document()['paths'];
+
+        foreach ([
+            ['/techniques/{technique}/broader/{broader}', 'put', '200'],
+            ['/techniques/{technique}/broader/{broader}', 'put', '201'],
+            ['/techniques/{technique}/broader/{broader}', 'delete', '200'],
+            ['/techniques/{technique}/related/{related}', 'put', '200'],
+            ['/techniques/{technique}/related/{related}', 'put', '201'],
+            ['/techniques/{technique}/related/{related}', 'delete', '200'],
+        ] as [$path, $method, $status]) {
+            $schema = $paths[$path][$method]['responses'][$status]['content']['application/json']['schema'];
+            $this->assertSame(['id', 'broader', 'narrower', 'related'], array_keys($schema['properties']['data']['properties']), "{$method} {$path}");
+        }
+        $this->assertArrayHasKey('404', $paths['/techniques/{technique}/broader/{broader}']['delete']['responses']);
+        $this->assertArrayHasKey('422', $paths['/techniques/{technique}/broader/{broader}']['put']['responses']);
     }
 
     #[TestDox('文章匯入清單與匯入結果在文件中有欄位說明')]

@@ -1,0 +1,46 @@
+name: main 來源分支檢查
+
+# 開往 `main` 的 PR，來源分支只能是 `release/*`（每週上線）、`hotfix/*`（嚴重安全修補）
+# 或 `dependabot/*`（Dependabot）。其他分支（例如 `develop`、功能分支）直接開 PR 到 `main` 會失敗。
+# 規則來源見 docs/release.md。
+#
+# 為什麼用 job 檢查：GitHub 的 ruleset 沒辦法限制 PR 的來源（head）分支，
+# 所以改用這個 job，之後再把 `main-source-branch` 設成 `main` 保護規則的必要檢查。
+#
+# 一般的 pull_request 就夠：只讀事件裡的分支名稱，不 checkout、不執行 PR 的程式碼，
+# 權限也不給任何東西。分支名稱是使用者可控的字串，所以只透過 env 傳進 shell，
+# 不直接用 ${{ }} 寫進腳本（避免指令注入）。
+
+on:
+  pull_request:
+    # edited 是為了涵蓋把 PR 的 base 改成 main 的情況
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  main-source-branch:
+    name: main-source-branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: 檢查來源分支
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          # fork 的分支名稱不可信：只接受本 repo 自己的分支
+          if [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "::error::開往 main 的 PR 只能來自本 repo 的分支，這個 PR 來自 '$HEAD_REPO'。"
+            exit 1
+          fi
+          case "$HEAD_REF" in
+            release/* | hotfix/* | dependabot/*)
+              echo "來源分支 '$HEAD_REF' 符合規則，通過。"
+              ;;
+            *)
+              echo "::error::開往 main 的 PR，來源分支只能是 release/*、hotfix/* 或 dependabot/*，目前是 '$HEAD_REF'。平常的 PR 請改對 develop；上線請從 develop 切 release/vX.Y.Z 再開 PR（見 docs/release.md）。"
+              exit 1
+              ;;
+          esac

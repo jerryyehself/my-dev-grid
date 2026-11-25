@@ -38,7 +38,7 @@
 - **切流量的時候兩版並存**：〔引用〕Cloud Run 文件：「In flight requests won't be dropped and may be directed to either a new revision or a previous revision during the transition period.」（[Rollbacks, gradual rollouts, and traffic migration](https://cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration)）。舊實例關閉前，「requests already being processed are given time to complete」（[Container runtime contract](https://cloud.google.com/run/docs/container-contract)）。workflow 用 `deploy-cloudrun` action 帶 `no_traffic: true` 和 `tag`，action 會原樣轉成 `gcloud run deploy --no-traffic --tag`（[action README](https://github.com/google-github-actions/deploy-cloudrun/blob/v2/README.md)）〔引用〕；新 revision 檢查通過後，第 5 步才一次把 100% 流量切過去，兩版並存發生在這一步〔推論，來自 workflow〕。
 - **同步 Job 最後才換**：上面查的三次成功部署，同步 Job 那步（現在的第 6 步）都沒有真的執行（2026-10-06 03:03 那次標記 `skipped`，另外兩次耗時 0 秒）〔實測〕，看起來是 `CLOUD_RUN_SYNC_JOB` 沒設〔推論〕。如果 Job 其實存在，它會一直跑某個舊映像檔，結構也要讓它能跑〔推論〕。repo 變數這邊看不到，所以〔未驗證〕。
 - **連續合併會跳過中間的部署**：workflow 的 `concurrency` 一個 group 只留一個排隊中的 run。〔引用〕GitHub 文件：「By default, any existing pending job or workflow in the same concurrency group will be canceled and the new queued job or workflow will take its place.」（[Control the concurrency of workflows and jobs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)）。所以分次部署的第 1 步和第 2 步如果合併得太近，第 1 步可能根本沒部署，第 2 步的 migration 就會在**第 0 版**程式還在跑的時候執行〔推論〕。
-- **合進 `develop` 不部署，上線才部署**：平常的 PR 合進 `develop`，每週由 `develop` → `main` 的上線 PR 一次部署（`CLAUDE.md`「分支策略」）。同一週合進 `develop` 的 PR 會在同一次部署裡一起跑 migration，效果跟上一條「連續合併」一樣，第 1 步和第 2 步會變成同一次部署〔推論〕。所以這份文件說的「一次部署」，在這個流程裡就是「一次上線」。
+- **合進 `develop` 不部署，上線才部署**：平常的 PR 合進 `develop`，每週上線一次才部署（流程見 [`release.md`](release.md)）。同一次上線帶到的 PR 會在同一次部署裡一起跑 migration，效果跟上一條「連續合併」一樣，第 1 步和第 2 步會變成同一次部署〔推論〕。所以這份文件說的「一次部署」，在這個流程裡就是「一次上線」。
 
 **結論**：每一支 migration 都要讓「上一版程式」和「這一版程式」在新結構上都能正常跑。一次部署（一次上線）只能做一步。
 
@@ -433,7 +433,7 @@ gcloud run services update-traffic my-dev-grid-api --region=asia-east1 --to-revi
 
 ### 6.2 結構退版：往前修
 
-照 §5.4 的理由，寫一支新的 migration 修正，走一般流程：PR 進 `develop`、下一次上線部署；等不了的話，從 `main` 開修補 PR（`CLAUDE.md`「分支策略」）。
+照 §5.4 的理由，寫一支新的 migration 修正，走一般流程：PR 進 `develop`、下一次上線部署；等不了的話，從 `main` 開修補 PR（[`release.md`](release.md) §7）。
 
 ### 6.3 會刪資料的 migration：先備份
 
@@ -456,7 +456,7 @@ gcloud run services update-traffic my-dev-grid-api --region=asia-east1 --to-revi
 - [ ] 這次的程式跑在**上一版的結構**上也正常嗎？（退版、切流量的時候會發生）
 - [ ] 刪除、改名、改型別、加 NOT NULL 都已經照 §3 拆開，這個 PR 只做其中一步？
 - [ ] 上一步已經上線：部署綠燈、流量 100% 在新 revision 上，而且不會跟這次在同一個上線 PR 裡？（§1、§3.0）
-- [ ] 上線 PR 的說明列出了這一批所有的 migration？（`CLAUDE.md`「分支策略」）
+- [ ] 上線 PR 的說明列出了這一批所有的 migration？（[`release.md`](release.md) §10）
 - [ ] 會拿 ACCESS EXCLUSIVE 的語句加了 `SET LOCAL lock_timeout`？（§4.2）
 - [ ] 新索引用了 `->online()`，而且那支 migration 設了 `$withinTransaction = false`、只放這一個索引？唯一索引在 PostgreSQL 上照 §4.3 分兩步，掛約束那一句包在自己的 transaction 裡加 `SET LOCAL lock_timeout`？（§4.3）
 - [ ] `change()` 把要保留的 `default`、`comment`、`nullable` 都寫出來了？（§5.2）

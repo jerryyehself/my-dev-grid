@@ -7,6 +7,7 @@ use Database\Factories\DocumentationFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Documentation extends Model
@@ -72,6 +73,17 @@ class Documentation extends Model
         return (int) $this->status === self::STATUS_PUBLISHED;
     }
 
+    /**
+     * 是不是文章：分類是 `post`。匯入新文章時用同一個條件（最小 id 的 `post` 分類）選分類，
+     * 文章才有段落單位（`article_units`）；其他分類的文件不切段。
+     */
+    public function isArticle(): bool
+    {
+        $post = Scope::where('name', 'post')->orderBy('id')->first();
+
+        return $post !== null && (int) $this->type === $post->id;
+    }
+
     public function scope()
     {
         return $this->belongsTo(Scope::class, 'type');
@@ -85,5 +97,16 @@ class Documentation extends Model
     public function implementations()
     {
         return $this->belongsToMany(Implementation::class)->withPivot('relation_id')->withTimestamps();
+    }
+
+    /**
+     * 文章切成的段落單位（`article_units`），含已標成移除的；只有文章（`isArticle()`）會寫入。
+     * 沒有排序：單位在文章裡的順序不存，以原稿為準。
+     *
+     * @return HasMany<ArticleUnit, $this>
+     */
+    public function units(): HasMany
+    {
+        return $this->hasMany(ArticleUnit::class, 'article_id');
     }
 }
